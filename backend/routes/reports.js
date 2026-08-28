@@ -13,7 +13,7 @@ router.use(authenticate);
 // Prefix dangerous values to prevent CSV formula injection in spreadsheets.
 // Values starting with = + - @ \t \r or " can be interpreted as formulas.
 function sanitizeCSVValue(v) {
-  if (v == null) return "";
+  if (v === null || v === undefined) return "";
   const s = String(v);
   if (!s.length) return "";
   const first = s.charAt(0);

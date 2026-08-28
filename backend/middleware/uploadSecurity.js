@@ -81,6 +81,7 @@ function detectMime(buffer) {
 // ── Sanitize filename (keep unicode letters, digits, safe chars) ──
 function sanitizeFilename(name) {
   return name
+    // eslint-disable-next-line no-control-regex -- Intentional: block control chars in filenames
     .replace(/[<>:"/\\|?*\x00-\x1f]/g, "_")  // Replace dangerous chars
     .replace(/_{2,}/g, "_")                      // Collapse multiple underscores
     .replace(/^[._-]+/, "")                       // Remove leading dots/dashes
@@ -158,13 +159,13 @@ function validateUploadedFile(context) {
         }
       } catch (err) {
         // If we can't read the file, it's malformed
-        try { fs.unlinkSync(file.path); } catch (_) {}
+        try { fs.unlinkSync(file.path); } catch (_) { /* cleanup best-effort */ }
         return res.status(400).json({ error: "Could not read uploaded file. It may be corrupted." });
       }
 
       // 2. File size check (belt-and-suspenders with multer limits)
       if (file.size > config.maxFileSize) {
-        try { fs.unlinkSync(file.path); } catch (_) {}
+        try { fs.unlinkSync(file.path); } catch (_) { /* cleanup best-effort */ }
         return res.status(400).json({ error: `File too large. Maximum: ${config.maxFileSize / 1024 / 1024}MB` });
       }
 
@@ -181,7 +182,7 @@ function validateUploadedFile(context) {
       const resolved = require("path").resolve(file.path);
       const uploadsDir = require("path").resolve(__dirname, `../uploads/${context === "inspection" ? "inspections" : "documents"}`);
       if (!resolved.startsWith(uploadsDir)) {
-        try { fs.unlinkSync(file.path); } catch (_) {}
+        try { fs.unlinkSync(file.path); } catch (_) { /* cleanup best-effort */ }
         return res.status(400).json({ error: "Invalid file path." });
       }
     }

@@ -115,7 +115,7 @@ function drawTable(doc, startY, headers, rowData, colWidths, formatters = {}) {
     row.forEach((cell, idx) => {
       const width = colWidths[idx];
       const formatter = formatters[idx];
-      const val = formatter ? formatter(cell) : (cell == null ? "—" : String(cell));
+      const val = formatter ? formatter(cell) : (cell === null || cell === undefined ? "—" : String(cell));
       doc.text(val, rx + 5, y + 5, { width: width - 10, height: 12, overflow: "ellipses", lineBreak: false });
       rx += width;
     });

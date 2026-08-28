@@ -1,6 +1,5 @@
 // backend/middleware/validate.js — Zod validation middleware
 // Wraps Zod schemas into Express middleware for body, query, and params validation.
-const { ZodError } = require("zod");
 
 /**
  * Creates Express middleware that validates req.body, req.query, or req.params

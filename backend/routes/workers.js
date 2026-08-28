@@ -10,7 +10,7 @@ router.use(authenticate);
 function parseCustomAttrs(rows){
   return rows.map(r=>{
     if(r.custom_attributes && typeof r.custom_attributes==="string"){
-      try{ r.custom_attributes=JSON.parse(r.custom_attributes); }catch(e){}
+      try{ r.custom_attributes=JSON.parse(r.custom_attributes); }catch(_){ /* keep as string */ }
     }
     return r;
   });

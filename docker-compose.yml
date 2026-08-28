@@ -12,7 +12,6 @@ services:
       MARIADB_PASSWORD: ${DB_PASSWORD:?ERROR: Set DB_PASSWORD in .env file}
     volumes:
       - db_data:/var/lib/mysql
-      # Auto-import schema on first run (seed users created separately via seed.js)
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
@@ -20,6 +19,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     networks:
       - ddcms_net
 
@@ -47,9 +50,18 @@ services:
       MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-5}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
     volumes:
-      # Persist uploaded inspection photos
       - uploads_data:/app/uploads
       - logs_data:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5000/api/health"]
+      start_period: 15s
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     networks:
       - ddcms_net
 
@@ -61,16 +73,30 @@ services:
     container_name: ddcms_frontend
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "${FRONTEND_PORT:-80}:80"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/"]
+      start_period: 5s
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128M
     networks:
       - ddcms_net
 
 volumes:
   db_data:
+    driver: local
   uploads_data:
+    driver: local
   logs_data:
+    driver: local
 
 networks:
   ddcms_net:

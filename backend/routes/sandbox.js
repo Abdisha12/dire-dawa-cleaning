@@ -5,7 +5,7 @@ const router = express.Router();
 
 // Server-side HTML entity escaping for dynamic content
 function esc(s) {
-  if (s == null) return "";
+  if (s === null || s === undefined) return "";
   return String(s)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
