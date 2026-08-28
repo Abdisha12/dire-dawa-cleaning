@@ -148,15 +148,52 @@ export const api = {
       opts
     ).then((res) => (Array.isArray(res) ? { zones: res } : res) as { zones: import("@/types").SaferZone[] }),
 
-  // Businesses / Workers / Payments / Inspections
+  // Businesses — backend returns array directly for some routes
   getBusinesses: (params: Record<string, string> = {}, opts?: FetchOptions) =>
-    req<{ businesses: import("@/types").Business[] }>("GET", `/businesses?${new URLSearchParams(params).toString()}`, undefined, opts),
+    req<import("@/types").Business[] | { businesses: import("@/types").Business[] }>(
+      "GET",
+      `/businesses?${new URLSearchParams(params).toString()}`,
+      undefined,
+      opts
+    ).then((res) => (Array.isArray(res) ? res : (res as { businesses: import("@/types").Business[] }).businesses)),
+  // Workers — backend returns array directly (workers.js: res.json(rows))
   getWorkers: (params: Record<string, string> = {}, opts?: FetchOptions) =>
-    req<{ workers: import("@/types").Worker[] }>("GET", `/workers?${new URLSearchParams(params).toString()}`, undefined, opts),
+    req<import("@/types").Worker[] | { workers: import("@/types").Worker[] }>(
+      "GET",
+      `/workers?${new URLSearchParams(params).toString()}`,
+      undefined,
+      opts
+    ).then((res) => (Array.isArray(res) ? res : (res as { workers: import("@/types").Worker[] }).workers)),
+  getWorkerStats: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<import("@/types").Worker[]>("GET", `/workers/summary/stats?${new URLSearchParams(params).toString()}`, undefined, opts),
+  createWorker: (data: Record<string, unknown>, opts?: FetchOptions) =>
+    req<{ id: number }>("POST", "/workers", data, opts),
+  updateWorker: (id: number, data: Record<string, unknown>, opts?: FetchOptions) =>
+    req<{ message: string }>("PUT", `/workers/${id}`, data, opts),
+  deleteWorker: (id: number, opts?: FetchOptions) => req<{ message: string }>("DELETE", `/workers/${id}`, undefined, opts),
+  bulkAttendance: (data: { date: string; records: { workerId: number; present: boolean; bonus?: number | null }[] }, opts?: FetchOptions) =>
+    req<{ message: string }>("POST", "/workers/attendance/bulk", data, opts),
+  getAttendance: (workerId: number, params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<unknown[]>("GET", `/workers/${workerId}/attendance?${new URLSearchParams(params).toString()}`, undefined, opts),
+  getWorkerSalary: (workerId: number, opts?: FetchOptions) =>
+    req<unknown[]>("GET", `/workers/${workerId}/salary`, undefined, opts),
+  paySalary: (workerId: number, data: Record<string, unknown>, opts?: FetchOptions) =>
+    req<{ id: number }>("POST", `/workers/${workerId}/salary`, data, opts),
+  // Payments
   getPayments: (params: Record<string, string> = {}, opts?: FetchOptions) =>
-    req<{ payments: import("@/types").Payment[] }>("GET", `/payments?${new URLSearchParams(params).toString()}`, undefined, opts),
+    req<{ payments: import("@/types").Payment[] } | import("@/types").Payment[]>(
+      "GET",
+      `/payments?${new URLSearchParams(params).toString()}`,
+      undefined,
+      opts
+    ).then((res) => (Array.isArray(res) ? { payments: res } : res) as { payments: import("@/types").Payment[] }),
   getInspections: (params: Record<string, string> = {}, opts?: FetchOptions) =>
-    req<{ inspections: import("@/types").Inspection[] }>("GET", `/inspections?${new URLSearchParams(params).toString()}`, undefined, opts),
+    req<{ inspections: import("@/types").Inspection[] } | import("@/types").Inspection[]>(
+      "GET",
+      `/inspections?${new URLSearchParams(params).toString()}`,
+      undefined,
+      opts
+    ).then((res) => (Array.isArray(res) ? { inspections: res } : res) as { inspections: import("@/types").Inspection[] }),
 
   // Notifications
   getNotifications: (params: Record<string, string> = {}, opts?: FetchOptions) =>
