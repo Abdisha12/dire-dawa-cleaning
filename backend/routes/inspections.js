@@ -2,6 +2,7 @@ const express=require("express");
 const multer=require("multer");
 const path=require("path");
 const fs=require("fs");
+const crypto=require("crypto");
 const db=require("../config/db");
 const audit=require("../services/auditService");
 const {authenticate,requireRole}=require("../middleware/auth");
@@ -11,7 +12,7 @@ router.use(authenticate);
 
 const storage=multer.diskStorage({
   destination:(req,file,cb)=>{const d=path.join(__dirname,"../uploads/inspections");fs.mkdirSync(d,{recursive:true});cb(null,d);},
-  filename:(req,file,cb)=>cb(null,`insp_${Date.now()}_${Math.random().toString(36).slice(2)}${path.extname(file.originalname).toLowerCase()}`)
+  filename:(req,file,cb)=>cb(null,`insp_${Date.now()}_${crypto.randomBytes(6).toString("hex")}${path.extname(file.originalname).toLowerCase()}`)
 });
 const upload=multer({storage,limits:{fileSize:5*1024*1024},fileFilter:createFileFilter("inspection")});
 

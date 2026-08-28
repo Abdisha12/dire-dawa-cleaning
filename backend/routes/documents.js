@@ -3,6 +3,7 @@ const express = require("express");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 const db = require("../config/db");
 const audit = require("../services/auditService");
 const { authenticate, requireRole } = require("../middleware/auth");
@@ -18,7 +19,7 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `doc_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
+    cb(null, `doc_${Date.now()}_${crypto.randomBytes(6).toString("hex")}${ext}`);
   }
 });
 

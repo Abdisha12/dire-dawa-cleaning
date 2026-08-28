@@ -7,8 +7,16 @@ const paymentService = require("../services/paymentService");
 const { authenticate, requireRole } = require("../middleware/auth");
 const router = express.Router();
 
+// Dedicated HMAC key for payment webhook signatures (separate from SESSION_SECRET)
+const PAYMENT_WEBHOOK_SECRET = process.env.PAYMENT_WEBHOOK_SECRET || process.env.SESSION_SECRET;
+if (!PAYMENT_WEBHOOK_SECRET) {
+  logger.warn("No PAYMENT_WEBHOOK_SECRET or SESSION_SECRET set — webhook signature verification disabled");
+}
+
 function genReceipt() {
-  return "RCP-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).substr(2, 4).toUpperCase();
+  const ts = Date.now().toString(36).toUpperCase();
+  const rand = crypto.randomBytes(6).toString("hex").toUpperCase();
+  return `RCP-${ts}-${rand}`;
 }
 
 // ── Webhook Callback Routes (MUST be before authenticate middleware) ──
@@ -21,12 +29,11 @@ async function handleGatewayCallback(req, res, next, gateway) {
     
     // Signature verification for Sandbox / Mock callbacks
     const dataToVerify = { tradeNo, outTradeNo, status, amount, timestamp: payload.timestamp };
-    const expectedSignature = crypto
-      .createHmac("sha256", process.env.SESSION_SECRET || "mock_secret")
-      .update(JSON.stringify(dataToVerify))
-      .digest("hex");
+    const expectedSignature = PAYMENT_WEBHOOK_SECRET
+      ? crypto.createHmac("sha256", PAYMENT_WEBHOOK_SECRET).update(JSON.stringify(dataToVerify)).digest("hex")
+      : null;
 
-    if (signature !== expectedSignature) {
+    if (!PAYMENT_WEBHOOK_SECRET || signature !== expectedSignature) {
       logger.warn(`Invalid signature received in ${gateway} callback`);
       return res.status(400).json({ error: "Invalid signature" });
     }

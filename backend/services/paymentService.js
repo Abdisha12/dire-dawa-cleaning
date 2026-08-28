@@ -73,9 +73,10 @@ class PaymentService {
       timestamp: Date.now()
     };
 
-    // Sign it using mock sign
+    // Sign using dedicated payment webhook secret (falls back to session secret for sandbox)
+    const secret = process.env.PAYMENT_WEBHOOK_SECRET || process.env.SESSION_SECRET || "mock_secret";
     payload.signature = crypto
-      .createHmac("sha256", process.env.SESSION_SECRET || "mock_secret")
+      .createHmac("sha256", secret)
       .update(JSON.stringify(payload))
       .digest("hex");
 
