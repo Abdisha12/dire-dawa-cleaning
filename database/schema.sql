@@ -383,6 +383,48 @@ INSERT IGNORE INTO tools (name,category,quantity,condition_status,safer_zone_id)
   ('Bleach Chemical 20L','chemical',5,'good',2),
   ('Wheelbarrow','equipment',3,'fair',2);
 
+-- ── Performance indexes ───────────────────────────────────────
+-- Added based on query analysis of all route modules.
+-- These cover the most frequent WHERE, JOIN, ORDER BY, and GROUP BY patterns.
+
+-- Highest impact: leader filtering used in ~15+ query patterns
+CREATE INDEX idx_sz_leader ON safer_zones(leader_id);
+
+-- Payment queries: status/period filtering, dashboard, analytics, reports
+CREATE INDEX idx_payment_status_period ON payments(status, year, month);
+
+-- Inspection photo N+1 elimination
+CREATE INDEX idx_insp_photo_inspid ON inspection_photos(inspection_id);
+
+-- Inspection date range queries and ORDER BY
+CREATE INDEX idx_insp_date ON inspections(date);
+
+-- Attendance date range queries across all workers (analytics, summaries)
+CREATE INDEX idx_attendance_date ON attendance(date);
+
+-- Worker zone JOIN in every worker list/summary query
+CREATE INDEX idx_worker_zone ON workers(safer_zone_id);
+
+-- Zone report composite: list filtering + notification scanner
+CREATE INDEX idx_zr_zone_period_status ON zone_reports(safer_zone_id, report_year, report_month, status);
+
+-- Business zone JOIN in payment queries
+CREATE INDEX idx_biz_zone ON businesses(safer_zone_id);
+
+-- User role filtering (leaders endpoint, notification targeting)
+CREATE INDEX idx_users_role_active ON users(role, is_active);
+
+-- Kebele collector JOIN
+CREATE INDEX idx_kebele_collector ON kebeles(collector_id);
+
+-- Session cleanup on login (expires_at range delete)
+CREATE INDEX idx_session_expiry ON sessions(expires_at);
+
+-- ── Zone report uniqueness ───────────────────────────────────
+-- Prevent duplicate reports for the same zone + month + year.
+-- The application already checks, but this is the database-level guard.
+CREATE UNIQUE INDEX uq_zr_zone_period ON zone_reports(safer_zone_id, report_month, report_year);
+
 -- ── Application user least-privilege grants ───────────────────
 -- The MariaDB Docker image creates 'ddcms'@'%' via MARIADB_USER/MARIADB_PASSWORD.
 -- Revoke broad privileges and grant only what the application needs.

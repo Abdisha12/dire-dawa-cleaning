@@ -6,6 +6,8 @@ const crypto=require("crypto");
 const db=require("../config/db");
 const audit=require("../services/auditService");
 const {authenticate,requireRole}=require("../middleware/auth");
+const validate=require("../middleware/validate");
+const schemas=require("../middleware/schemas");
 const {createFileFilter,validateUploadedFile,handleMulterError}=require("../middleware/uploadSecurity");
 const router=express.Router();
 router.use(authenticate);
@@ -57,6 +59,7 @@ router.get("/:id",async(req,res,next)=>{
 });
 
 router.post("/",requireRole("admin","collector","leader"),
+  validate(schemas.createInspection),
   upload.array("photos",10),
   validateUploadedFile("inspection"),
   handleMulterError,
@@ -85,6 +88,7 @@ router.post("/",requireRole("admin","collector","leader"),
 });
 
 router.put("/:id",requireRole("admin","collector","leader"),
+  validate(schemas.updateInspection),
   upload.array("photos",10),
   validateUploadedFile("inspection"),
   handleMulterError,

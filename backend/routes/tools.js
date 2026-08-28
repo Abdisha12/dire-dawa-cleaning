@@ -1,6 +1,8 @@
 const express=require("express");
 const db=require("../config/db");
 const {authenticate,requireRole}=require("../middleware/auth");
+const validate=require("../middleware/validate");
+const schemas=require("../middleware/schemas");
 const router=express.Router();
 router.use(authenticate);
 
@@ -20,7 +22,7 @@ router.get("/",async(req,res,next)=>{
   }catch(err){next(err);}
 });
 
-router.post("/",requireRole("admin","collector","leader"),async(req,res,next)=>{
+router.post("/",requireRole("admin","collector","leader"),validate(schemas.createTool),async(req,res,next)=>{
   try{
     const {name,category,quantity,conditionStatus,saferZoneId,notes,acquiredDate}=req.body;
     if(!name||!saferZoneId) return res.status(400).json({error:"name and saferZoneId required"});
@@ -35,7 +37,7 @@ router.post("/",requireRole("admin","collector","leader"),async(req,res,next)=>{
   }catch(err){next(err);}
 });
 
-router.put("/:id",requireRole("admin","collector","leader"),async(req,res,next)=>{
+router.put("/:id",requireRole("admin","collector","leader"),validate(schemas.updateTool),async(req,res,next)=>{
   try{
     const {name,category,quantity,conditionStatus,notes}=req.body;
     // Leader can only edit tools in their own zone

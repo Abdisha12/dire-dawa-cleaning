@@ -3,6 +3,8 @@ const bcrypt=require("bcryptjs");
 const db=require("../config/db");
 const audit=require("../services/auditService");
 const {authenticate,requireRole}=require("../middleware/auth");
+const validate=require("../middleware/validate");
+const schemas=require("../middleware/schemas");
 const router=express.Router();
 router.use(authenticate);
 
@@ -33,7 +35,7 @@ router.get("/leaders",requireRole("admin","collector"),async(req,res,next)=>{
   }catch(err){next(err);}
 });
 
-router.post("/",requireRole("admin"),async(req,res,next)=>{
+router.post("/",requireRole("admin"),validate(schemas.createUser),async(req,res,next)=>{
   try{
     const {username,password,fullName,faydaId,phone,role}=req.body;
     if(!username||!password||!fullName||!role) return res.status(400).json({error:"username,password,fullName,role required"});
@@ -49,7 +51,7 @@ router.post("/",requireRole("admin"),async(req,res,next)=>{
   }
 });
 
-router.put("/:id",requireRole("admin"),async(req,res,next)=>{
+router.put("/:id",requireRole("admin"),validate(schemas.updateUser),async(req,res,next)=>{
   try{
     const {fullName,faydaId,phone,role,isActive}=req.body;
     const [old]=await db.execute("SELECT full_name,fayda_id,phone,role,is_active FROM users WHERE id=?",[req.params.id]);
@@ -60,7 +62,7 @@ router.put("/:id",requireRole("admin"),async(req,res,next)=>{
   }catch(err){next(err);}
 });
 
-router.put("/:id/password",async(req,res,next)=>{
+router.put("/:id/password",validate(schemas.changePassword),async(req,res,next)=>{
   try{
     const tid=parseInt(req.params.id);
     const isAdmin=req.user.role==="admin";

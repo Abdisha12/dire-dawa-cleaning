@@ -5,10 +5,12 @@ const db=require("../config/db");
 const logger=require("../config/logger");
 const audit=require("../services/auditService");
 const {authenticate}=require("../middleware/auth");
+const validate=require("../middleware/validate");
+const schemas=require("../middleware/schemas");
 const router=express.Router();
 const HOURS=parseInt(process.env.SESSION_EXPIRY_HOURS)||8;
 
-router.post("/login",async(req,res,next)=>{
+router.post("/login",validate(schemas.login),async(req,res,next)=>{
   try{
     const {username,password}=req.body;
     if(!username||!password) return res.status(400).json({error:"Username and password required"});

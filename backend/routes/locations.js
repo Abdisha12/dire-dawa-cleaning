@@ -1,6 +1,8 @@
 const express=require("express");
 const db=require("../config/db");
 const {authenticate,requireRole}=require("../middleware/auth");
+const validate=require("../middleware/validate");
+const schemas=require("../middleware/schemas");
 const router=express.Router();
 router.use(authenticate);
 
@@ -18,7 +20,7 @@ router.get("/kebeles",async(req,res,next)=>{
   }catch(err){next(err);}
 });
 
-router.put("/kebeles/:id",requireRole("admin"),async(req,res,next)=>{
+router.put("/kebeles/:id",requireRole("admin"),validate(schemas.updateKebele),async(req,res,next)=>{
   try{
     const {collectorId}=req.body;
     await db.execute("UPDATE kebeles SET collector_id=? WHERE id=?",[collectorId||null,req.params.id]);
@@ -68,7 +70,7 @@ router.get("/safer-zones/:id",async(req,res,next)=>{
   }catch(err){next(err);}
 });
 
-router.post("/safer-zones",requireRole("admin"),async(req,res,next)=>{
+router.post("/safer-zones",requireRole("admin"),validate(schemas.createZone),async(req,res,next)=>{
   try{
     const {name,kebeleId,leaderId,description}=req.body;
     if(!name||!kebeleId) return res.status(400).json({error:"name and kebeleId required"});
@@ -86,7 +88,7 @@ router.post("/safer-zones",requireRole("admin"),async(req,res,next)=>{
   }
 });
 
-router.put("/safer-zones/:id",requireRole("admin"),async(req,res,next)=>{
+router.put("/safer-zones/:id",requireRole("admin"),validate(schemas.updateZone),async(req,res,next)=>{
   try{
     const {name,leaderId,description}=req.body;
     // unassign leader from other zone first

@@ -7,6 +7,8 @@ const crypto = require("crypto");
 const db = require("../config/db");
 const audit = require("../services/auditService");
 const { authenticate, requireRole } = require("../middleware/auth");
+const validate = require("../middleware/validate");
+const schemas = require("../middleware/schemas");
 const { createFileFilter, validateUploadedFile, handleMulterError } = require("../middleware/uploadSecurity");
 
 const router = express.Router();
@@ -122,7 +124,7 @@ router.get("/:id/download", async (req, res, next) => {
 });
 
 // PUT /api/documents/:id — update metadata
-router.put("/:id", requireRole("admin", "collector", "leader"), async (req, res, next) => {
+router.put("/:id", requireRole("admin", "collector", "leader"), validate(schemas.updateDocument), async (req, res, next) => {
   try {
     const { title, description, category } = req.body;
     await db.execute(

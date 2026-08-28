@@ -5,6 +5,8 @@ const logger = require("../config/logger");
 const audit = require("../services/auditService");
 const paymentService = require("../services/paymentService");
 const { authenticate, requireRole } = require("../middleware/auth");
+const validate = require("../middleware/validate");
+const schemas = require("../middleware/schemas");
 const router = express.Router();
 
 // Dedicated HMAC key for payment webhook signatures (separate from SESSION_SECRET)
@@ -65,7 +67,7 @@ router.post("/callback/cbebirr", (req, res, next) => handleGatewayCallback(req, 
 // ── Authenticated Routes ──
 router.use(authenticate);
 
-router.get("/summary/dashboard", async (req, res, next) => {
+router.get("/summary/dashboard", validate(schemas.dashboardQuery, "query"), async (req, res, next) => {
   try {
     const y = req.query.year || new Date().getFullYear();
     const m = req.query.month || new Date().getMonth() + 1;
@@ -123,7 +125,7 @@ router.get("/", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post("/", requireRole("admin", "collector", "leader"), async (req, res, next) => {
+router.post("/", requireRole("admin", "collector", "leader"), validate(schemas.createPayment), async (req, res, next) => {
   try {
     const { businessId, amount, method, month, year, notes } = req.body;
     if (!businessId || !amount || !month || !year) return res.status(400).json({error: "businessId,amount,month,year required"});
@@ -192,7 +194,7 @@ router.get("/:id/verify", async (req, res, next) => {
   }
 });
 
-router.put("/:id", requireRole("admin", "collector"), async (req, res, next) => {
+router.put("/:id", requireRole("admin", "collector"), validate(schemas.updatePayment), async (req, res, next) => {
   try {
     const { amount, method, status, notes } = req.body;
     const [old] = await db.execute("SELECT amount,method,status,notes FROM payments WHERE id=?", [req.params.id]);

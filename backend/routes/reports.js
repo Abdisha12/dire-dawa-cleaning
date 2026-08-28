@@ -1,6 +1,8 @@
 const express = require("express");
 const db = require("../config/db");
 const { authenticate } = require("../middleware/auth");
+const validate = require("../middleware/validate");
+const schemas = require("../middleware/schemas");
 const PDFDocument = require("pdfkit");
 const { generatePaymentsPDF, generatePayrollPDF, generateInspectionsPDF } = require("../services/pdfService");
 const { generatePaymentsExcel, generatePayrollExcel, generateInspectionsExcel, generateMonthlySummaryExcel } = require("../services/excelService");
@@ -34,7 +36,7 @@ function toCSV(rows) {
   return [h, ...lines].join("\r\n");
 }
 
-router.get("/payments/monthly", async (req, res, next) => {
+router.get("/payments/monthly", validate(schemas.reportQuery, "query"), async (req, res, next) => {
   try {
     const y = req.query.year || new Date().getFullYear();
     const m = req.query.month || new Date().getMonth() + 1;
@@ -73,7 +75,7 @@ router.get("/payments/monthly", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get("/payments/yearly", async (req, res, next) => {
+router.get("/payments/yearly", validate(schemas.reportQuery, "query"), async (req, res, next) => {
   try {
     const y = req.query.year || new Date().getFullYear();
     const [rows] = await db.execute(
@@ -86,7 +88,7 @@ router.get("/payments/yearly", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get("/workers/monthly", async (req, res, next) => {
+router.get("/workers/monthly", validate(schemas.reportQuery, "query"), async (req, res, next) => {
   try {
     const y = req.query.year || new Date().getFullYear();
     const m = req.query.month || new Date().getMonth() + 1;
@@ -130,7 +132,7 @@ router.get("/workers/monthly", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get("/inspections", async (req, res, next) => {
+router.get("/inspections", validate(schemas.reportQuery, "query"), async (req, res, next) => {
   try {
     const { from, to } = req.query;
     let sql = `SELECT i.date,k.name AS kebele,sz.name AS zone,i.status,i.notes,

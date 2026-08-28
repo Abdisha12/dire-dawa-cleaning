@@ -2,6 +2,8 @@ const express=require("express");
 const db=require("../config/db");
 const audit=require("../services/auditService");
 const {authenticate,requireRole}=require("../middleware/auth");
+const validate=require("../middleware/validate");
+const schemas=require("../middleware/schemas");
 const router=express.Router();
 router.use(authenticate);
 
@@ -38,7 +40,7 @@ router.get("/summary/stats",async(req,res,next)=>{
   }catch(err){next(err);}
 });
 
-router.post("/attendance/bulk",requireRole("admin","collector","leader"),async(req,res,next)=>{
+router.post("/attendance/bulk",requireRole("admin","collector","leader"),validate(schemas.bulkAttendance),async(req,res,next)=>{
   try{
     const {date,records}=req.body;
     if(!date||!Array.isArray(records)||!records.length)
@@ -67,7 +69,7 @@ router.get("/",async(req,res,next)=>{
   }catch(err){next(err);}
 });
 
-router.post("/",requireRole("admin","collector","leader"),async(req,res,next)=>{
+router.post("/",requireRole("admin","collector","leader"),validate(schemas.createWorker),async(req,res,next)=>{
   try{
     const {fullName,contact,faydaId,dailyWage,saferZoneId,customAttributes}=req.body;
     if(!fullName) return res.status(400).json({error:"fullName required"});
@@ -87,7 +89,7 @@ router.post("/",requireRole("admin","collector","leader"),async(req,res,next)=>{
   }
 });
 
-router.put("/:id",requireRole("admin","collector","leader"),async(req,res,next)=>{
+router.put("/:id",requireRole("admin","collector","leader"),validate(schemas.updateWorker),async(req,res,next)=>{
   try{
     const {fullName,contact,faydaId,dailyWage,saferZoneId,isActive,customAttributes}=req.body;
     const [old]=await db.execute("SELECT full_name,contact,daily_wage,safer_zone_id,is_active FROM workers WHERE id=?",[req.params.id]);
@@ -109,7 +111,7 @@ router.delete("/:id",requireRole("admin","collector"),async(req,res,next)=>{
   catch(err){next(err);}
 });
 
-router.get("/:id/attendance",async(req,res,next)=>{
+router.get("/:id/attendance",validate(schemas.workerAttendanceQuery,"query"),async(req,res,next)=>{
   try{
     const {from,to}=req.query;
     let sql="SELECT a.*,u.full_name AS recorder_name FROM attendance a JOIN users u ON u.id=a.recorded_by WHERE a.worker_id=?";
@@ -131,7 +133,7 @@ router.get("/:id/salary",async(req,res,next)=>{
   }catch(err){next(err);}
 });
 
-router.post("/:id/salary",requireRole("admin","collector","leader"),async(req,res,next)=>{
+router.post("/:id/salary",requireRole("admin","collector","leader"),validate(schemas.paySalary),async(req,res,next)=>{
   try{
     const {amount,paidAt,periodFrom,periodTo,notes}=req.body;
     if(!amount||!paidAt||!periodFrom||!periodTo) return res.status(400).json({error:"amount,paidAt,periodFrom,periodTo required"});

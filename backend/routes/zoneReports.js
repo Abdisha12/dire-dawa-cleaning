@@ -2,6 +2,8 @@ const express=require("express");
 const db=require("../config/db");
 const audit=require("../services/auditService");
 const {authenticate,requireRole}=require("../middleware/auth");
+const validate=require("../middleware/validate");
+const schemas=require("../middleware/schemas");
 const router=express.Router();
 router.use(authenticate);
 
@@ -63,7 +65,7 @@ router.get("/:id",async(req,res,next)=>{
 });
 
 // Leader creates/submits report for their zone
-router.post("/",requireRole("admin","collector","leader"),async(req,res,next)=>{
+router.post("/",requireRole("admin","collector","leader"),validate(schemas.createZoneReport),async(req,res,next)=>{
   try{
     const {saferZoneId,reportDate,reportMonth,reportYear,workersPresent,workersAbsent,
            collectionTotal,issuesReported,actionsTaken,toolsStatus}=req.body;
@@ -85,10 +87,13 @@ router.post("/",requireRole("admin","collector","leader"),async(req,res,next)=>{
        issuesReported||null,actionsTaken||null,toolsStatus||null]);
     audit.log(req,"CREATE","zone_report",r.insertId,null,{saferZoneId,reportDate,status:"draft",workersPresent,workersAbsent,collectionTotal});
     res.status(201).json({id:r.insertId,status:"draft"});
-  }catch(err){next(err);}
+  }catch(err){
+    if(err.code==="ER_DUP_ENTRY") return res.status(409).json({error:"A report already exists for this zone/month/year"});
+    next(err);
+  }
 });
 
-router.put("/:id",requireRole("admin","collector","leader"),async(req,res,next)=>{
+router.put("/:id",requireRole("admin","collector","leader"),validate(schemas.updateZoneReport),async(req,res,next)=>{
   try{
     const {workersPresent,workersAbsent,collectionTotal,issuesReported,actionsTaken,toolsStatus,status}=req.body;
     // Leader can only update their own zone's report
@@ -130,7 +135,7 @@ router.put("/:id",requireRole("admin","collector","leader"),async(req,res,next)=
 });
 
 // Collector reviews / approves report
-router.put("/:id/review",requireRole("admin","collector"),async(req,res,next)=>{
+router.put("/:id/review",requireRole("admin","collector"),validate(schemas.reviewZoneReport),async(req,res,next)=>{
   try{
     const {status,reviewerNotes}=req.body;
     if(!["reviewed","approved"].includes(status))
