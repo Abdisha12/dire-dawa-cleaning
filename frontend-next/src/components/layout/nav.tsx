@@ -58,7 +58,12 @@ const NAV: NavItem[] = [
   { id: "system", label: "System", icon: "system", roles: ["admin"], group: "Settings", disabled: true, badge: "Soon" },
 ];
 
-const MOBILE_PRIMARY = ["dashboard", "inspections", "workers", "payments", "notifications"];
+const MOBILE_PRIMARY: Array<{ id: string; label: string; href: string; icon: keyof typeof Icons }> = [
+  { id: "home", label: "Home", href: "/dashboard", icon: "dashboard" },
+  { id: "operations", label: "Operations", href: "/operations/workers", icon: "workers" },
+  { id: "map", label: "Map", href: "/locations/kebeles", icon: "gis" }, // GIS Map future, placeholder to kebeles
+  { id: "notifications", label: "Notifications", href: "/community/notifications", icon: "notifications" },
+];
 
 // Reusable permission-aware filter
 export function useFilteredNav(role: Role | undefined) {
@@ -269,34 +274,112 @@ export function BottomNav() {
   const pathname = usePathname();
   const user = typeof window !== "undefined" ? getUser() : null;
   const role = user?.role as Role | undefined;
-  const allowedIds = new Set(
-    NAV.filter((n) => !n.disabled && n.href && (role ? n.roles.includes(role) : false)).map((n) => n.id)
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  // Primary 4 + More
+  const primary = MOBILE_PRIMARY.filter((m) => {
+    // Map "Home" to dashboard role check
+    if (m.id === "home") return role ? (["admin", "collector", "leader", "viewer"] as Role[]).includes(role) : false;
+    if (m.id === "operations") return role ? (["admin", "collector", "leader"] as Role[]).includes(role) : false;
+    if (m.id === "map") return true; // GIS future, show to all but disabled handled via NAV? keep visible
+    if (m.id === "notifications") return role ? (["admin", "collector", "leader", "viewer"] as Role[]).includes(role) : false;
+    return true;
+  });
+
+  // More drawer: remaining NAV items not in primary, filtered by role
+  const moreItems = NAV.filter(
+    (n) => !["dashboard", "workers", "gis", "notifications"].includes(n.id) && !n.disabled && n.href && (role ? n.roles.includes(role) : false)
   );
-  const items = NAV.filter((n) => MOBILE_PRIMARY.includes(n.id) && allowedIds.has(n.id) && n.href);
 
   return (
-    <nav
-      className="fixed inset-x-0 bottom-0 z-[var(--z-bottomnav)] flex h-[var(--bottom-nav-h)] items-center justify-around border-t border-[var(--border)] bg-[var(--surface)] shadow-[0_-2px_10px_rgba(0,0,0,0.08)] md:hidden"
-      aria-label="Mobile navigation"
-    >
-      {items.map((n) => {
-        const active = n.href ? pathname === n.href || pathname.startsWith(n.href + "/") : false;
-        const Icon = Icons[n.icon as keyof typeof Icons];
-        return (
-          <Link
-            key={n.id}
-            href={n.href!}
-            className={`flex h-full flex-1 flex-col items-center justify-center gap-0.5 text-xs font-medium ${
-              active ? "text-[var(--primary)] font-bold" : "text-[var(--text-muted)]"
-            }`}
-            aria-current={active ? "page" : undefined}
-          >
-            <Icon size={18} aria-hidden />
-            <span>{n.label.split(" ")[0]}</span>
-          </Link>
-        );
-      })}
-    </nav>
+    <>
+      <nav
+        className="fixed inset-x-0 bottom-0 z-[var(--z-bottomnav)] flex h-[var(--bottom-nav-h)] items-center justify-around border-t border-[var(--border)] bg-[var(--surface)] shadow-[0_-2px_10px_rgba(0,0,0,0.08)] md:hidden"
+        aria-label="Mobile navigation"
+      >
+        {primary.map((m) => {
+          const isMap = m.id === "map";
+          const isOperations = m.id === "operations";
+          const href = m.href;
+          const Icon = Icons[m.icon];
+          const active = pathname === href || pathname.startsWith(href + "/");
+          // Map is future GIS — show disabled soon
+          const isDisabled = isMap; // GIS Map not yet built
+          if (isDisabled) {
+            return (
+              <span
+                key={m.id}
+                className="flex h-full flex-1 flex-col items-center justify-center gap-0.5 text-xs font-medium text-[var(--text-muted)] opacity-50"
+                aria-disabled="true"
+              >
+                <Icon size={18} aria-hidden />
+                <span>{m.label}</span>
+              </span>
+            );
+          }
+          return (
+            <Link
+              key={m.id}
+              href={href}
+              className={`flex h-full min-h-[44px] flex-1 flex-col items-center justify-center gap-0.5 text-xs font-medium ${
+                active ? "text-[var(--primary)] font-bold" : "text-[var(--text-muted)]"
+              }`}
+              aria-current={active ? "page" : undefined}
+            >
+              <Icon size={18} aria-hidden />
+              <span>{m.label}</span>
+            </Link>
+          );
+        })}
+        <button
+          onClick={() => setMoreOpen(true)}
+          className="flex h-full min-h-[44px] flex-1 flex-col items-center justify-center gap-0.5 text-xs font-medium text-[var(--text-muted)]"
+          aria-label="More navigation"
+          aria-expanded={moreOpen}
+        >
+          <Icons.menu size={18} aria-hidden />
+          <span>More</span>
+        </button>
+      </nav>
+
+      {/* More drawer — reusable for future mobile screens */}
+      {moreOpen && (
+        <div className="fixed inset-0 z-[var(--z-modal)] flex md:hidden" role="dialog" aria-modal="true" aria-label="More navigation">
+          <button aria-label="Close more" onClick={() => setMoreOpen(false)} className="flex-1 bg-black/40" />
+          <div className="flex h-full w-full max-w-xs flex-col bg-[var(--surface)] shadow-[var(--shadow-lg)]">
+            <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
+              <span className="font-semibold">More</span>
+              <button
+                onClick={() => setMoreOpen(false)}
+                aria-label="Close"
+                className="rounded p-2 hover:bg-[var(--gray-100)]"
+              >
+                <Icons.close size={18} aria-hidden />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              {moreItems.map((n) => {
+                const Icon = Icons[n.icon];
+                return (
+                  <Link
+                    key={n.id}
+                    href={n.href!}
+                    onClick={() => setMoreOpen(false)}
+                    className="flex items-center gap-3 rounded px-3 py-2.5 text-sm hover:bg-[var(--gray-100)]"
+                  >
+                    <Icon size={18} aria-hidden />
+                    {n.label}
+                  </Link>
+                );
+              })}
+              {moreItems.length === 0 && (
+                <p className="p-3 text-sm text-[var(--text-muted)]">No additional items for your role.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

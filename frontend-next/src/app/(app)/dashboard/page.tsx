@@ -34,6 +34,25 @@ export default function DashboardPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>Operational overview</CardTitle>
+          <Badge variant="blue">Placeholder — charts later</Badge>
+        </CardHeader>
+        {/* Skeletons for future dashboard charts — not migrated yet */}
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <div className="text-label">Monthly revenue (future chart)</div>
+            <div className="h-32 rounded bg-[var(--gray-100)] animate-pulse" aria-hidden />
+          </div>
+          <div className="space-y-2">
+            <div className="text-label">Attendance (future)</div>
+            <div className="h-32 rounded bg-[var(--gray-100)] animate-pulse" aria-hidden />
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-[var(--text-muted)]">Charts and detailed statistics will be migrated in a later phase. Backend remains authoritative.</p>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>9-Kebele Overview (admin)</CardTitle>
           <Badge variant="blue">City-wide</Badge>
         </CardHeader>
