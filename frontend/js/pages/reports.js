@@ -131,14 +131,14 @@ async function renderReports() {
         <div class="table-wrap" style="max-height:280px;overflow-y:auto">
           <table><thead><tr><th>Business</th><th>Zone</th><th>Amount</th><th>Method</th><th>Status</th></tr></thead>
             <tbody>${data.map(r => `<tr>
-              <td>${r.business}</td><td>${r.zone || "—"}</td>
+              <td>${escapeHtml(r.business)}</td><td>${escapeHtml(r.zone || "—")}</td>
               <td>${fmtETB(r.amount)}</td>
-              <td><span class="badge badge-gray">${r.method}</span></td>
+              <td><span class="badge badge-gray">${escapeHtml(r.method)}</span></td>
               <td>${statusBadge(r.status)}</td>
             </tr>`).join("") || "<tr><td colspan=\"5\" class=\"empty\">No data</td></tr>"}</tbody>
           </table>
         </div>`;
-    } catch (err) { el.innerHTML = `<p style="color:var(--red)">${err.message}</p>`; }
+    } catch (err) { el.innerHTML = `<p style="color:var(--red)">${escapeHtml(err.message)}</p>`; }
   });
 
   document.getElementById("btn-export-pay-csv").addEventListener("click", () => {
@@ -192,7 +192,7 @@ async function renderReports() {
           });
         }
       }
-    } catch (err) { el.innerHTML = `<p style="color:var(--red)">${err.message}</p>`; }
+    } catch (err) { el.innerHTML = `<p style="color:var(--red)">${escapeHtml(err.message)}</p>`; }
   }
   document.getElementById("btn-load-yearly").addEventListener("click", loadYearly);
   loadYearly();
@@ -209,14 +209,14 @@ async function renderReports() {
         <div class="table-wrap" style="max-height:280px;overflow-y:auto">
           <table><thead><tr><th>Worker</th><th>Zone</th><th>Present</th><th>Absent</th><th>Bonus</th><th>Gross</th></tr></thead>
             <tbody>${data.map(r => `<tr>
-              <td>${r.full_name}</td><td>${r.zone || "—"}</td>
+              <td>${escapeHtml(r.full_name)}</td><td>${escapeHtml(r.zone || "—")}</td>
               <td><span class="badge badge-green">${r.days_present}</span></td>
               <td><span class="badge badge-red">${r.days_absent}</span></td>
               <td>${fmtETB(r.total_bonus)}</td><td><strong>${fmtETB(r.gross)}</strong></td>
             </tr>`).join("") || "<tr><td colspan=\"6\" class=\"empty\">No data</td></tr>"}</tbody>
           </table>
         </div>`;
-    } catch (err) { el.innerHTML = `<p style="color:var(--red)">${err.message}</p>`; }
+    } catch (err) { el.innerHTML = `<p style="color:var(--red)">${escapeHtml(err.message)}</p>`; }
   });
 
   document.getElementById("btn-export-worker-csv").addEventListener("click", () => {
@@ -245,12 +245,12 @@ async function renderReports() {
         <div class="table-wrap" style="max-height:280px;overflow-y:auto">
           <table><thead><tr><th>Date</th><th>Kebele</th><th>Zone</th><th>Status</th><th>Inspector</th><th>Photos</th></tr></thead>
             <tbody>${data.map(r => `<tr>
-              <td>${fmtDate(r.date)}</td><td>${r.kebele}</td><td>${r.zone || "—"}</td>
-              <td>${statusBadge(r.status)}</td><td>${r.inspector}</td><td>${r.photo_count}</td>
+              <td>${fmtDate(r.date)}</td><td>${escapeHtml(r.kebele)}</td><td>${escapeHtml(r.zone || "—")}</td>
+              <td>${statusBadge(r.status)}</td><td>${escapeHtml(r.inspector)}</td><td>${r.photo_count}</td>
             </tr>`).join("") || "<tr><td colspan=\"6\" class=\"empty\">No data</td></tr>"}</tbody>
           </table>
         </div>`;
-    } catch (err) { el.innerHTML = `<p style="color:var(--red)">${err.message}</p>`; }
+    } catch (err) { el.innerHTML = `<p style="color:var(--red)">${escapeHtml(err.message)}</p>`; }
   });
 
   document.getElementById("btn-export-insp-csv").addEventListener("click", () => {

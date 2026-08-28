@@ -53,9 +53,9 @@ function renderShell() {
         <div class="sidebar-user">
           <div class="${avatarCls}">${(user?.fullName || "U")[0].toUpperCase()}</div>
           <div>
-            <div style="font-weight:600;font-size:.8rem">${user?.fullName || ""}</div>
+            <div style="font-weight:600;font-size:.8rem">${escapeHtml(user?.fullName || "")}</div>
             <div style="font-size:.68rem;opacity:.6;text-transform:capitalize">${role}</div>
-            ${zone ? `<div class="zone-badge">📍 ${zone.name}</div>` : ""}
+            ${zone ? `<div class="zone-badge">📍 ${escapeHtml(zone.name)}</div>` : ""}
           </div>
         </div>
         <button class="btn-logout" id="btn-logout">⏻ Logout</button>
@@ -76,7 +76,7 @@ function renderShell() {
         <div style="font-size:.75rem;color:var(--gray-500);display:flex;align-items:center;gap:.4rem">
           ${role === "admin" ? "🔴 Admin"
       : role === "collector" ? "🔵 Collector"
-        : role === "leader" && zone ? `purple Leader · ${zone.name}`
+        : role === "leader" && zone ? `🟣 Leader · ${escapeHtml(zone.name)}`
           : "👁 Viewer"}
         </div>
       </header>

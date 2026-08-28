@@ -27,7 +27,7 @@ async function renderAuditLog() {
       renderRows(data.rows || []);
       renderPagination("audit-pagination", data.page, data.pages, loadData);
     } catch (err) {
-      if (container) container.innerHTML = `<tr><td colspan="6" style="color:var(--red);text-align:center;padding:1.5rem">${err.message}</td></tr>`;
+      if (container) container.innerHTML = `<tr><td colspan="6" style="color:var(--red);text-align:center;padding:1.5rem">${escapeHtml(err.message)}</td></tr>`;
     }
   }
 
@@ -58,9 +58,9 @@ async function renderAuditLog() {
       return `
         <tr>
           <td style="white-space:nowrap;font-size:.8rem;color:var(--gray-500)">${fmtDate(r.created_at)} ${new Date(r.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</td>
-          <td><strong>${r.user_name || "System/Unknown"}</strong> ${r.user_role ? `<span class="badge badge-gray">${r.user_role}</span>` : ""}</td>
+          <td><strong>${escapeHtml(r.user_name || "System/Unknown")}</strong> ${r.user_role ? `<span class="badge badge-gray">${escapeHtml(r.user_role)}</span>` : ""}</td>
           <td><span class="badge ${actionClass}">${r.action}</span></td>
-          <td><code style="font-size:.78rem;background:var(--gray-100);padding:.15rem .4rem;border-radius:4px">${r.entity_type}${r.entity_id ? ` #${r.entity_id}` : ""}</code></td>
+          <td><code style="font-size:.78rem;background:var(--gray-100);padding:.15rem .4rem;border-radius:4px">${escapeHtml(r.entity_type)}${r.entity_id ? ` #${r.entity_id}` : ""}</code></td>
           <td style="font-size:.75rem;color:var(--gray-500)">${r.ip_address || "—"}</td>
           <td>${details}</td>
         </tr>
@@ -69,11 +69,11 @@ async function renderAuditLog() {
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;font-size:.78rem">
               <div>
                 <strong style="color:var(--red)">Previous Values:</strong>
-                <pre style="background:var(--white);padding:.6rem;border:1px solid var(--gray-200);border-radius:6px;overflow-x:auto;margin-top:.3rem">${r.old_values ? JSON.stringify(r.old_values, null, 2) : "None"}</pre>
+                <pre style="background:var(--white);padding:.6rem;border:1px solid var(--gray-200);border-radius:6px;overflow-x:auto;margin-top:.3rem">${r.old_values ? safeJsonDisplay(r.old_values) : "None"}</pre>
               </div>
               <div>
                 <strong style="color:var(--green)">New Values:</strong>
-                <pre style="background:var(--white);padding:.6rem;border:1px solid var(--gray-200);border-radius:6px;overflow-x:auto;margin-top:.3rem">${r.new_values ? JSON.stringify(r.new_values, null, 2) : "None"}</pre>
+                <pre style="background:var(--white);padding:.6rem;border:1px solid var(--gray-200);border-radius:6px;overflow-x:auto;margin-top:.3rem">${r.new_values ? safeJsonDisplay(r.new_values) : "None"}</pre>
               </div>
             </div>
           </td>

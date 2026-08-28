@@ -3,13 +3,29 @@ const paymentService = require("../services/paymentService");
 const logger = require("../config/logger");
 const router = express.Router();
 
+// Server-side HTML entity escaping for dynamic content
+function esc(s) {
+  if (s == null) return "";
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 router.get("/sandbox-checkout", async (req, res) => {
   const { txId, amount, gateway, ref, business } = req.query;
 
-  // Render a premium mockup checkout page for Telebirr / CBE Birr
+  // Sanitize all user-controlled values before HTML insertion
+  const safeTxId = esc(txId);
+  const safeRef = esc(ref);
+  const safeBusiness = esc(decodeURIComponent(business || "Dire Dawa Business"));
+
+  // Validate gateway is one of the expected values
   const isTelebirr = gateway === "telebirr";
   const gatewayTitle = isTelebirr ? "Telebirr Sandbox Portal" : "CBE Birr Sandbox Portal";
-  const brandColor = isTelebirr ? "#d9383a" : "#1a5fb4"; // Telebirr red vs CBE blue
+  const brandColor = isTelebirr ? "#d9383a" : "#1a5fb4";
   const logo = isTelebirr ? "📱" : "🏦";
 
   const html = `
@@ -143,19 +159,19 @@ router.get("/sandbox-checkout", async (req, res) => {
         <div class="info-card">
           <div class="info-row">
             <span class="label">Business</span>
-            <span class="value">${decodeURIComponent(business || "Dire Dawa Business")}</span>
+            <span class="value">${safeBusiness}</span>
           </div>
           <div class="info-row">
             <span class="label">Tx ID</span>
-            <span class="value">${txId}</span>
+            <span class="value">${safeTxId}</span>
           </div>
           <div class="info-row">
             <span class="label">Reference</span>
-            <span class="value">${ref}</span>
+            <span class="value">${safeRef}</span>
           </div>
           <div class="info-row" style="padding-top: 1rem;">
             <span class="label" style="align-self: center;">Amount due</span>
-            <span class="value price">${parseFloat(amount).toFixed(2)} ETB</span>
+            <span class="value price">${esc(parseFloat(amount).toFixed(2))} ETB</span>
           </div>
         </div>
 
@@ -166,10 +182,10 @@ router.get("/sandbox-checkout", async (req, res) => {
       </div>
 
       <script>
-        const txId = "${txId}";
-        const amount = "${amount}";
-        const gateway = "${gateway}";
-        const ref = "${ref}";
+        const txId = ${JSON.stringify(txId || "")};
+        const amount = ${JSON.stringify(amount || "")};
+        const gateway = ${JSON.stringify(gateway || "")};
+        const ref = ${JSON.stringify(ref || "")};
 
         async function triggerCallback(status) {
           const btnApprove = document.getElementById("btn-approve");

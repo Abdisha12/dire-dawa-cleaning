@@ -15,7 +15,7 @@ async function renderBusinesses(){
       <div class="toolbar">
         ${role!=="leader"?`<select class="form-control" id="biz-filter-kebele" style="width:160px">
           <option value="">All Kebeles</option>
-          ${kebeles.map(k=>`<option value="${k.id}">${k.name}</option>`).join("")}
+          ${kebeles.map(k=>`<option value="${k.id}">${escapeHtml(k.name)}</option>`).join("")}
         </select>`:""}
         <select class="form-control" id="biz-filter-type" style="width:140px">
           <option value="">All Types</option>
@@ -52,7 +52,7 @@ async function renderBusinesses(){
     });
     if(canEdit) document.getElementById("btn-add-biz")?.addEventListener("click",()=>openBizModal(null,kebeles));
   }catch(err){
-    content.innerHTML=`<div class="empty"><div class="icon">⚠️</div><p>${err.message}</p></div>`;
+    content.innerHTML=`<div class="empty"><div class="icon">⚠️</div><p>${escapeHtml(err.message)}</p></div>`;
   }
 }
 
@@ -64,16 +64,16 @@ function renderBizRows(kebeles,data=_bizData){
   if(!slice.length){tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="icon">🏪</div><p>No businesses found</p></div></td></tr>`;return;}
   tbody.innerHTML=slice.map(b=>`
     <tr>
-      <td><strong>${b.name}</strong></td>
-      <td>${b.owner_name}<br><small style="color:var(--gray-500)">${b.owner_fayda_id||""}</small></td>
-      <td><span class="badge badge-gray">${b.type}</span></td>
-      <td>${b.safer_zone_name||"—"}</td><td>${b.kebele_name||"—"}</td>
+      <td><strong>${escapeHtml(b.name)}</strong></td>
+      <td>${escapeHtml(b.owner_name)}<br><small style="color:var(--gray-500)">${escapeHtml(b.owner_fayda_id||"")}</small></td>
+      <td><span class="badge badge-gray">${escapeHtml(b.type)}</span></td>
+      <td>${escapeHtml(b.safer_zone_name||"—")}</td><td>${escapeHtml(b.kebele_name||"—")}</td>
       <td>${fmtETB(b.monthly_target)}</td>
       <td>${b.is_active?statusBadge("active"):"<span class=\"badge badge-gray\">Inactive</span>"}</td>
       ${canEdit?`<td style="white-space:nowrap">
         <button class="btn btn-sm btn-outline" onclick="openBizModal(${b.id},null)">✏️</button>
         ${isAdmin?`<button class="btn btn-sm btn-danger" style="margin-left:.3rem" onclick="deleteBiz(${b.id})">🗑</button>`:""}
-        <button class="btn btn-sm btn-success" style="margin-left:.3rem" onclick="openPayModal(${b.id},'${b.name.replace(/'/g,"\'")}',${b.monthly_target})">💳 Pay</button>
+        <button class="btn btn-sm btn-success" style="margin-left:.3rem" onclick="openPayModal(${b.id},${escapeJsStr(b.name)},${b.monthly_target})">💳 Pay</button>
       </td>`:""}
     </tr>`).join("");
   renderPagination("biz-pagination",_bizPage,pages,p=>{_bizPage=p;renderBizRows(kebeles);});
@@ -88,27 +88,27 @@ async function openBizModal(id,kebelesArg){
   buildModal("biz-modal",id?"Edit Business":"Add Business",`
     <form id="biz-form" class="form-grid">
       <div class="form-group"><label>Business Name *</label>
-        <input class="form-control" id="bf-name" value="${biz?.name||""}" required>
+        <input class="form-control" id="bf-name" value="${escapeAttr(biz?.name||"")}" required>
         <span class="form-error"></span></div>
       <div class="form-group"><label>Owner Name *</label>
-        <input class="form-control" id="bf-owner" value="${biz?.owner_name||""}" required>
+        <input class="form-control" id="bf-owner" value="${escapeAttr(biz?.owner_name||"")}" required>
         <span class="form-error"></span></div>
       <div class="form-group"><label>Owner Fayda/ID</label>
-        <input class="form-control" id="bf-fayda" value="${biz?.owner_fayda_id||""}">
+        <input class="form-control" id="bf-fayda" value="${escapeAttr(biz?.owner_fayda_id||"")}">
         <span class="form-error"></span></div>
       <div class="form-group"><label>Owner Phone</label>
-        <input class="form-control" id="bf-phone" value="${biz?.owner_phone||""}"></div>
+        <input class="form-control" id="bf-phone" value="${escapeAttr(biz?.owner_phone||"")}"></div>
       <div class="form-group"><label>Business Type</label>
         <select class="form-control" id="bf-type">
           ${TYPES.map(t=>`<option value="${t}" ${biz?.type===t?"selected":""}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`).join("")}
         </select></div>
       ${zone?`<input type="hidden" id="bf-zone" value="${zone.id}">
         <div class="form-group"><label>Zone</label>
-          <input class="form-control" value="${zone.name}" disabled></div>`:`
+          <input class="form-control" value="${escapeAttr(zone.name)}" disabled></div>`:`
       <div class="form-group"><label>Kebele *</label>
         <select class="form-control" id="bf-kebele" required>
           <option value="">Select Kebele</option>
-          ${kebeles.map(k=>`<option value="${k.id}" ${biz?.kebele_id==k.id?"selected":""}>${k.name}</option>`).join("")}
+          ${kebeles.map(k=>`<option value="${k.id}" ${biz?.kebele_id==k.id?"selected":""}>${escapeHtml(k.name)}</option>`).join("")}
         </select><span class="form-error"></span></div>
       <div class="form-group"><label>Safer Zone *</label>
         <select class="form-control" id="bf-zone" required>
@@ -123,7 +123,7 @@ async function openBizModal(id,kebelesArg){
           <option value="0" ${biz?.is_active==0?"selected":""}>Inactive</option>
         </select></div>`:""}
       <div class="form-group" style="grid-column:1/-1"><label>Notes</label>
-        <textarea class="form-control" id="bf-notes" rows="2">${biz?.notes||""}</textarea></div>
+        <textarea class="form-control" id="bf-notes" rows="2">${escapeHtml(biz?.notes||"")}</textarea></div>
     </form>`,
     `<button class="btn btn-outline" onclick="closeModal('biz-modal')">Cancel</button>
      <button class="btn btn-primary" id="biz-save">💾 Save</button>`
@@ -136,7 +136,7 @@ async function openBizModal(id,kebelesArg){
       if(!kebeleId){zoneEl.innerHTML="<option value=\"\">Select Zone</option>";return;}
       const zones=await API.getSaferZones({kebeleId});
       zoneEl.innerHTML="<option value=\"\">Select Zone</option>"+
-        zones.map(z=>`<option value="${z.id}" ${(selectedZone||biz?.safer_zone_id)==z.id?"selected":""}>${z.name}</option>`).join("");
+        zones.map(z=>`<option value="${z.id}" ${(selectedZone||biz?.safer_zone_id)==z.id?"selected":""}>${escapeHtml(z.name)}</option>`).join("");
     }
     const kebeleEl=document.getElementById("bf-kebele");
     kebeleEl.addEventListener("change",()=>loadZones(kebeleEl.value));
@@ -193,7 +193,7 @@ async function deleteBiz(id){
 
 function openPayModal(businessId,bizName,target){
   const now=new Date();
-  buildModal("pay-quick-modal",`Record Payment — ${bizName}`,`
+  buildModal("pay-quick-modal",`Record Payment — ${escapeHtml(bizName)}`,`
     <form id="pay-quick-form" class="form-grid">
       <div class="form-group"><label>Amount (ETB) *</label>
         <input class="form-control" id="pq-amount" type="number" min="0" step="0.01" value="${target}" required>

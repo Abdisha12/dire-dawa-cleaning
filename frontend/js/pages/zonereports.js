@@ -34,7 +34,7 @@ async function renderZoneReports() {
         </select>
         ${!isLeader ? `<select class="form-control" id="zr-filter-zone" style="width:200px">
           <option value="">All Zones</option>
-          ${zones.map(z => `<option value="${z.id}">${z.name}</option>`).join("")}
+          ${zones.map(z => `<option value="${z.id}">${escapeHtml(z.name)}</option>`).join("")}
         </select>`: ""}
         <div class="toolbar-right">
           ${isLeader ? `<button class="btn btn-primary" id="btn-new-report">＋ New Report</button>` : ""}
@@ -76,7 +76,7 @@ async function renderZoneReports() {
       });
     }
   } catch (err) {
-    content.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${err.message}</p></div>`;
+    content.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${escapeHtml(err.message)}</p></div>`;
   }
 }
 
@@ -91,14 +91,14 @@ function renderZRRows(zones) {
   }
   tbody.innerHTML = slice.map(r => `
     <tr>
-      <td><strong>${r.zone_name}</strong></td>
-      <td>${r.kebele_name}</td>
+      <td><strong>${escapeHtml(r.zone_name)}</strong></td>
+      <td>${escapeHtml(r.kebele_name)}</td>
       <td>${monthName(r.report_month)} ${r.report_year}</td>
-      <td>${r.leader_name || "—"}</td>
+      <td>${escapeHtml(r.leader_name || "—")}</td>
       <td>${statusBadge(r.status)}</td>
       <td>✅${r.workers_present} ❌${r.workers_absent}</td>
       <td>${fmtETB(r.collection_total)}</td>
-      <td>${r.reviewer_name || "—"}</td>
+      <td>${escapeHtml(r.reviewer_name || "—")}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-sm btn-outline" onclick="viewZRDetail(${r.id})">👁 View</button>
         ${isLeader && r.status === "draft" ? `<button class="btn btn-sm btn-purple" style="margin-left:.3rem" onclick="submitZR(${r.id})">📤 Submit</button>` : ""}
@@ -120,9 +120,9 @@ function openZRModal(id, zonesArg, zoneArg) {
         <label>Zone *</label>
         <select class="form-control" id="zrf-zone" required>
           <option value="">Select Zone</option>
-          ${(zonesArg || []).map(z => `<option value="${z.id}">${z.name} — ${z.kebele_name}</option>`).join("")}
+          ${(zonesArg || []).map(z => `<option value="${z.id}">${escapeHtml(z.name)} — ${escapeHtml(z.kebele_name)}</option>`).join("")}
         </select><span class="form-error"></span>
-      </div>`: `<input type="hidden" id="zrf-zone" value="${zone.id}">`}
+      </div>`: `<input type="hidden" id="zrf-zone" value="${escapeAttr(zone.id)}">`}
       <div class="form-group">
         <label>Report Date *</label>
         <input class="form-control" id="zrf-date" type="date" value="${r?.report_date ? r.report_date.slice(0, 10) : todayISO()}" required>
@@ -149,15 +149,15 @@ function openZRModal(id, zonesArg, zoneArg) {
       </div>
       <div class="form-group" style="grid-column:1/-1">
         <label>Issues Reported</label>
-        <textarea class="form-control" id="zrf-issues" rows="2">${r?.issues_reported || ""}</textarea>
+        <textarea class="form-control" id="zrf-issues" rows="2">${escapeHtml(r?.issues_reported || "")}</textarea>
       </div>
       <div class="form-group" style="grid-column:1/-1">
         <label>Actions Taken</label>
-        <textarea class="form-control" id="zrf-actions" rows="2">${r?.actions_taken || ""}</textarea>
+        <textarea class="form-control" id="zrf-actions" rows="2">${escapeHtml(r?.actions_taken || "")}</textarea>
       </div>
       <div class="form-group" style="grid-column:1/-1">
         <label>Tools Status</label>
-        <textarea class="form-control" id="zrf-tools" rows="2" placeholder="Describe condition of tools in your zone…">${r?.tools_status || ""}</textarea>
+        <textarea class="form-control" id="zrf-tools" rows="2" placeholder="Describe condition of tools in your zone…">${escapeHtml(r?.tools_status || "")}</textarea>
       </div>
     </form>`,
     `<button class="btn btn-outline" onclick="closeModal('zr-modal')">Cancel</button>
@@ -183,7 +183,7 @@ function openZRModal(id, zonesArg, zoneArg) {
       closeModal("zr-modal");
       toast(id ? "Report updated" : payload.status === "submitted" ? "Report submitted!" : "Report saved as draft", "success");
       _zrData = await API.getZoneReports({}); renderZRRows(null);
-    } catch (err) { toast(err.message, "error"); }
+    } catch (err) { toast(escapeHtml(err.message), "error"); }
   });
 }
 
@@ -192,7 +192,7 @@ async function submitZR(id) {
     await API.updateZoneReport(id, { status: "submitted" });
     toast("Report submitted to collector!", "success");
     _zrData = await API.getZoneReports({}); renderZRRows(null);
-  } catch (err) { toast(err.message, "error"); }
+  } catch (err) { toast(escapeHtml(err.message), "error"); }
 }
 
 async function approveZR(id) {
@@ -200,20 +200,20 @@ async function approveZR(id) {
     await API.reviewZoneReport(id, { status: "approved", reviewerNotes: "Approved" });
     toast("Report approved!", "success");
     _zrData = await API.getZoneReports({}); renderZRRows(null);
-  } catch (err) { toast(err.message, "error"); }
+  } catch (err) { toast(escapeHtml(err.message), "error"); }
 }
 
 function openReviewModal(id) {
   const r = _zrData.find(x => x.id === id);
-  buildModal("review-modal", `Review Report — ${r?.zone_name}`, `
+  buildModal("review-modal", `Review Report — ${escapeHtml(r?.zone_name)}`, `
     <div style="margin-bottom:1rem;background:var(--gray-50);padding:1rem;border-radius:8px;font-size:.85rem">
-      <div><strong>Zone:</strong> ${r?.zone_name} | <strong>Kebele:</strong> ${r?.kebele_name}</div>
+      <div><strong>Zone:</strong> ${escapeHtml(r?.zone_name)} | <strong>Kebele:</strong> ${escapeHtml(r?.kebele_name)}</div>
       <div><strong>Period:</strong> ${monthName(r?.report_month)} ${r?.report_year}</div>
       <div><strong>Collection:</strong> ${fmtETB(r?.collection_total)}</div>
       <div><strong>Workers Present:</strong> ${r?.workers_present} | <strong>Absent:</strong> ${r?.workers_absent}</div>
-      ${r?.issues_reported ? `<div style="margin-top:.5rem"><strong>Issues:</strong> ${r.issues_reported}</div>` : ""}
-      ${r?.actions_taken ? `<div><strong>Actions:</strong> ${r.actions_taken}</div>` : ""}
-      ${r?.tools_status ? `<div><strong>Tools:</strong> ${r.tools_status}</div>` : ""}
+      ${r?.issues_reported ? `<div style="margin-top:.5rem"><strong>Issues:</strong> ${escapeHtml(r.issues_reported)}</div>` : ""}
+      ${r?.actions_taken ? `<div><strong>Actions:</strong> ${escapeHtml(r.actions_taken)}</div>` : ""}
+      ${r?.tools_status ? `<div><strong>Tools:</strong> ${escapeHtml(r.tools_status)}</div>` : ""}
     </div>
     <div class="form-group">
       <label>Review Notes</label>
@@ -230,7 +230,7 @@ function openReviewModal(id) {
       await API.reviewZoneReport(id, { status: "reviewed", reviewerNotes: notes });
       closeModal("review-modal"); toast("Marked as reviewed", "success");
       _zrData = await API.getZoneReports({}); renderZRRows(null);
-    } catch (err) { toast(err.message, "error"); }
+    } catch (err) { toast(escapeHtml(err.message), "error"); }
   });
   document.getElementById("rv-approve").addEventListener("click", async () => {
     const notes = document.getElementById("rv-notes").value;
@@ -238,30 +238,30 @@ function openReviewModal(id) {
       await API.reviewZoneReport(id, { status: "approved", reviewerNotes: notes || "Approved" });
       closeModal("review-modal"); toast("Report approved!", "success");
       _zrData = await API.getZoneReports({}); renderZRRows(null);
-    } catch (err) { toast(err.message, "error"); }
+    } catch (err) { toast(escapeHtml(err.message), "error"); }
   });
 }
 
 async function viewZRDetail(id) {
   const r = await API.getZoneReport(id).catch(() => _zrData.find(x => x.id === id));
-  buildModal("zr-detail-modal", `Zone Report — ${r?.zone_name}`, `
+  buildModal("zr-detail-modal", `Zone Report — ${escapeHtml(r?.zone_name)}`, `
     <div style="font-size:.875rem">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1rem">
-        <div><span style="color:var(--gray-500)">Zone:</span> <strong>${r?.zone_name}</strong></div>
-        <div><span style="color:var(--gray-500)">Kebele:</span> <strong>${r?.kebele_name}</strong></div>
+        <div><span style="color:var(--gray-500)">Zone:</span> <strong>${escapeHtml(r?.zone_name)}</strong></div>
+        <div><span style="color:var(--gray-500)">Kebele:</span> <strong>${escapeHtml(r?.kebele_name)}</strong></div>
         <div><span style="color:var(--gray-500)">Period:</span> ${monthName(r?.report_month)} ${r?.report_year}</div>
         <div><span style="color:var(--gray-500)">Status:</span> ${statusBadge(r?.status)}</div>
-        <div><span style="color:var(--gray-500)">Leader:</span> ${r?.leader_name}</div>
+        <div><span style="color:var(--gray-500)">Leader:</span> ${escapeHtml(r?.leader_name)}</div>
         <div><span style="color:var(--gray-500)">Collection:</span> <strong style="color:var(--green)">${fmtETB(r?.collection_total)}</strong></div>
         <div><span style="color:var(--gray-500)">Present:</span> ✅ ${r?.workers_present}</div>
         <div><span style="color:var(--gray-500)">Absent:</span> ❌ ${r?.workers_absent}</div>
       </div>
-      ${r?.issues_reported ? `<div style="margin-bottom:.75rem"><strong>Issues Reported:</strong><p style="color:var(--red)">${r.issues_reported}</p></div>` : ""}
-      ${r?.actions_taken ? `<div style="margin-bottom:.75rem"><strong>Actions Taken:</strong><p>${r.actions_taken}</p></div>` : ""}
-      ${r?.tools_status ? `<div style="margin-bottom:.75rem"><strong>Tools Status:</strong><p>${r.tools_status}</p></div>` : ""}
+      ${r?.issues_reported ? `<div style="margin-bottom:.75rem"><strong>Issues Reported:</strong><p style="color:var(--red)">${escapeHtml(r.issues_reported)}</p></div>` : ""}
+      ${r?.actions_taken ? `<div style="margin-bottom:.75rem"><strong>Actions Taken:</strong><p>${escapeHtml(r.actions_taken)}</p></div>` : ""}
+      ${r?.tools_status ? `<div style="margin-bottom:.75rem"><strong>Tools Status:</strong><p>${escapeHtml(r.tools_status)}</p></div>` : ""}
       ${r?.reviewer_name ? `<div style="background:var(--green-l);padding:.75rem;border-radius:6px">
-        <strong>Reviewed by ${r.reviewer_name}</strong> on ${fmtDate(r.reviewed_at)}<br>
-        ${r.reviewer_notes || ""}
+        <strong>Reviewed by ${escapeHtml(r.reviewer_name)}</strong> on ${fmtDate(r.reviewed_at)}<br>
+        ${escapeHtml(r.reviewer_notes || "")}
       </div>`: ""}
     </div>`,
     `<button class="btn btn-outline" onclick="closeModal('zr-detail-modal')">Close</button>`, true

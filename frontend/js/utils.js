@@ -1,11 +1,52 @@
 // frontend/js/utils.js
 
+// ── HTML Escaping ──────────────────────────────────────────────
+// All user-controlled data MUST pass through escapeHtml() before
+// being placed inside innerHTML or template-literal HTML.
+function escapeHtml(s){
+  if(s==null) return "";
+  return String(s)
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#39;");
+}
+
+// Escape for use inside HTML attribute values (already covered by escapeHtml,
+// but this makes intent explicit at call sites).
+function escapeAttr(s){ return escapeHtml(s); }
+
+// Escape for use inside JavaScript string literals (inside onclick etc.)
+// Converts to a safe JS-quoted string: 'escaped value'
+function escapeJsStr(s){
+  if(s==null) return "''";
+  return "'" + String(s)
+    .replace(/\\/g,"\\\\")
+    .replace(/'/g,"\\'")
+    .replace(/"/g,"\\\"")
+    .replace(/\n/g,"\\n")
+    .replace(/\r/g,"\\r")
+    .replace(/</g,"\\x3c")
+    .replace(/>/g,"\\x3e") + "'";
+}
+
+// Parse JSON safely for display — returns escaped HTML string
+function safeJsonDisplay(obj){
+  if(obj==null) return "None";
+  try{
+    const str = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+    return escapeHtml(str);
+  }catch(e){ return "Invalid data"; }
+}
+
 function toast(msg,type="info",duration=3500){
   let c=document.getElementById("toast-container");
   if(!c){c=document.createElement("div");c.id="toast-container";document.body.appendChild(c);}
   const el=document.createElement("div");
   el.className=`toast toast-${type}`;
-  el.innerHTML=`<span>${{success:"✅",error:"❌",info:"ℹ️"}[type]||""}</span><span>${msg}</span>`;
+  const icon={success:"✅",error:"❌",info:"ℹ️"}[type]||"";
+  el.innerHTML=`<span>${icon}</span><span>${escapeHtml(msg)}</span>`;
   c.appendChild(el);setTimeout(()=>el.remove(),duration);
 }
 
@@ -14,7 +55,7 @@ function confirmDialog(msg){
     const o=document.createElement("div");o.className="modal-overlay";
     o.innerHTML=`<div class="modal" style="max-width:360px">
       <div class="modal-header"><h3>Confirm</h3></div>
-      <div class="modal-body"><p>${msg}</p></div>
+      <div class="modal-body"><p>${escapeHtml(msg)}</p></div>
       <div class="modal-footer">
         <button class="btn btn-outline" id="cc">Cancel</button>
         <button class="btn btn-danger" id="co">Confirm</button>
@@ -33,7 +74,7 @@ function buildModal(id,title,bodyHTML,footerHTML="",large=false){
   if(!el){el=document.createElement("div");el.id=id;document.body.appendChild(el);}
   el.className="modal-overlay hidden";
   el.innerHTML=`<div class="modal ${large?"modal-lg":""}">
-    <div class="modal-header"><h3>${title}</h3><button class="btn-icon" onclick="closeModal('${id}')">✕</button></div>
+    <div class="modal-header"><h3>${escapeHtml(title)}</h3><button class="btn-icon" onclick="closeModal('${id}')">✕</button></div>
     <div class="modal-body">${bodyHTML}</div>
     ${footerHTML?`<div class="modal-footer">${footerHTML}</div>`:""}
   </div>`;
@@ -61,8 +102,9 @@ function statusBadge(s){
     reviewed:["badge-orange","Reviewed"],approved:["badge-green","Approved"],
     good:["badge-green","Good"],fair:["badge-orange","Fair"],
     poor:["badge-red","Poor"],broken:["badge-red","Broken"],
+    failed:["badge-red","Failed"],error:["badge-red","Error"],
   };
-  const [cls,label]=m[s]||["badge-gray",s];
+  const [cls,label]=m[s]||["badge-gray",escapeHtml(s)];
   return `<span class="badge ${cls}">${label}</span>`;
 }
 
@@ -101,8 +143,8 @@ function leaderBanner(){
   const zone=user?.zone;
   if(!zone) return "";
   return `<div class="leader-info">
-    🏷️ <strong>Your Zone:</strong> ${zone.name} &nbsp;|&nbsp;
-    📍 <strong>Kebele:</strong> ${zone.kebele_name} &nbsp;|&nbsp;
+    🏷️ <strong>Your Zone:</strong> ${escapeHtml(zone.name)} &nbsp;|&nbsp;
+    📍 <strong>Kebele:</strong> ${escapeHtml(zone.kebele_name)} &nbsp;|&nbsp;
     👤 You manage workers, tools, and reports for this zone only.
   </div>`;
 }

@@ -33,7 +33,7 @@ async function renderDocuments() {
           <input type="text" class="search-input" id="doc-search" placeholder="🔍 Search document title or keywords..." style="flex:1">
           <select class="form-control" id="doc-zone-filter" style="width:180px">
             <option value="">All Zones</option>
-            ${zones.map(z => `<option value="${z.id}">${z.name}</option>`).join("")}
+            ${zones.map(z => `<option value="${z.id}">${escapeHtml(z.name)}</option>`).join("")}
           </select>
         </div>
       </div>
@@ -74,7 +74,7 @@ async function renderDocuments() {
         const docs = await API.getDocuments({ category: activeCategory, search, saferZoneId });
         renderDocCards(docs);
       } catch (err) {
-        container.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${err.message}</p></div>`;
+        container.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${escapeHtml(err.message)}</p></div>`;
       }
     }
 
@@ -102,23 +102,23 @@ async function renderDocuments() {
                 <div>
                   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
                     <span style="font-size:1.4rem">${icon}</span>
-                    <span class="badge badge-purple" style="text-transform:capitalize">${d.category}</span>
+                    <span class="badge badge-purple" style="text-transform:capitalize">${escapeHtml(d.category)}</span>
                   </div>
 
                   ${isImage ? `<div style="height:120px;margin-bottom:.5rem;overflow:hidden;border-radius:6px;background:var(--gray-100)">
-                    <img src="${d.file_path}" style="width:100%;height:100%;object-fit:cover">
+                    <img src="${escapeAttr(d.file_path)}" style="width:100%;height:100%;object-fit:cover">
                   </div>` : ""}
 
-                  <h4 style="font-size:.9rem;font-weight:700;margin-bottom:.3rem;line-clamp:2">${d.title}</h4>
-                  <p style="font-size:.78rem;color:var(--gray-500);margin-bottom:.75rem;line-height:1.4">${d.description || "No description provided."}</p>
+                  <h4 style="font-size:.9rem;font-weight:700;margin-bottom:.3rem;line-clamp:2">${escapeHtml(d.title)}</h4>
+                  <p style="font-size:.78rem;color:var(--gray-500);margin-bottom:.75rem;line-height:1.4">${escapeHtml(d.description || "No description provided.")}</p>
                 </div>
 
                 <div style="border-top:1px solid var(--gray-100);padding-top:.6rem;font-size:.72rem;color:var(--gray-500)">
                   <div style="display:flex;justify-content:space-between;margin-bottom:.4rem">
-                    <span>${d.file_name}</span>
+                    <span>${escapeHtml(d.file_name)}</span>
                     <span>${sizeMB} MB</span>
                   </div>
-                  <div style="margin-bottom:.6rem">Uploaded by <strong>${d.uploader_name}</strong> on ${fmtDate(d.created_at)}</div>
+                  <div style="margin-bottom:.6rem">Uploaded by <strong>${escapeHtml(d.uploader_name)}</strong> on ${fmtDate(d.created_at)}</div>
                   <div style="display:flex;gap:.4rem">
                     <a href="${API.documentDownloadUrl(d.id)}" target="_blank" class="btn btn-sm btn-primary" style="flex:1;justify-center">⬇ Download</a>
                     ${API.hasRole("admin", "collector") ? `<button class="btn btn-sm btn-danger" onclick="deleteDocSingle(${d.id})">🗑</button>` : ""}
@@ -133,7 +133,7 @@ async function renderDocuments() {
 
     loadDocs();
   } catch (err) {
-    content.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${err.message}</p></div>`;
+    content.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${escapeHtml(err.message)}</p></div>`;
   }
 }
 
@@ -160,7 +160,7 @@ function openUploadDocModal(kebeles, zones) {
           <label>Associate Zone</label>
           <select class="form-control" id="ud-zone">
             <option value="">None / System Wide</option>
-            ${zones.map(z => `<option value="${z.id}">${z.name}</option>`).join("")}
+            ${zones.map(z => `<option value="${z.id}">${escapeHtml(z.name)}</option>`).join("")}
           </select>
         </div>
         <div class="form-group" style="grid-column:1/-1">
@@ -201,7 +201,7 @@ function openUploadDocModal(kebeles, zones) {
       closeModal("upload-doc-modal");
       toast("Document uploaded successfully!", "success");
       renderDocuments();
-    } catch (err) { toast(err.message, "error"); }
+    } catch (err) { toast(escapeHtml(err.message), "error"); }
   };
 }
 

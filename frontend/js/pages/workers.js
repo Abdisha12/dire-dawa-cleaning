@@ -15,7 +15,7 @@ async function renderWorkers(){
       <div class="toolbar">
         ${role!=="leader"?`<select class="form-control" id="w-filter-zone" style="width:200px">
           <option value="">All Zones</option>
-          ${zones.map(z=>`<option value="${z.id}">${z.name} (${z.kebele_name})</option>`).join("")}
+          ${zones.map(z=>`<option value="${z.id}">${escapeHtml(z.name)} (${escapeHtml(z.kebele_name)})</option>`).join("")}
         </select>`:""}
         <input class="search-input" id="w-search" placeholder="🔍 Search workers…">
         <div class="toolbar-right">
@@ -51,7 +51,7 @@ async function renderWorkers(){
       document.getElementById("btn-bulk-attend")?.addEventListener("click",()=>openBulkAttendance());
     }
   }catch(err){
-    content.innerHTML=`<div class="empty"><div class="icon">⚠️</div><p>${err.message}</p></div>`;
+    content.innerHTML=`<div class="empty"><div class="icon">⚠️</div><p>${escapeHtml(err.message)}</p></div>`;
   }
 }
 
@@ -62,16 +62,16 @@ function renderWorkerRows(zones){
   if(!_workersData.length){tbody.innerHTML=`<tr><td colspan="7"><div class="empty"><div class="icon">👷</div><p>No workers</p></div></td></tr>`;return;}
   tbody.innerHTML=_workersData.map(w=>`
     <tr>
-      <td><strong>${w.full_name}</strong></td>
-      <td>${w.contact||"—"}</td><td>${w.fayda_id||"—"}</td>
-      <td>${w.zone_name?`<span class="badge badge-purple">${w.zone_name}</span>`:"—"}</td>
+      <td><strong>${escapeHtml(w.full_name)}</strong></td>
+      <td>${escapeHtml(w.contact||"—")}</td><td>${escapeHtml(w.fayda_id||"—")}</td>
+      <td>${w.zone_name?`<span class="badge badge-purple">${escapeHtml(w.zone_name)}</span>`:"—"}</td>
       <td>${fmtETB(w.daily_wage)}/day</td>
       <td>${w.is_active?statusBadge("active"):"<span class=\"badge badge-gray\">Inactive</span>"}</td>
       ${canEdit?`<td style="white-space:nowrap">
         <button class="btn btn-sm btn-outline" onclick="openWorkerModal(${w.id},null)" title="Edit">✏️</button>
         <button class="btn btn-sm btn-outline" style="margin-left:.3rem" onclick="openWorkerIdCard(${w.id})" title="ID Card">🪪</button>
-        <button class="btn btn-sm btn-outline" style="margin-left:.3rem" onclick="openWorkerAttendance(${w.id},'${w.full_name.replace(/'/g,"\'")}')" title="Attendance">📅</button>
-        <button class="btn btn-sm btn-success" style="margin-left:.3rem" onclick="openSalaryModal(${w.id},'${w.full_name.replace(/'/g,"\'")}',${w.daily_wage})" title="Salary">💰</button>
+        <button class="btn btn-sm btn-outline" style="margin-left:.3rem" onclick="openWorkerAttendance(${w.id},${escapeJsStr(w.full_name)})" title="Attendance">📅</button>
+        <button class="btn btn-sm btn-success" style="margin-left:.3rem" onclick="openSalaryModal(${w.id},${escapeJsStr(w.full_name)},${w.daily_wage})" title="Salary">💰</button>
         ${isAdmin?`<button class="btn btn-sm btn-danger" style="margin-left:.3rem" onclick="deleteWorker(${w.id})" title="Delete">🗑</button>`:""}
       </td>`:""}
     </tr>`).join("");
@@ -91,22 +91,22 @@ function openWorkerModal(id,zonesArg){
   buildModal("worker-modal",id?"Edit Worker":"Add Worker",`
     <form id="worker-form" class="form-grid">
       <div class="form-group"><label>Full Name *</label>
-        <input class="form-control" id="wf-name" value="${w?.full_name||""}" required>
+        <input class="form-control" id="wf-name" value="${escapeAttr(w?.full_name||"")}" required>
         <span class="form-error"></span></div>
       <div class="form-group"><label>Contact (Phone)</label>
-        <input class="form-control" id="wf-contact" value="${w?.contact||""}"></div>
+        <input class="form-control" id="wf-contact" value="${escapeAttr(w?.contact||"")}"></div>
       <div class="form-group"><label>Fayda/ID Number</label>
-        <input class="form-control" id="wf-fayda" value="${w?.fayda_id||""}">
+        <input class="form-control" id="wf-fayda" value="${escapeAttr(w?.fayda_id||"")}">
         <span class="form-error"></span></div>
       <div class="form-group"><label>Daily Wage (ETB) *</label>
         <input class="form-control" id="wf-wage" type="number" min="0" step="0.01" value="${w?.daily_wage||250}" required>
         <span class="form-error"></span></div>
       ${myZone?`<input type="hidden" id="wf-zone" value="${myZone.id}">
-        <div class="form-group"><label>Zone</label><input class="form-control" value="${myZone.name}" disabled></div>`
+        <div class="form-group"><label>Zone</label><input class="form-control" value="${escapeAttr(myZone.name)}" disabled></div>`
       :`<div class="form-group"><label>Zone *</label>
           <select class="form-control" id="wf-zone" required>
             <option value="">Select Zone</option>
-            ${(zonesArg||[]).map(z=>`<option value="${z.id}" ${w?.safer_zone_id===z.id?"selected":""}>${z.name} — ${z.kebele_name}</option>`).join("")}
+            ${(zonesArg||[]).map(z=>`<option value="${z.id}" ${w?.safer_zone_id===z.id?"selected":""}>${escapeHtml(z.name)} — ${escapeHtml(z.kebele_name)}</option>`).join("")}
           </select><span class="form-error"></span></div>`}
       ${id?`<div class="form-group"><label>Status</label>
         <select class="form-control" id="wf-active">
@@ -134,8 +134,8 @@ function openWorkerModal(id,zonesArg){
     div.style.gap = "0.5rem";
     div.className = "attr-row";
     div.innerHTML = `
-      <input class="form-control attr-key" placeholder="Key (e.g. Blood Type)" value="${k.replace(/"/g, '&quot;')}" style="flex:1">
-      <input class="form-control attr-val" placeholder="Value (e.g. O+)" value="${String(v).replace(/"/g, '&quot;')}" style="flex:1">
+      <input class="form-control attr-key" placeholder="Key (e.g. Blood Type)" value="${escapeAttr(k)}" style="flex:1">
+      <input class="form-control attr-val" placeholder="Value (e.g. O+)" value="${escapeAttr(String(v))}" style="flex:1">
       <button type="button" class="btn btn-outline btn-icon" style="background:white;color:var(--red);border-color:#fca5a5" onclick="_removeAttrRow(this)">✖</button>
     `;
     container.appendChild(div);
@@ -210,7 +210,7 @@ async function openBulkAttendance(){
         <thead><tr><th>Worker</th><th>Zone</th><th>Daily Wage</th><th>Present</th><th>Bonus (ETB)</th></tr></thead>
         <tbody>
           ${workers.map(w=>`<tr>
-            <td>${w.full_name}</td><td>${w.zone_name||"—"}</td><td>${fmtETB(w.daily_wage)}</td>
+            <td>${escapeHtml(w.full_name)}</td><td>${escapeHtml(w.zone_name||"—")}</td><td>${fmtETB(w.daily_wage)}</td>
             <td><label style="cursor:pointer"><input type="checkbox" data-worker="${w.id}" class="att-check" checked> Present</label></td>
             <td><input type="number" class="form-control att-bonus" data-worker="${w.id}" min="0" step="0.01" placeholder="0" style="width:100px"></td>
           </tr>`).join("")}
@@ -242,7 +242,7 @@ async function openWorkerAttendance(workerId,workerName){
   const bonus=data.reduce((s,r)=>s+(parseFloat(r.bonus)||0),0);
   const wage=parseFloat(_workersData.find(w=>w.id===workerId)?.daily_wage||250);
   const gross=present*wage+bonus;
-  buildModal("worker-attend-modal",`📅 Attendance — ${workerName}`,`
+  buildModal("worker-attend-modal",`📅 Attendance — ${escapeHtml(workerName)}`,`
     <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:1rem">
       <div class="stat-card stat-green"><div class="stat-label">Present</div><div class="stat-value">${present}</div></div>
       <div class="stat-card stat-red"><div class="stat-label">Absent</div><div class="stat-value">${absent}</div></div>
@@ -253,7 +253,7 @@ async function openWorkerAttendance(workerId,workerName){
         <tbody>${data.map(r=>`<tr>
           <td>${fmtDate(r.date)}</td>
           <td>${r.present?statusBadge("active"):"<span class=\"badge badge-red\">Absent</span>"}</td>
-          <td>${r.bonus?fmtETB(r.bonus):"—"}</td><td>${r.recorder_name||"—"}</td>
+          <td>${r.bonus?fmtETB(r.bonus):"—"}</td><td>${escapeHtml(r.recorder_name||"—")}</td>
         </tr>`).join("")||"<tr><td colspan=\"4\"><div class=\"empty\">No records this month</div></td></tr>"}</tbody>
       </table>
     </div>`,
@@ -266,7 +266,7 @@ async function openSalaryModal(workerId,workerName,dailyWage){
   const history=await API.getWorkerSalary(workerId).catch(()=>[]);
   const now=new Date();
   const firstDay=new Date(now.getFullYear(),now.getMonth(),1).toISOString().slice(0,10);
-  buildModal("salary-modal",`💰 Salary — ${workerName}`,`
+  buildModal("salary-modal",`💰 Salary — ${escapeHtml(workerName)}`,`
     <div style="margin-bottom:1.25rem">
       <div class="card-title">Record New Payment</div>
       <div class="form-grid">
@@ -292,7 +292,7 @@ async function openSalaryModal(workerId,workerName,dailyWage){
       <table><thead><tr><th>Date</th><th>Amount</th><th>Period</th><th>Paid By</th></tr></thead>
         <tbody>${history.map(h=>`<tr>
           <td>${fmtDate(h.paid_at)}</td><td><strong>${fmtETB(h.amount)}</strong></td>
-          <td>${fmtDate(h.period_from)} – ${fmtDate(h.period_to)}</td><td>${h.paid_by_name||"—"}</td>
+          <td>${fmtDate(h.period_from)} – ${fmtDate(h.period_to)}</td><td>${escapeHtml(h.paid_by_name||"—")}</td>
         </tr>`).join("")||"<tr><td colspan=\"4\"><div class=\"empty\">No payments yet</div></td></tr>"}</tbody>
       </table>
     </div>`,
@@ -334,8 +334,8 @@ function openWorkerIdCard(id) {
           <div style="grid-column: 1 / -1; font-size: 0.55rem; color:#c2410c; font-weight:700; text-transform:uppercase; border-bottom:1px solid #ffedd5; padding-bottom:3px; margin-bottom:3px;">Custom Info</div>
           ${Object.entries(attrs).map(([k, v]) => `
             <div>
-              <span style="font-size:0.52rem; color:#7c2d12; text-transform:uppercase; display:block; font-weight:600;">${k}</span>
-              <span style="font-size:0.72rem; font-weight:700; color:#431407;">${v}</span>
+              <span style="font-size:0.52rem; color:#7c2d12; text-transform:uppercase; display:block; font-weight:600;">${escapeHtml(k)}</span>
+              <span style="font-size:0.72rem; font-weight:700; color:#431407;">${escapeHtml(v)}</span>
             </div>
           `).join("")}
         </div>
@@ -383,13 +383,13 @@ function openWorkerIdCard(id) {
           
           <!-- Worker Details -->
           <div style="width:100%; text-align:center; margin-bottom:15px;">
-            <h4 style="font-size:1.2rem; font-weight:800; color:#1f2937; margin:0 0 4px 0; letter-spacing:-0.3px;">${w.full_name}</h4>
+            <h4 style="font-size:1.2rem; font-weight:800; color:#1f2937; margin:0 0 4px 0; letter-spacing:-0.3px;">${escapeHtml(w.full_name)}</h4>
             <p style="font-size:0.75rem; font-weight:600; color:#0d9488; text-transform:uppercase; margin:0 0 12px 0; letter-spacing:1px;">Cleaning Professional</p>
             
             <div style="border-top:1px dashed #e2e8f0; border-bottom:1px dashed #e2e8f0; padding:10px 0; margin-bottom:12px; display:grid; grid-template-columns:1fr 1fr; gap:8px; text-align:left;">
               <div>
                 <span style="font-size:0.55rem; color:#9ca3af; text-transform:uppercase; display:block; font-weight:600;">Zone</span>
-                <span style="font-size:0.8rem; font-weight:700; color:#374151;">${w.zone_name || 'N/A'}</span>
+                <span style="font-size:0.8rem; font-weight:700; color:#374151;">${escapeHtml(w.zone_name || 'N/A')}</span>
               </div>
               <div>
                 <span style="font-size:0.55rem; color:#9ca3af; text-transform:uppercase; display:block; font-weight:600;">Daily Wage</span>
@@ -397,7 +397,7 @@ function openWorkerIdCard(id) {
               </div>
               <div style="grid-column: 1 / -1;">
                 <span style="font-size:0.55rem; color:#9ca3af; text-transform:uppercase; display:block; font-weight:600;">Contact</span>
-                <span style="font-size:0.8rem; font-weight:700; color:#374151;">${w.contact || '—'}</span>
+                <span style="font-size:0.8rem; font-weight:700; color:#374151;">${escapeHtml(w.contact || '—')}</span>
               </div>
             </div>
           </div>
@@ -406,7 +406,7 @@ function openWorkerIdCard(id) {
           <div style="width:100%; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px; text-align:center; margin-bottom:15px; position:relative;">
             <span style="font-size:0.55rem; color:#475569; text-transform:uppercase; display:block; font-weight:700; letter-spacing:1px; margin-bottom:4px;">Fayda National Digital ID</span>
             <span style="font-size:1.1rem; font-weight:800; color:#1e293b; font-family:'Courier New', Courier, monospace; letter-spacing:1.5px;">
-              ${w.fayda_id ? formatFaydaId(w.fayda_id) : 'PENDING'}
+              ${w.fayda_id ? escapeHtml(formatFaydaId(w.fayda_id)) : 'PENDING'}
             </span>
           </div>
 

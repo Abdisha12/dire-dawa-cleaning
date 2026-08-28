@@ -18,7 +18,7 @@ async function renderNotifications() {
       renderList(data.rows || []);
       renderPagination("notif-pagination", data.page, data.pages, loadNotifs);
     } catch (err) {
-      if (container) container.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${err.message}</p></div>`;
+      if (container) container.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${escapeHtml(err.message)}</p></div>`;
     }
   }
 
@@ -47,14 +47,14 @@ async function renderNotifications() {
           <div style="flex:1">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.25rem">
               <h4 style="font-size:.9rem;font-weight:700;display:flex;align-items:center;gap:.5rem">
-                ${n.title}
+                ${escapeHtml(n.title)}
                 ${isUnread ? `<span class="badge badge-blue">New</span>` : ""}
               </h4>
               <span style="font-size:.72rem;color:var(--gray-500)">${fmtDate(n.created_at)}</span>
             </div>
-            <p style="font-size:.85rem;color:var(--gray-700);margin-bottom:.5rem">${n.message}</p>
+            <p style="font-size:.85rem;color:var(--gray-700);margin-bottom:.5rem">${escapeHtml(n.message)}</p>
             <div style="display:flex;gap:.5rem;align-items:center">
-              ${n.link ? `<a href="${n.link}" class="btn btn-sm btn-outline">View Details →</a>` : ""}
+              ${n.link ? `<a href="${escapeAttr(n.link)}" ${n.link.startsWith("javascript:") ? 'style="display:none"' : ""} class="btn btn-sm btn-outline">View Details →</a>` : ""}
               ${isUnread ? `<button class="btn btn-sm btn-primary" onclick="markNotifReadSingle(${n.id})">Mark Read</button>` : ""}
               <button class="btn btn-sm btn-danger" style="margin-left:auto" onclick="deleteNotifSingle(${n.id})">🗑 Delete</button>
             </div>
@@ -96,7 +96,7 @@ async function renderNotifications() {
       toast("All notifications marked as read", "success");
       loadNotifs(currentPage);
       updateHeaderNotifBadge();
-    } catch (err) { toast(err.message, "error"); }
+    } catch (err) { toast(escapeHtml(err.message), "error"); }
   });
 
   const btnGen = document.getElementById("btn-generate-alerts");
@@ -109,7 +109,7 @@ async function renderNotifications() {
         toast(`Scan complete! Generated ${res.overdueCount + res.reportCount + res.workerCount} alerts`, "success");
         loadNotifs(1);
         updateHeaderNotifBadge();
-      } catch (err) { toast(err.message, "error"); }
+      } catch (err) { toast(escapeHtml(err.message), "error"); }
       finally {
         btnGen.disabled = false;
         btnGen.textContent = "⚡ Trigger Alert Scan";
@@ -126,7 +126,7 @@ async function markNotifReadSingle(id) {
     toast("Marked as read", "info");
     renderNotifications();
     updateHeaderNotifBadge();
-  } catch (err) { toast(err.message, "error"); }
+  } catch (err) { toast(escapeHtml(err.message), "error"); }
 }
 
 async function deleteNotifSingle(id) {
@@ -135,5 +135,5 @@ async function deleteNotifSingle(id) {
     toast("Notification deleted", "info");
     renderNotifications();
     updateHeaderNotifBadge();
-  } catch (err) { toast(err.message, "error"); }
+  } catch (err) { toast(escapeHtml(err.message), "error"); }
 }

@@ -18,7 +18,7 @@ async function renderTools(){
         ${!API.hasRole("leader")?`
         <select class="form-control" id="tool-filter-zone" style="width:200px">
           <option value="">All Zones</option>
-          ${zones.map(z=>`<option value="${z.id}">${z.name} (${z.kebele_name})</option>`).join("")}
+          ${zones.map(z=>`<option value="${z.id}">${escapeHtml(z.name)} (${escapeHtml(z.kebele_name)})</option>`).join("")}
         </select>`:""}
         <select class="form-control" id="tool-filter-cat" style="width:140px">
           <option value="">All Categories</option>
@@ -67,7 +67,7 @@ async function renderTools(){
     });
     if(canEdit) document.getElementById("btn-add-tool")?.addEventListener("click",()=>openToolModal(null,zones));
   }catch(err){
-    content.innerHTML=`<div class="empty"><div class="icon">⚠️</div><p>${err.message}</p></div>`;
+    content.innerHTML=`<div class="empty"><div class="icon">⚠️</div><p>${escapeHtml(err.message)}</p></div>`;
   }
 }
 
@@ -79,12 +79,12 @@ function renderToolRows(data=_toolsData){
   if(!slice.length){tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="icon">🔧</div><p>No tools found</p></div></td></tr>`;return;}
   tbody.innerHTML=slice.map(t=>`
     <tr>
-      <td><strong>${t.name}</strong></td>
-      <td><span class="badge badge-blue">${t.category}</span></td>
+      <td><strong>${escapeHtml(t.name)}</strong></td>
+      <td><span class="badge badge-blue">${escapeHtml(t.category)}</span></td>
       <td style="font-weight:600">${t.quantity}</td>
       <td>${statusBadge(t.condition_status)}</td>
-      <td>${t.zone_name||"—"}</td><td>${t.kebele_name||"—"}</td>
-      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.notes||"—"}</td>
+      <td>${escapeHtml(t.zone_name||"—")}</td><td>${escapeHtml(t.kebele_name||"—")}</td>
+      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(t.notes||"—")}</td>
       ${canEdit?`<td style="white-space:nowrap">
         <button class="btn btn-sm btn-outline" onclick="openToolModal(${t.id},null)">✏️</button>
         ${isAdmin?`<button class="btn btn-sm btn-danger" style="margin-left:.3rem" onclick="deleteTool(${t.id})">🗑</button>`:""}
@@ -103,7 +103,7 @@ async function openToolModal(id,zonesArg){
     <form id="tool-form" class="form-grid">
       <div class="form-group" style="grid-column:1/-1">
         <label>Tool/Equipment Name *</label>
-        <input class="form-control" id="tf-name" value="${t?.name||""}" required>
+        <input class="form-control" id="tf-name" value="${escapeAttr(t?.name||"")}" required>
         <span class="form-error"></span>
       </div>
       <div class="form-group">
@@ -126,8 +126,8 @@ async function openToolModal(id,zonesArg){
         <label>Zone *</label>
         <select class="form-control" id="tf-zone" required ${zone?"disabled":""}>
           <option value="">Select Zone</option>
-          ${zone?`<option value="${zone.id}" selected>${zone.name}</option>`:
-            zones.map(z=>`<option value="${z.id}" ${t?.safer_zone_id===z.id?"selected":""}>${z.name} — ${z.kebele_name}</option>`).join("")}
+          ${zone?`<option value="${zone.id}" selected>${escapeHtml(zone.name)}</option>`:
+            zones.map(z=>`<option value="${z.id}" ${t?.safer_zone_id===z.id?"selected":""}>${escapeHtml(z.name)} — ${escapeHtml(z.kebele_name)}</option>`).join("")}
         </select>
         <span class="form-error"></span>
       </div>
@@ -137,7 +137,7 @@ async function openToolModal(id,zonesArg){
       </div>
       <div class="form-group" style="grid-column:1/-1">
         <label>Notes</label>
-        <textarea class="form-control" id="tf-notes" rows="2">${t?.notes||""}</textarea>
+        <textarea class="form-control" id="tf-notes" rows="2">${escapeHtml(t?.notes||"")}</textarea>
       </div>
     </form>`,
     `<button class="btn btn-outline" onclick="closeModal('tool-modal')">Cancel</button>
@@ -162,7 +162,7 @@ async function openToolModal(id,zonesArg){
       closeModal("tool-modal");
       toast(id?"Tool updated":"Tool added","success");
       _toolsData=await API.getTools();renderToolRows();
-    }catch(err){toast(err.message,"error");}
+    }catch(err){toast(escapeHtml(err.message),"error");}
   });
 }
 
@@ -171,5 +171,5 @@ async function deleteTool(id){
   try{
     await API.deleteTool(id);toast("Tool deleted","success");
     _toolsData=_toolsData.filter(t=>t.id!==id);renderToolRows();
-  }catch(err){toast(err.message,"error");}
+  }catch(err){toast(escapeHtml(err.message),"error");}
 }

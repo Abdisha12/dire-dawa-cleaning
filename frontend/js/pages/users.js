@@ -46,7 +46,7 @@ async function renderUsers(){
     });
     document.getElementById("btn-add-user")?.addEventListener("click",()=>openUserModal(null,me));
   }catch(err){
-    content.innerHTML=`<div class="empty"><div class="icon">⚠️</div><p>${err.message}</p></div>`;
+    content.innerHTML=`<div class="empty"><div class="icon">⚠️</div><p>${escapeHtml(err.message)}</p></div>`;
   }
 }
 
@@ -61,16 +61,16 @@ async function renderUserRows(me){
   tbody.innerHTML=_usersData.map(u=>{
     const zone=zones.find(z=>z.leader_id===u.id);
     return `<tr>
-      <td><strong>${u.username}</strong> ${u.id===me?.id?'<span class="badge badge-blue" style="font-size:.65rem">You</span>':""}</td>
-      <td>${u.full_name}</td>
-      <td>${u.phone||"—"}</td>
-      <td>${u.fayda_id||"—"}</td>
+      <td><strong>${escapeHtml(u.username)}</strong> ${u.id===me?.id?'<span class="badge badge-blue" style="font-size:.65rem">You</span>':""}</td>
+      <td>${escapeHtml(u.full_name)}</td>
+      <td>${escapeHtml(u.phone||"—")}</td>
+      <td>${escapeHtml(u.fayda_id||"—")}</td>
       <td>${statusBadge(u.role)}</td>
-      <td>${u.role==="leader"?(zone?`<span class="badge badge-purple">${zone.name}</span>`:'<span style="color:var(--orange)">⚠ Unassigned</span>'):"—"}</td>
+      <td>${u.role==="leader"?(zone?`<span class="badge badge-purple">${escapeHtml(zone.name)}</span>`:'<span style="color:var(--orange)">⚠ Unassigned</span>'):"—"}</td>
       <td>${u.is_active?statusBadge("active"):'<span class="badge badge-gray">Inactive</span>'}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-sm btn-outline" onclick="openUserModal(${u.id})">✏️</button>
-        <button class="btn btn-sm btn-outline" style="margin-left:.3rem" onclick="openChangePassword(${u.id},'${u.username}')">🔑</button>
+        <button class="btn btn-sm btn-outline" onclick="openChangePassword(${u.id},${escapeJsStr(u.username)})">🔑</button>
         ${u.id!==me?.id?`<button class="btn btn-sm btn-danger" style="margin-left:.3rem" onclick="deleteUser(${u.id})">🗑</button>`:""}
       </td>
     </tr>`;
@@ -83,18 +83,18 @@ function openUserModal(id,meArg){
   buildModal("user-modal",id?"Edit User":"Add User",`
     <form id="user-form" class="form-grid">
       <div class="form-group"><label>Username *</label>
-        <input class="form-control" id="uf-username" value="${u?.username||""}" ${id?'readonly style="background:var(--gray-100)"':""} required>
+        <input class="form-control" id="uf-username" value="${escapeAttr(u?.username||"")}" ${id?'readonly style="background:var(--gray-100)"':""} required>
         <span class="form-error"></span></div>
       ${!id?`<div class="form-group"><label>Password *</label>
         <input class="form-control" id="uf-password" type="password" minlength="6" required>
         <span class="form-error"></span></div>`:""}
       <div class="form-group"><label>Full Name *</label>
-        <input class="form-control" id="uf-fullname" value="${u?.full_name||""}" required>
+        <input class="form-control" id="uf-fullname" value="${escapeAttr(u?.full_name||"")}" required>
         <span class="form-error"></span></div>
       <div class="form-group"><label>Phone</label>
-        <input class="form-control" id="uf-phone" value="${u?.phone||""}"></div>
+        <input class="form-control" id="uf-phone" value="${escapeAttr(u?.phone||"")}"></div>
       <div class="form-group"><label>Fayda/National ID</label>
-        <input class="form-control" id="uf-fayda" value="${u?.fayda_id||""}">
+        <input class="form-control" id="uf-fayda" value="${escapeAttr(u?.fayda_id||"")}">
         <span class="form-error"></span></div>
       <div class="form-group"><label>Role *</label>
         <select class="form-control" id="uf-role" required>
@@ -155,12 +155,12 @@ function openUserModal(id,meArg){
       closeModal("user-modal");
       toast(id?"User updated":"User created — now assign a zone in Settings if Leader","success");
       _usersData=await API.getUsers();await renderUserRows(me);
-    }catch(err){toast(err.message,"error");}
+    }catch(err){toast(escapeHtml(err.message),"error");}
   });
 }
 
 function openChangePassword(id,username){
-  buildModal("pw-modal",`🔑 Change Password — ${username}`,`
+  buildModal("pw-modal",`🔑 Change Password — ${escapeHtml(username)}`,`
     <div class="form-grid">
       <div class="form-group" style="grid-column:1/-1"><label>New Password * (min 6 chars)</label>
         <input class="form-control" id="pw-new" type="password" minlength="6" required>
@@ -178,15 +178,15 @@ function openChangePassword(id,username){
     if(np.length<6){toast("Min 6 characters","error");return;}
     if(np!==cp){toast("Passwords do not match","error");return;}
     try{await API.changePassword(id,np);closeModal("pw-modal");toast("Password changed!","success");}
-    catch(err){toast(err.message,"error");}
+    catch(err){toast(escapeHtml(err.message),"error");}
   });
 }
 
 async function deleteUser(id){
   const u=_usersData.find(x=>x.id===id);
-  if(!await confirmDialog(`Delete user "${u?.username}"? This cannot be undone.`)) return;
+  if(!await confirmDialog(`Delete user "${escapeHtml(u?.username)}"? This cannot be undone.`)) return;
   try{
     await API.deleteUser(id);toast("User deleted","success");
     _usersData=_usersData.filter(x=>x.id!==id);await renderUserRows(API.getUser());
-  }catch(err){toast(err.message,"error");}
+  }catch(err){toast(escapeHtml(err.message),"error");}
 }

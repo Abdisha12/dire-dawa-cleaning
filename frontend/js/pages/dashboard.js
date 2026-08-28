@@ -120,8 +120,8 @@ async function renderDashboard() {
                   return `
                     <tr>
                       <td style="font-weight:700">${rankIcon}</td>
-                      <td><strong>${z.zone_name}</strong></td>
-                      <td>${z.kebele_name}</td>
+                      <td><strong>${escapeHtml(z.zone_name)}</strong></td>
+                      <td>${escapeHtml(z.kebele_name)}</td>
                       <td>${z.collection_rate || 0}%</td>
                       <td>${z.attendance_rate || 0}%</td>
                       <td><span class="badge ${scoreCls}">${z.compositeScore} / 100</span></td>
@@ -145,8 +145,8 @@ async function renderDashboard() {
                 const p = r.target ? Math.round((r.collected / r.target) * 100) : 0;
                 const cls = p >= 80 ? "badge-green" : p >= 50 ? "badge-orange" : "badge-red";
                 return `<tr>
-                  <td><strong>${r.kebele}</strong></td>
-                  <td><code>${r.code}</code></td>
+                  <td><strong>${escapeHtml(r.kebele)}</strong></td>
+                  <td><code>${escapeHtml(r.code)}</code></td>
                   <td>${fmtETB(r.target)}</td>
                   <td style="color:var(--green);font-weight:600">${fmtETB(r.collected)}</td>
                   <td><span class="badge ${cls}">${p}%</span></td>
@@ -230,6 +230,6 @@ async function renderDashboard() {
       }
     }
   } catch (err) {
-    content.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${err.message}</p></div>`;
+    content.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${escapeHtml(err.message)}</p></div>`;
   }
 }

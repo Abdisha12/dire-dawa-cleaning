@@ -17,7 +17,7 @@ async function renderInspections(){
       <div class="toolbar">
         ${role!=="leader"?`<select class="form-control" id="insp-filter-kebele" style="width:155px">
           <option value="">All Kebeles</option>
-          ${kebeles.map(k=>`<option value="${k.id}">${k.name}</option>`).join("")}
+          ${kebeles.map(k=>`<option value="${k.id}">${escapeHtml(k.name)}</option>`).join("")}
         </select>`:""}
         <select class="form-control" id="insp-filter-status" style="width:120px">
           <option value="">All Status</option>
@@ -57,7 +57,7 @@ async function renderInspections(){
       .forEach(id=>document.getElementById(id)?.addEventListener("change",applyFilters));
     if(canEdit) document.getElementById("btn-add-insp")?.addEventListener("click",()=>openInspModal(null,kebeles,zones));
   }catch(err){
-    content.innerHTML=`<div class="empty"><div class="icon">⚠️</div><p>${err.message}</p></div>`;
+    content.innerHTML=`<div class="empty"><div class="icon">⚠️</div><p>${escapeHtml(err.message)}</p></div>`;
   }
 }
 
@@ -70,12 +70,12 @@ function renderInspRows(kebeles,zones){
   tbody.innerHTML=slice.map(r=>`
     <tr>
       <td><strong>${fmtDate(r.date)}</strong></td>
-      <td>${r.kebele_name} <small style="color:var(--gray-500)">(${r.kebele_code})</small></td>
-      <td>${r.zone_name||"—"}</td>
+      <td>${escapeHtml(r.kebele_name)} <small style="color:var(--gray-500)">(${escapeHtml(r.kebele_code)})</small></td>
+      <td>${escapeHtml(r.zone_name||"—")}</td>
       <td>${statusBadge(r.status)}</td>
-      <td>${r.inspector_name||"—"}</td>
+      <td>${escapeHtml(r.inspector_name||"—")}</td>
       <td>${r.photos?.length?`<button class="btn btn-sm btn-outline" onclick="viewPhotos(${r.id})">🖼 ${r.photos.length}</button>`:"<span style=\"color:var(--gray-300)\">None</span>"}</td>
-      <td style="max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.notes||"—"}</td>
+      <td style="max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.notes||"—")}</td>
       ${canEdit?`<td style="white-space:nowrap">
         <button class="btn btn-sm btn-outline" onclick="openInspModal(${r.id},null,null)">✏️</button>
         ${isAdmin?`<button class="btn btn-sm btn-danger" style="margin-left:.3rem" onclick="deleteInsp(${r.id})">🗑</button>`:""}
@@ -94,24 +94,24 @@ async function openInspModal(id,kebelesArg,zonesArg){
     <form id="insp-form">
       <div class="form-grid">
         ${myZone?`
-          <input type="hidden" id="if-kebele" value="${myZone.kebele_id}">
-          <input type="hidden" id="if-zone" value="${myZone.id}">
+          <input type="hidden" id="if-kebele" value="${escapeAttr(myZone.kebele_id)}">
+          <input type="hidden" id="if-zone" value="${escapeAttr(myZone.id)}">
           <div class="form-group" style="grid-column:1/-1">
             <label>Zone</label>
-            <input class="form-control" value="${myZone.name} — ${myZone.kebele_name}" disabled>
+            <input class="form-control" value="${escapeAttr(myZone.name + " — " + myZone.kebele_name)}" disabled>
           </div>`:`
           <div class="form-group">
             <label>Kebele *</label>
             <select class="form-control" id="if-kebele" required>
               <option value="">Select Kebele</option>
-              ${kebeles.map(k=>`<option value="${k.id}" ${insp?.kebele_id==k.id?"selected":""}>${k.name}</option>`).join("")}
+              ${kebeles.map(k=>`<option value="${k.id}" ${insp?.kebele_id==k.id?"selected":""}>${escapeHtml(k.name)}</option>`).join("")}
             </select><span class="form-error"></span>
           </div>
           <div class="form-group">
             <label>Zone (optional)</label>
             <select class="form-control" id="if-zone">
               <option value="">Kebele-level (no specific zone)</option>
-              ${zones.map(z=>`<option value="${z.id}" ${insp?.safer_zone_id==z.id?"selected":""}>${z.name} — ${z.kebele_name}</option>`).join("")}
+              ${zones.map(z=>`<option value="${z.id}" ${insp?.safer_zone_id==z.id?"selected":""}>${escapeHtml(z.name)} — ${escapeHtml(z.kebele_name)}</option>`).join("")}
             </select>
           </div>`}
         <div class="form-group">
@@ -130,14 +130,14 @@ async function openInspModal(id,kebelesArg,zonesArg){
         </div>
         <div class="form-group" style="grid-column:1/-1">
           <label>Notes / Issues</label>
-          <textarea class="form-control" id="if-notes" rows="3">${insp?.notes||""}</textarea>
+          <textarea class="form-control" id="if-notes" rows="3">${escapeHtml(insp?.notes||"")}</textarea>
         </div>
         <div class="form-group" style="grid-column:1/-1">
           <label>Photos (max 10)</label>
           <input type="file" class="form-control" id="if-photos" multiple accept="image/*">
           <div class="photo-grid" id="existing-photos">
             ${(insp?.photos||[]).map(p=>`<div class="photo-thumb" id="photo-${p.id}">
-              <img src="${API.getFileUrl(p.file_path)}" alt="photo">
+              <img src="${escapeAttr(API.getFileUrl(p.file_path))}" alt="photo">
               <button class="del-photo" onclick="deleteInspPhoto(${p.id})">✕</button>
             </div>`).join("")}
           </div>
@@ -163,7 +163,7 @@ async function openInspModal(id,kebelesArg,zonesArg){
       closeModal("insp-modal");
       toast(id?"Inspection updated":"Inspection saved","success");
       _inspData=await API.getInspections();renderInspRows(null,null);
-    }catch(err){toast(err.message,"error");}
+    }catch(err){toast(escapeHtml(err.message),"error");}
   });
 }
 
@@ -172,21 +172,21 @@ async function deleteInsp(id){
   try{
     await API.deleteInspection(id);toast("Inspection deleted","success");
     _inspData=_inspData.filter(r=>r.id!==id);renderInspRows(null,null);
-  }catch(err){toast(err.message,"error");}
+  }catch(err){toast(escapeHtml(err.message),"error");}
 }
 
 async function deleteInspPhoto(photoId){
   try{await API.deletePhoto(photoId);document.getElementById(`photo-${photoId}`)?.remove();toast("Photo removed","success");}
-  catch(err){toast(err.message,"error");}
+  catch(err){toast(escapeHtml(err.message),"error");}
 }
 
 async function viewPhotos(id){
   const insp=await API.getInspection(id).catch(()=>null);
   if(!insp?.photos?.length){toast("No photos","info");return;}
-  buildModal("photos-modal",`Photos — ${insp.kebele_name} (${fmtDate(insp.date)})`,`
+  buildModal("photos-modal",`Photos — ${escapeHtml(insp.kebele_name)} (${fmtDate(insp.date)})`,`
     <div style="display:flex;flex-wrap:wrap;gap:.75rem">
-      ${insp.photos.map(p=>`<a href="${API.getFileUrl(p.file_path)}" target="_blank">
-        <img src="${API.getFileUrl(p.file_path)}" style="width:160px;height:120px;object-fit:cover;border-radius:6px;border:1px solid var(--gray-200)">
+      ${insp.photos.map(p=>`<a href="${escapeAttr(API.getFileUrl(p.file_path))}" target="_blank">
+        <img src="${escapeAttr(API.getFileUrl(p.file_path))}" style="width:160px;height:120px;object-fit:cover;border-radius:6px;border:1px solid var(--gray-200)">
       </a>`).join("")}
     </div>`,
     `<button class="btn btn-outline" onclick="closeModal('photos-modal')">Close</button>`,true

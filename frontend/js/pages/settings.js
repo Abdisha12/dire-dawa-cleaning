@@ -32,7 +32,7 @@ async function renderSettings(){
         toast("Password updated!","success");
         document.getElementById("my-pw-new").value="";
         document.getElementById("my-pw-confirm").value="";
-      }catch(err){toast(err.message,"error");}
+      }catch(err){toast(escapeHtml(err.message),"error");}
     });
     return;
   }
@@ -54,12 +54,12 @@ async function renderSettings(){
               <thead><tr><th>Kebele</th><th>Zones</th><th>Collector</th><th>Action</th></tr></thead>
               <tbody>
                 ${kebeles.map(k=>`<tr>
-                  <td><strong>${k.name}</strong> <code style="font-size:.7rem">${k.code}</code></td>
+                  <td><strong>${escapeHtml(k.name)}</strong> <code style="font-size:.7rem">${escapeHtml(k.code)}</code></td>
                   <td><span class="badge badge-blue">${k.zone_count}</span></td>
                   <td>
                     <select class="form-control" id="kc-${k.id}" style="width:150px">
                       <option value="">Unassigned</option>
-                      ${collectors.map(c=>`<option value="${c.id}" ${k.collector_id===c.id?"selected":""}>${c.full_name}</option>`).join("")}
+                      ${collectors.map(c=>`<option value="${c.id}" ${k.collector_id===c.id?"selected":""}>${escapeHtml(c.full_name)}</option>`).join("")}
                     </select>
                   </td>
                   <td><button class="btn btn-sm btn-primary" onclick="saveKebeleCollector(${k.id})">Save</button></td>
@@ -77,7 +77,7 @@ async function renderSettings(){
           <div class="form-group" style="margin-bottom:.75rem">
             <select class="form-control" id="zone-filter-kebele">
               <option value="">All Kebeles</option>
-              ${kebeles.map(k=>`<option value="${k.id}">${k.name}</option>`).join("")}
+              ${kebeles.map(k=>`<option value="${k.id}">${escapeHtml(k.name)}</option>`).join("")}
             </select>
           </div>
           <div class="table-wrap" style="max-height:420px;overflow-y:auto">
@@ -96,10 +96,10 @@ async function renderSettings(){
               <thead><tr><th>Leader</th><th>Phone</th><th>Zone Assigned</th><th>Kebele</th></tr></thead>
               <tbody>
                 ${leaders.map(l=>`<tr>
-                  <td><strong>${l.full_name}</strong></td>
-                  <td>${l.phone||"—"}</td>
-                  <td>${l.zone_name?`<span class="badge badge-purple">${l.zone_name}</span>`:"<span style=\"color:var(--orange)\">⚠ Unassigned</span>"}</td>
-                  <td>${l.kebele_name||"—"}</td>
+                  <td><strong>${escapeHtml(l.full_name)}</strong></td>
+                  <td>${escapeHtml(l.phone||"—")}</td>
+                  <td>${l.zone_name?`<span class="badge badge-purple">${escapeHtml(l.zone_name)}</span>`:"<span style=\"color:var(--orange)\">⚠ Unassigned</span>"}</td>
+                  <td>${escapeHtml(l.kebele_name||"—")}</td>
                 </tr>`).join("")}
               </tbody>
             </table>
@@ -140,7 +140,7 @@ async function renderSettings(){
       catch(err){toast(err.message,"error");}
     });
   }catch(err){
-    content.innerHTML=`<div class="empty"><div class="icon">⚠️</div><p>${err.message}</p></div>`;
+    content.innerHTML=`<div class="empty"><div class="icon">⚠️</div><p>${escapeHtml(err.message)}</p></div>`;
   }
 }
 
@@ -148,16 +148,16 @@ function renderZoneAssignRows(zones,leaders){
   const tbody=document.getElementById("zone-assign-tbody");if(!tbody)return;
   if(!zones.length){tbody.innerHTML=`<tr><td colspan="4"><div class="empty">No zones</div></td></tr>`;return;}
   tbody.innerHTML=zones.map(z=>`<tr>
-    <td>${z.name}</td>
-    <td>${z.kebele_name}</td>
+    <td>${escapeHtml(z.name)}</td>
+    <td>${escapeHtml(z.kebele_name)}</td>
     <td>
       <select class="form-control" id="zl-${z.id}" style="width:150px">
         <option value="">None</option>
-        ${leaders.map(l=>`<option value="${l.id}" ${z.leader_id===l.id?"selected":""}>${l.full_name}</option>`).join("")}
+        ${leaders.map(l=>`<option value="${l.id}" ${z.leader_id===l.id?"selected":""}>${escapeHtml(l.full_name)}</option>`).join("")}
       </select>
     </td>
     <td style="white-space:nowrap">
-      <button class="btn btn-sm btn-primary" onclick="saveZoneLeader(${z.id},'${z.name.replace(/'/g,"\\'")}')">Save</button>
+      <button class="btn btn-sm btn-primary" onclick="saveZoneLeader(${z.id},${escapeJsStr(z.name)})">Save</button>
       <button class="btn btn-sm btn-danger" style="margin-left:.3rem" onclick="deleteZone(${z.id})">🗑</button>
     </td>
   </tr>`).join("");
@@ -168,7 +168,7 @@ async function saveKebeleCollector(kebeleId){
   try{
     await API.updateKebele(kebeleId,{collectorId:collectorId||null});
     toast("Collector assigned!","success");
-  }catch(err){toast(err.message,"error");}
+  }catch(err){toast(escapeHtml(err.message),"error");}
 }
 
 async function saveZoneLeader(zoneId,zoneName){
@@ -176,7 +176,7 @@ async function saveZoneLeader(zoneId,zoneName){
   try{
     await API.updateSaferZone(zoneId,{name:zoneName,leaderId:leaderId||null});
     toast("Leader assigned!","success");
-  }catch(err){toast(err.message,"error");}
+  }catch(err){toast(escapeHtml(err.message),"error");}
 }
 
 async function deleteZone(id){
@@ -184,7 +184,7 @@ async function deleteZone(id){
   try{
     await API.deleteSaferZone(id);toast("Zone deleted","success");
     renderSettings();
-  }catch(err){toast(err.message,"error");}
+  }catch(err){toast(escapeHtml(err.message),"error");}
 }
 
 async function openAddZoneModal(kebeles,leaders){
@@ -196,12 +196,12 @@ async function openAddZoneModal(kebeles,leaders){
       <div class="form-group"><label>Kebele *</label>
         <select class="form-control" id="az-kebele" required>
           <option value="">Select Kebele</option>
-          ${kebeles.map(k=>`<option value="${k.id}">${k.name}</option>`).join("")}
+          ${kebeles.map(k=>`<option value="${k.id}">${escapeHtml(k.name)}</option>`).join("")}
         </select><span class="form-error"></span></div>
       <div class="form-group" style="grid-column:1/-1"><label>Assign Leader</label>
         <select class="form-control" id="az-leader">
           <option value="">No leader yet</option>
-          ${leaders.map(l=>`<option value="${l.id}">${l.full_name} ${l.zone_name?"(has zone)":""}</option>`).join("")}
+          ${leaders.map(l=>`<option value="${l.id}">${escapeHtml(l.full_name)} ${l.zone_name?"(has zone)":""}</option>`).join("")}
         </select></div>
       <div class="form-group" style="grid-column:1/-1"><label>Description</label>
         <textarea class="form-control" id="az-desc" rows="2"></textarea></div>
@@ -223,6 +223,6 @@ async function openAddZoneModal(kebeles,leaders){
       closeModal("add-zone-modal");
       toast("Zone created!","success");
       renderSettings();
-    }catch(err){toast(err.message,"error");}
+    }catch(err){toast(escapeHtml(err.message),"error");}
   });
 }

@@ -17,7 +17,7 @@ async function renderPayments(){
       <div class="toolbar">
         ${role!=="leader"?`<select class="form-control" id="pay-filter-kebele" style="width:150px">
           <option value="">All Kebeles</option>
-          ${kebeles.map(k=>`<option value="${k.id}">${k.name}</option>`).join("")}
+          ${kebeles.map(k=>`<option value="${k.id}">${escapeHtml(k.name)}</option>`).join("")}
         </select>`:""}
         <select class="form-control" id="pay-filter-month" style="width:105px">
           ${Array.from({length:12},(_,i)=>`<option value="${i+1}" ${i+1===now.getMonth()+1?"selected":""}>${monthName(i+1)}</option>`).join("")}
@@ -72,7 +72,7 @@ async function renderPayments(){
       });
     }
   }catch(err){
-    content.innerHTML=`<div class="empty"><div class="icon">⚠️</div><p>${err.message}</p></div>`;
+    content.innerHTML=`<div class="empty"><div class="icon">⚠️</div><p>${escapeHtml(err.message)}</p></div>`;
   }
 }
 
@@ -94,16 +94,16 @@ function renderPayRows(){
   if(!slice.length){tbody.innerHTML=`<tr><td colspan="11"><div class="empty"><div class="icon">💳</div><p>No payments found</p></div></td></tr>`;return;}
   tbody.innerHTML=slice.map(p=>`
     <tr>
-      <td><code style="font-size:.72rem;background:var(--gray-100);padding:.2rem .4rem;border-radius:4px">${p.receipt_number||"—"}</code></td>
-      <td>${p.business_name}</td><td>${p.safer_zone_name||"—"}</td><td>${p.kebele_name}</td>
+      <td><code style="font-size:.72rem;background:var(--gray-100);padding:.2rem .4rem;border-radius:4px">${escapeHtml(p.receipt_number||"—")}</code></td>
+      <td>${escapeHtml(p.business_name)}</td><td>${escapeHtml(p.safer_zone_name||"—")}</td><td>${escapeHtml(p.kebele_name)}</td>
       <td><strong>${fmtETB(p.amount)}</strong></td>
-      <td><span class="badge badge-gray">${p.method}</span></td>
+      <td><span class="badge badge-gray">${escapeHtml(p.method)}</span></td>
       <td>${statusBadge(p.status)}</td>
       <td>${monthName(p.month)} ${p.year}</td>
       <td>${p.paid_at?fmtDate(p.paid_at):"—"}</td>
-      <td>${p.collector_name||"—"}</td>
+      <td>${escapeHtml(p.collector_name||"—")}</td>
       ${isAdmin?`<td style="white-space:nowrap">
-        <button class="btn btn-sm btn-outline" onclick='viewReceipt(${JSON.stringify(p)})'>🧾</button>
+        <button class="btn btn-sm btn-outline" onclick="viewReceipt(${escapeJsStr(JSON.stringify(p))})">🧾</button>
         <button class="btn btn-sm btn-danger" style="margin-left:.3rem" onclick="deletePay(${p.id})">🗑</button>
       </td>`:""}
     </tr>`).join("");
@@ -117,7 +117,7 @@ async function openPaymentModal(id,businesses){
       <div class="form-group" style="grid-column:1/-1"><label>Business *</label>
         <select class="form-control" id="pay-business" required>
           <option value="">Select business…</option>
-          ${businesses.map(b=>`<option value="${b.id}" data-target="${b.monthly_target}">${b.name} — ${b.safer_zone_name||""} (${b.kebele_name})</option>`).join("")}
+          ${businesses.map(b=>`<option value="${b.id}" data-target="${b.monthly_target}">${escapeHtml(b.name)} — ${escapeHtml(b.safer_zone_name||"")} (${escapeHtml(b.kebele_name)})</option>`).join("")}
         </select><span class="form-error"></span></div>
       <div class="form-group"><label>Amount (ETB) *</label>
         <input class="form-control" id="pay-amount" type="number" min="0" step="0.01" required>
@@ -185,16 +185,16 @@ function openGatewayCheckoutModal(res, businessName, amount) {
 
   buildModal("gateway-modal", title, `
     <div style="text-align:center;padding:1rem">
-      <div style="font-size:1.1rem;font-weight:600;margin-bottom:0.5rem;color:var(--gray-900)">${businessName}</div>
+      <div style="font-size:1.1rem;font-weight:600;margin-bottom:0.5rem;color:var(--gray-900)">${escapeHtml(businessName)}</div>
       <div style="font-size:1.5rem;color:var(--green);font-weight:700;margin-bottom:1rem">${fmtETB(amount)}</div>
       
       <div style="background:#f9fafb;border:1px solid var(--gray-200);border-radius:12px;padding:1rem;display:inline-block;margin-bottom:1rem">
-        <img src="${qrUrl}" alt="Scan to Pay" style="width:180px;height:180px;display:block;margin:0 auto">
+        <img src="${escapeAttr(qrUrl)}" alt="Scan to Pay" style="width:180px;height:180px;display:block;margin:0 auto">
         <div style="font-size:0.75rem;color:var(--gray-500);margin-top:0.5rem">Scan QR code with your mobile wallet app</div>
       </div>
       
       <div style="margin-bottom:1rem">
-        <a href="${res.paymentUrl}" target="_blank" class="btn" style="background:${brandColor};color:white;display:inline-flex;text-decoration:none;justify-content:center;width:210px;margin:0 auto">
+        <a href="${escapeAttr(res.paymentUrl)}" target="_blank" rel="noopener noreferrer" class="btn" style="background:${brandColor};color:white;display:inline-flex;text-decoration:none;justify-content:center;width:210px;margin:0 auto">
           🔗 Open Sandbox Portal
         </a>
       </div>
@@ -256,7 +256,9 @@ async function deletePay(id){
   }catch(err){toast(err.message,"error");}
 }
 
-function viewReceipt(p){
+function viewReceipt(pJson){
+  let p;
+  try { p = typeof pJson === "string" ? JSON.parse(pJson) : pJson; } catch(e) { return; }
   buildModal("receipt-modal","🧾 Payment Receipt",`
     <div style="font-family:monospace;background:var(--gray-50);padding:1.5rem;border-radius:8px;border:1px solid var(--gray-200)">
       <div style="text-align:center;margin-bottom:1rem">
@@ -266,20 +268,20 @@ function viewReceipt(p){
       </div>
       <hr style="border-color:var(--gray-300);margin:.75rem 0">
       <table style="width:100%;font-size:.85rem">
-        <tr><td style="color:var(--gray-500);padding:.2rem 0">Receipt #</td><td style="text-align:right;font-weight:700">${p.receipt_number||"—"}</td></tr>
-        <tr><td style="color:var(--gray-500);padding:.2rem 0">Business</td><td style="text-align:right">${p.business_name}</td></tr>
-        <tr><td style="color:var(--gray-500);padding:.2rem 0">Zone</td><td style="text-align:right">${p.safer_zone_name||"—"}</td></tr>
-        <tr><td style="color:var(--gray-500);padding:.2rem 0">Kebele</td><td style="text-align:right">${p.kebele_name}</td></tr>
+        <tr><td style="color:var(--gray-500);padding:.2rem 0">Receipt #</td><td style="text-align:right;font-weight:700">${escapeHtml(p.receipt_number||"—")}</td></tr>
+        <tr><td style="color:var(--gray-500);padding:.2rem 0">Business</td><td style="text-align:right">${escapeHtml(p.business_name)}</td></tr>
+        <tr><td style="color:var(--gray-500);padding:.2rem 0">Zone</td><td style="text-align:right">${escapeHtml(p.safer_zone_name||"—")}</td></tr>
+        <tr><td style="color:var(--gray-500);padding:.2rem 0">Kebele</td><td style="text-align:right">${escapeHtml(p.kebele_name)}</td></tr>
         <tr><td style="color:var(--gray-500);padding:.2rem 0">Period</td><td style="text-align:right">${monthName(p.month)} ${p.year}</td></tr>
-        <tr><td style="color:var(--gray-500);padding:.2rem 0">Method</td><td style="text-align:right">${p.method}</td></tr>
+        <tr><td style="color:var(--gray-500);padding:.2rem 0">Method</td><td style="text-align:right">${escapeHtml(p.method)}</td></tr>
         <tr><td style="color:var(--gray-500);padding:.2rem 0">Paid</td><td style="text-align:right">${fmtDate(p.paid_at)}</td></tr>
-        <tr><td style="color:var(--gray-500);padding:.2rem 0">Collector</td><td style="text-align:right">${p.collector_name||"—"}</td></tr>
+        <tr><td style="color:var(--gray-500);padding:.2rem 0">Collector</td><td style="text-align:right">${escapeHtml(p.collector_name||"—")}</td></tr>
       </table>
       <hr style="border-color:var(--gray-300);margin:.75rem 0">
       <div style="display:flex;justify-content:space-between;font-size:1.1rem;font-weight:700">
         <span>TOTAL PAID</span><span style="color:var(--green)">${fmtETB(p.amount)}</span>
       </div>
-      ${p.notes?`<div style="margin-top:.75rem;font-size:.8rem;color:var(--gray-500)">Note: ${p.notes}</div>`:""}
+      ${p.notes?`<div style="margin-top:.75rem;font-size:.8rem;color:var(--gray-500)">Note: ${escapeHtml(p.notes)}</div>`:""}
       <div style="text-align:center;margin-top:1rem;font-size:.75rem;color:var(--gray-400)">Generated ${new Date().toLocaleString()}</div>
     </div>`,
     `<button class="btn btn-outline" onclick="closeModal('receipt-modal')">Close</button>
