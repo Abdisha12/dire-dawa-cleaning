@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Card, StatCard } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
+import { Drawer } from "@/components/ui/drawer";
 import { Alert } from "@/components/ui/alert";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { useToast } from "@/components/ui/toast";
@@ -27,6 +28,7 @@ const workerSchema = z.object({
   faydaId: z.string().max(50).optional().nullable(),
   dailyWage: z.coerce.number().min(0).max(10000),
   saferZoneId: z.string().optional().nullable(), // string for select, converted to number or null
+  kebeleId: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
   customAttributes: z.record(z.string(), z.string()).optional(),
 });
@@ -63,6 +65,7 @@ export default function WorkersPage() {
   const [attendWorker, setAttendWorker] = React.useState<Worker | null>(null);
   const [salaryWorker, setSalaryWorker] = React.useState<Worker | null>(null);
   const [idCardWorker, setIdCardWorker] = React.useState<Worker | null>(null);
+  const [detailWorker, setDetailWorker] = React.useState<Worker | null>(null);
 
   // Summary stats state (respecting scope)
   const [summary, setSummary] = React.useState<{ total: number; active: number; inactive: number; totalWage: number } | null>(null);
@@ -317,6 +320,9 @@ export default function WorkersPage() {
           canEdit
             ? (w) => (
                 <div className="flex gap-1">
+                  <Button size="sm" variant="outline" onClick={() => setDetailWorker(w)} aria-label={`View ${w.full_name}`}>
+                    👁
+                  </Button>
                   <Button size="sm" variant="outline" onClick={() => { setEditing(w); setShowWorkerModal(true); }} aria-label={`Edit ${w.full_name}`}>
                     ✏️
                   </Button>
@@ -373,6 +379,9 @@ export default function WorkersPage() {
       {idCardWorker && (
         <IdCardModal worker={idCardWorker} onClose={() => setIdCardWorker(null)} />
       )}
+      {detailWorker && (
+        <WorkerDetailsDrawer worker={detailWorker} onClose={() => setDetailWorker(null)} />
+      )}
     </div>
   );
 }
@@ -409,6 +418,7 @@ function WorkerFormModal({
       faydaId: worker?.fayda_id || "",
       dailyWage: worker ? Number(worker.daily_wage) : 250,
       saferZoneId: worker?.safer_zone_id ? String(worker.safer_zone_id) : myZone ? String(myZone.id) : "",
+      kebeleId: worker ? String((worker as unknown as { kebele_id?: number }).kebele_id || "") : "",
       isActive: worker ? !!worker.is_active : true,
     },
   });
@@ -429,6 +439,7 @@ function WorkerFormModal({
       faydaId: values.faydaId ? values.faydaId.replace(/[\s-]/g, "") : null,
       dailyWage: Number(values.dailyWage),
       saferZoneId: values.saferZoneId ? Number(values.saferZoneId) : null,
+      kebeleId: values.kebeleId ? Number(values.kebeleId) : null,
       isActive: values.isActive ?? true,
       customAttributes: Object.keys(attrs).length ? attrs : null,
     };
@@ -492,17 +503,50 @@ function WorkerFormModal({
                 <Input value={myZone.name} disabled aria-label="Zone (auto)" />
               </div>
             </>
+          ) : isCollector ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label>Kebele</Label>
+                <div className="rounded bg-[var(--information-l)] px-3 py-2 text-sm font-medium text-[var(--primary)]">
+                  My Kebele — locked
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="wf-zone">Zone</Label>
+                <Select id="wf-zone" {...form.register("saferZoneId")}>
+                  <option value="">Select Zone (optional)</option>
+                  {zones.map((z) => (
+                    <option key={z.id} value={String(z.id)}>
+                      {z.name} — {z.kebele_name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            </div>
           ) : (
-            <div>
-              <Label htmlFor="wf-zone">{isCollector ? "Zone" : "Zone *"}</Label>
-              <Select id="wf-zone" {...form.register("saferZoneId")}>
-                <option value="">Select Zone {isCollector ? "(optional)" : ""}</option>
-                {zones.map((z) => (
-                  <option key={z.id} value={String(z.id)}>
-                    {z.name} — {z.kebele_name}
-                  </option>
-                ))}
-              </Select>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="wf-kebele">Kebele *</Label>
+                <Select id="wf-kebele" {...form.register("kebeleId")} onChange={(e) => form.setValue("saferZoneId", "")}>
+                  <option value="">Select Kebele</option>
+                  {zones.map((z) => (
+                    <option key={z.kebele_id} value={String(z.kebele_id)}>
+                      {z.kebele_name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="wf-zone">Zone *</Label>
+                <Select id="wf-zone" {...form.register("saferZoneId")} disabled={!form.watch("kebeleId")}>
+                  <option value="">Select Zone</option>
+                  {zones.filter((z) => String(z.kebele_id) === form.watch("kebeleId")).map((z) => (
+                    <option key={z.id} value={String(z.id)}>
+                      {z.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
             </div>
           )}
           {worker && (
@@ -748,5 +792,157 @@ function IdCardModal({ worker, onClose }: { worker: Worker; onClose: () => void 
         </div>
       </div>
     </Modal>
+  );
+}
+
+function WorkerDetailsDrawer({
+  worker,
+  onClose,
+}: {
+  worker: Worker;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const [attendance, setAttendance] = React.useState<Array<{ date: string; present: boolean; bonus: string | null; recorder_name: string }>>([]);
+  const [salary, setSalary] = React.useState<Array<{ paid_at: string; amount: string; period_from: string; period_to: string; paid_by_name: string }>>([]);
+  const [attendanceLoading, setAttendanceLoading] = React.useState(true);
+  const [salaryLoading, setSalaryLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const first = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    api.getAttendance(worker.id, { from: first, to: today }).then((res) => {
+      setAttendance(res as never[]);
+      setAttendanceLoading(false);
+    }).catch(() => setAttendanceLoading(false));
+    api.getWorkerSalary(worker.id).then((res) => {
+      setSalary(res as never[]);
+      setSalaryLoading(false);
+    }).catch(() => setSalaryLoading(false));
+  }, [worker.id]);
+
+  const present = attendance.filter((r) => r.present).length;
+  const absent = attendance.filter((r) => !r.present).length;
+  const bonus = attendance.reduce((s, r) => s + (Number(r.bonus) || 0), 0);
+  const wage = Number(worker.daily_wage);
+  const gross = present * wage + bonus;
+
+  return (
+    <Drawer
+      open
+      onClose={onClose}
+      title={`👷 Worker Details — ${worker.full_name}`}
+    >
+      <div className="space-y-6">
+        {/* Profile */}
+        <section className="space-y-3">
+          <h3 className="text-sm font-semibold text-[var(--text-muted)] uppercase tracking-wide">Profile</h3>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div><span className="text-xs text-[var(--text-muted)]">Name</span><div className="font-medium">{worker.full_name}</div></div>
+            <div><span className="text-xs text-[var(--text-muted)]">Contact</span><div>{worker.contact || "—"}</div></div>
+            <div><span className="text-xs text-[var(--text-muted)]">Fayda ID</span><div>{worker.fayda_id ? formatFaydaId(worker.fayda_id) : "—"}</div></div>
+            <div><span className="text-xs text-[var(--text-muted)]">Status</span><div>{worker.is_active ? <StatusBadge status="active" /> : <Badge variant="gray">Inactive</Badge>}</div></div>
+          </div>
+        </section>
+
+        {/* Employment */}
+        <section className="space-y-3 border-t border-[var(--border)] pt-4">
+          <h3 className="text-sm font-semibold text-[var(--text-muted)] uppercase tracking-wide">Employment</h3>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div><span className="text-xs text-[var(--text-muted)]">Zone</span><div>{worker.zone_name ? <Badge variant="purple">{worker.zone_name}</Badge> : "—"}</div></div>
+            <div><span className="text-xs text-[var(--text-muted)]">Kebele</span><div>{worker.kebele_name || "—"}</div></div>
+            <div><span className="text-xs text-[var(--text-muted)]">Daily Wage</span><div className="font-semibold">{fmtETB(worker.daily_wage)}/day</div></div>
+            <div><span className="text-xs text-[var(--text-muted)]">Status</span><div>{worker.is_active ? <StatusBadge status="active" /> : <Badge variant="gray">Inactive</Badge>}</div></div>
+          </div>
+        </section>
+
+        {/* Kebele / Safer Zone */}
+        <section className="space-y-3 border-t border-[var(--border)] pt-4">
+          <h3 className="text-sm font-semibold text-[var(--text-muted)] uppercase tracking-wide">Kebele / Safer Zone</h3>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div><span className="text-xs text-[var(--text-muted)]">Safer Zone</span><div>{worker.zone_name ? <Badge variant="purple">{worker.zone_name}</Badge> : "—"}</div></div>
+            <div><span className="text-xs text-[var(--text-muted)]">Kebele</span><div>{worker.kebele_name || "—"}</div></div>
+            <div><span className="text-xs text-[var(--text-muted)]">Zone ID</span><div className="font-mono text-sm">{worker.safer_zone_id || "—"}</div></div>
+            <div><span className="text-xs text-[var(--text-muted)]">Kebele ID</span><div className="font-mono text-sm">{(worker as unknown as { kebele_id?: number }).kebele_id || "—"}</div></div>
+          </div>
+        </section>
+
+        {/* Attendance */}
+        <section className="space-y-3 border-t border-[var(--border)] pt-4">
+          <h3 className="text-sm font-semibold text-[var(--text-muted)] uppercase tracking-wide">Attendance (Current Month)</h3>
+          {attendanceLoading ? (
+            <div className="h-8 animate-pulse bg-[var(--gray-100)] rounded" />
+          ) : (
+            <div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <div className="rounded border border-[var(--border)] p-3 text-center"><div className="text-xs text-[var(--text-muted)]">Present</div><div className="text-xl font-bold text-[var(--success)]">{attendance.filter((r) => r.present).length}</div></div>
+                <div className="rounded border border-[var(--border)] p-3 text-center"><div className="text-xs text-[var(--text-muted)]">Absent</div><div className="text-xl font-bold text-[var(--danger)]">{attendance.filter((r) => !r.present).length}</div></div>
+                <div className="rounded border border-[var(--border)] p-3 text-center"><div className="text-xs text-[var(--text-muted)]">Gross (Month)</div><div className="text-lg font-bold">{fmtETB(attendance.filter((r) => r.present).length * Number(worker.daily_wage) + attendance.reduce((s, r) => s + (Number(r.bonus) || 0), 0))}</div></div>
+              </div>
+              <div className="max-h-[30vh] overflow-auto rounded border border-[var(--border)]">
+                <table className="w-full text-sm"><thead className="bg-[var(--gray-50)]"><tr><th className="p-2 text-left">Date</th><th className="p-2 text-left">Status</th><th className="p-2 text-left">Bonus</th><th className="p-2 text-left">Recorded By</th></tr></thead>
+                <tbody>
+                  {attendance.length ? attendance.map((r) => (
+                    <tr key={r.date} className="border-t border-[var(--border)]">
+                      <td className="p-2">{fmtDate(r.date)}</td>
+                      <td className="p-2">{r.present ? <StatusBadge status="active" /> : <Badge variant="red">Absent</Badge>}</td>
+                      <td className="p-2">{r.bonus ? fmtETB(r.bonus) : "—"}</td>
+                      <td className="p-2">{r.recorder_name || "—"}</td>
+                    </tr>
+                  )) : <tr><td colSpan={4} className="p-4 text-center text-[var(--text-muted)]">No records this month</td></tr>}
+                </tbody>
+              </table>
+            </div>
+            </div>
+          )}
+        </section>
+
+        {/* Salary */}
+        <section className="space-y-3 border-t border-[var(--border)] pt-4">
+          <h3 className="text-sm font-semibold text-[var(--text-muted)] uppercase tracking-wide">Salary Payments</h3>
+{salaryLoading ? (
+            <div className="h-8 animate-pulse bg-[var(--gray-100)] rounded" />
+          ) : (
+            <div>
+              <div className="max-h-[30vh] overflow-auto rounded border border-[var(--border)]">
+                <table className="w-full text-sm"><thead className="bg-[var(--gray-50)]"><tr><th className="p-2 text-left">Date</th><th className="p-2 text-left">Amount</th><th className="p-2 text-left">Period</th><th className="p-2 text-left">Paid By</th></tr></thead>
+                <tbody>
+                  {salary.length ? salary.map((h, i) => (
+                    <tr key={i} className="border-t border-[var(--border)]">
+                      <td className="p-2">{fmtDate(h.paid_at)}</td>
+                      <td className="p-2 font-semibold">{fmtETB(h.amount)}</td>
+                      <td className="p-2">{fmtDate(h.period_from)} – {fmtDate(h.period_to)}</td>
+                      <td className="p-2">{h.paid_by_name || "—"}</td>
+                    </tr>
+                  )) : <tr><td colSpan={4} className="p-4 text-center text-[var(--text-muted)]">No payments yet</td></tr>}
+                </tbody>
+              </table>
+            </div>
+            </div>
+          )}
+        </section>
+
+        {/* Custom Attributes */}
+        <section className="space-y-3 border-t border-[var(--border)] pt-4">
+          <h3 className="text-sm font-semibold text-[var(--text-muted)] uppercase tracking-wide">Custom Attributes</h3>
+          {(() => {
+            let attrs: Record<string, string> = {};
+            if (typeof (worker as unknown as { custom_attributes?: unknown }).custom_attributes === "object" && (worker as unknown as { custom_attributes?: Record<string, string> }).custom_attributes) {
+              attrs = (worker as unknown as { custom_attributes: Record<string, string> }).custom_attributes;
+            }
+            if (Object.keys(attrs).length > 0) {
+              return (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {Object.entries(attrs).map(([k, v]) => (
+                    <div key={k} className="rounded-lg border border-[#fed7aa] bg-[#fffbf7] p-2"><span className="block text-xs uppercase text-[#7c2d12]">{k}</span><span className="text-sm font-bold">{String(v)}</span></div>
+                  ))}
+                </div>
+              );
+            }
+            return <p className="text-sm text-[var(--text-muted)]">No custom attributes</p>;
+          })()}
+        </section>
+      </div>
+    </Drawer>
   );
 }
