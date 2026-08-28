@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS kebeles (
   code         VARCHAR(10) NOT NULL UNIQUE,
   collector_id INT,
   created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (collector_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
@@ -129,6 +130,7 @@ CREATE TABLE IF NOT EXISTS attendance (
   notes       TEXT,
   recorded_by INT NOT NULL,
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (worker_id)   REFERENCES workers(id) ON DELETE CASCADE,
   FOREIGN KEY (recorded_by) REFERENCES users(id),
   UNIQUE KEY uq_attendance_day (worker_id, date)
@@ -144,6 +146,7 @@ CREATE TABLE IF NOT EXISTS salary_payments (
   notes       TEXT,
   paid_by     INT NOT NULL,
   created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE,
   FOREIGN KEY (paid_by)   REFERENCES users(id)
 );
@@ -238,14 +241,16 @@ CREATE TABLE IF NOT EXISTS documents (
   INDEX idx_doc_zone (safer_zone_id)
 );
 
-INSERT IGNORE INTO users (username,password_hash,full_name,phone,role) VALUES
-  ('admin','$2a$10$Zg4vn3Cs6QC2ByfvReT8s.BwIQBMqSb88lOYdgNBTwnfKcxDBISdq','System Administrator','0911000000','admin'),
-  ('collector1','$2a$10$Zg4vn3Cs6QC2ByfvReT8s.BwIQBMqSb88lOYdgNBTwnfKcxDBISdq','Abebe Bekele','0911000001','collector'),
-  ('collector2','$2a$10$Zg4vn3Cs6QC2ByfvReT8s.BwIQBMqSb88lOYdgNBTwnfKcxDBISdq','Tigist Haile','0911000002','collector'),
-  ('leader_k1z1','$2a$10$Zg4vn3Cs6QC2ByfvReT8s.BwIQBMqSb88lOYdgNBTwnfKcxDBISdq','Mulugeta Tadesse','0911100001','leader'),
-  ('leader_k1z2','$2a$10$Zg4vn3Cs6QC2ByfvReT8s.BwIQBMqSb88lOYdgNBTwnfKcxDBISdq','Hiwot Girma','0911100002','leader'),
-  ('leader_k2z1','$2a$10$Zg4vn3Cs6QC2ByfvReT8s.BwIQBMqSb88lOYdgNBTwnfKcxDBISdq','Dawit Bekele','0911100003','leader'),
-  ('viewer1','$2a$10$Zg4vn3Cs6QC2ByfvReT8s.BwIQBMqSb88lOYdgNBTwnfKcxDBISdq','Fatuma Omar','0911000009','viewer');
+-- Seed users are NOT included in schema.sql to prevent default passwords in any environment.
+-- Use database/seed.js to create development seed users with explicit passwords.
+-- Run: SEED_PASSWORD=yourpassword node database/seed.js
+--
+-- Required env vars for seeding:
+--   SEED_PASSWORD     — Password for all seed users (development only)
+--   DB_HOST           — Database host (default: localhost)
+--   DB_USER           — Database user (default: root)
+--   DB_PASSWORD       — Database password
+--   DB_NAME           — Database name (default: dire_dawa_cleaning)
 
 INSERT IGNORE INTO kebeles (name,code,collector_id) VALUES
   ('Kebele 01','K01',2),('Kebele 02','K02',2),('Kebele 03','K03',3),

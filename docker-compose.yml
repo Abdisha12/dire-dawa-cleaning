@@ -12,7 +12,7 @@ services:
       MARIADB_PASSWORD: ${DB_PASSWORD:?ERROR: Set DB_PASSWORD in .env file}
     volumes:
       - db_data:/var/lib/mysql
-      # Auto-import schema + seed on first run
+      # Auto-import schema on first run (seed users created separately via seed.js)
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]

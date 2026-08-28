@@ -5,6 +5,7 @@ require("dotenv").config();
 const REQUIRED_ENV = {
   DB_PASSWORD: "Database password (set DB_PASSWORD in .env)",
   SESSION_SECRET: "Session signing secret (set SESSION_SECRET in .env, min 32 chars)",
+  PAYMENT_WEBHOOK_SECRET: "Payment webhook secret (set PAYMENT_WEBHOOK_SECRET in .env)",
 };
 for (const [key, desc] of Object.entries(REQUIRED_ENV)) {
   if (!process.env[key]) {
@@ -85,14 +86,33 @@ fs.mkdirSync(path.join(__dirname,"uploads/inspections"),{recursive:true});
 fs.mkdirSync(path.join(__dirname,"uploads/documents"),{recursive:true});
 fs.mkdirSync(path.join(__dirname,"logs"),{recursive:true});
 
-app.use(helmet({crossOriginResourcePolicy:{policy:"cross-origin"}}));
+app.use(helmet({
+  crossOriginResourcePolicy:{policy:"cross-origin"},
+  contentSecurityPolicy:{
+    directives:{
+      defaultSrc:["'self'"],
+      scriptSrc:["'self'","https://cdnjs.cloudflare.com"],
+      styleSrc:["'self'","'unsafe-inline'"],
+      imgSrc:["'self'","data:","https://api.qrserver.com"],
+      connectSrc:["'self'"],
+      fontSrc:["'self'"],
+      objectSrc:["'none'"],
+      frameAncestors:["'self'"],
+      baseUri:["'self'"],
+      formAction:["'self'"],
+    },
+  },
+  crossOriginEmbedderPolicy:false,
+  referrerPolicy:{policy:"strict-origin-when-cross-origin"},
+}));
 app.use(cors({
   origin: corsOriginCallback,
   methods: ["GET","POST","PUT","DELETE","OPTIONS"],
   allowedHeaders: ["Content-Type","Authorization","x-session-token"],
   credentials: true
 }));
-app.use("/api/auth/login",rateLimit({windowMs:15*60*1000,max:20,message:{error:"Too many login attempts"}}));
+app.use("/api/auth/login",rateLimit({windowMs:15*60*1000,max:10,message:{error:"Too many login attempts. Please try again later."},standardHeaders:true,legacyHeaders:false}));
+app.use("/api/auth/",rateLimit({windowMs:15*60*1000,max:30,message:{error:"Too many auth requests"}}));
 app.use("/api/",rateLimit({windowMs:60*1000,max:500,message:{error:"Rate limit exceeded"}}));
 app.use(express.json({limit:"10mb"}));
 app.use(express.urlencoded({extended:true,limit:"10mb"}));
