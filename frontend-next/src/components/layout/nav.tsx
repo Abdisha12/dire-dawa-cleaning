@@ -6,33 +6,34 @@ import { useEffect, useState } from "react";
 import { getUser, clearAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import type { Role } from "@/types";
+import { Icons } from "@/components/ui/icon";
 
 type NavItem = {
   id: string;
   label: string;
   href: string;
-  icon: string;
+  icon: keyof typeof Icons;
   roles: Role[];
   group?: string;
 };
 
 const NAV: NavItem[] = [
-  { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: "📊", roles: ["admin", "collector", "leader", "viewer"] },
-  { id: "workers", label: "Workers", href: "/operations/workers", icon: "👷", roles: ["admin", "collector", "leader"], group: "Operations" },
-  { id: "inspections", label: "Inspections", href: "/operations/inspections", icon: "🔍", roles: ["admin", "collector", "leader"], group: "Operations" },
-  { id: "zonereports", label: "Zone Reports", href: "/operations/zone-reports", icon: "📝", roles: ["admin", "collector", "leader"], group: "Operations" },
-  { id: "kebeles", label: "Kebeles", href: "/locations/kebeles", icon: "🏘️", roles: ["admin", "collector"], group: "Locations" },
-  { id: "zones", label: "Safer Zones", href: "/locations/safer-zones", icon: "🗺️", roles: ["admin", "collector", "leader"], group: "Locations" },
-  { id: "businesses", label: "Businesses", href: "/businesses", icon: "🏪", roles: ["admin", "collector", "leader", "viewer"], group: "Businesses & Finance" },
-  { id: "payments", label: "Payments", href: "/businesses/payments", icon: "💳", roles: ["admin", "collector", "leader"], group: "Businesses & Finance" },
-  { id: "notifications", label: "Notifications", href: "/community/notifications", icon: "🔔", roles: ["admin", "collector", "leader", "viewer"], group: "Community" },
-  { id: "reports", label: "Reports", href: "/reports", icon: "📋", roles: ["admin", "collector", "viewer"], group: "Reports & Analytics" },
-  { id: "analytics", label: "Analytics", href: "/reports/analytics", icon: "📈", roles: ["admin", "collector", "leader", "viewer"], group: "Reports & Analytics" },
-  { id: "users", label: "Users", href: "/administration/users", icon: "👥", roles: ["admin"], group: "Administration" },
-  { id: "tools", label: "Tools & Equipment", href: "/administration/tools", icon: "🔧", roles: ["admin", "collector", "leader"], group: "Administration" },
-  { id: "documents", label: "Documents", href: "/administration/documents", icon: "📁", roles: ["admin", "collector", "leader", "viewer"], group: "Administration" },
-  { id: "auditlog", label: "Audit Logs", href: "/administration/audit-logs", icon: "📜", roles: ["admin"], group: "Administration" },
-  { id: "settings", label: "Settings", href: "/settings", icon: "⚙️", roles: ["admin", "collector", "leader", "viewer"] },
+  { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: "dashboard", roles: ["admin", "collector", "leader", "viewer"] },
+  { id: "workers", label: "Workers", href: "/operations/workers", icon: "workers", roles: ["admin", "collector", "leader"], group: "Operations" },
+  { id: "inspections", label: "Inspections", href: "/operations/inspections", icon: "inspections", roles: ["admin", "collector", "leader"], group: "Operations" },
+  { id: "zonereports", label: "Zone Reports", href: "/operations/zone-reports", icon: "zonereports", roles: ["admin", "collector", "leader"], group: "Operations" },
+  { id: "kebeles", label: "Kebeles", href: "/locations/kebeles", icon: "kebeles", roles: ["admin", "collector"], group: "Locations" },
+  { id: "zones", label: "Safer Zones", href: "/locations/safer-zones", icon: "zones", roles: ["admin", "collector", "leader"], group: "Locations" },
+  { id: "businesses", label: "Businesses", href: "/businesses", icon: "businesses", roles: ["admin", "collector", "leader", "viewer"], group: "Businesses & Finance" },
+  { id: "payments", label: "Payments", href: "/businesses/payments", icon: "payments", roles: ["admin", "collector", "leader"], group: "Businesses & Finance" },
+  { id: "notifications", label: "Notifications", href: "/community/notifications", icon: "notifications", roles: ["admin", "collector", "leader", "viewer"], group: "Community" },
+  { id: "reports", label: "Reports", href: "/reports", icon: "reports", roles: ["admin", "collector", "viewer"], group: "Reports & Analytics" },
+  { id: "analytics", label: "Analytics", href: "/reports/analytics", icon: "analytics", roles: ["admin", "collector", "leader", "viewer"], group: "Reports & Analytics" },
+  { id: "users", label: "Users", href: "/administration/users", icon: "users", roles: ["admin"], group: "Administration" },
+  { id: "tools", label: "Tools & Equipment", href: "/administration/tools", icon: "tools", roles: ["admin", "collector", "leader"], group: "Administration" },
+  { id: "documents", label: "Documents", href: "/administration/documents", icon: "documents", roles: ["admin", "collector", "leader", "viewer"], group: "Administration" },
+  { id: "auditlog", label: "Audit Logs", href: "/administration/audit-logs", icon: "auditlog", roles: ["admin"], group: "Administration" },
+  { id: "settings", label: "Settings", href: "/settings", icon: "settings", roles: ["admin", "collector", "leader", "viewer"] },
 ];
 
 const MOBILE_PRIMARY = ["dashboard", "inspections", "workers", "payments", "notifications"];
@@ -74,6 +75,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
             <div className="px-5 pb-1 pt-3 text-xs uppercase tracking-wide text-white/35">{group}</div>
             {items.map((n) => {
               const active = pathname === n.href || pathname.startsWith(n.href + "/");
+              const Icon = Icons[n.icon];
               return (
                 <Link
                   key={n.id}
@@ -85,9 +87,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
                       : "border-transparent text-white/70 hover:bg-white/5 hover:text-white"
                   }`}
                 >
-                  <span className="w-6 text-base" aria-hidden>
-                    {n.icon}
-                  </span>
+                  <Icon size={18} className="shrink-0" aria-hidden />
                   {n.label}
                 </Link>
               );
@@ -126,9 +126,10 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
             clearAuth();
             window.location.href = "/login";
           }}
-          className="w-full rounded-md bg-white/5 py-1.5 text-white/70 hover:bg-[#dc2626] hover:text-white"
+          className="flex w-full items-center justify-center gap-2 rounded-md bg-white/5 py-1.5 text-white/70 hover:bg-[#dc2626] hover:text-white"
         >
-          ⏻ Logout
+          <Icons.logout size={14} aria-hidden />
+          Logout
         </button>
       </div>
     </aside>
@@ -159,20 +160,20 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
     <header className="sticky top-0 z-[var(--z-topbar)] flex h-[var(--header-h)] items-center gap-4 border-b border-[var(--border)] bg-[var(--surface)] px-4 md:px-6">
       <button
         onClick={onMenu}
-        className="text-xl md:hidden"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-[var(--gray-100)] md:hidden"
         aria-label="Open menu"
       >
-        ☰
+        <Icons.menu size={20} aria-hidden />
       </button>
       <h2 className="flex-1 text-base font-semibold">Dire Dawa Cleaning</h2>
       <Link
         href="/community/notifications"
-        className="relative text-xl no-underline"
-        aria-label="Notifications"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-[var(--gray-100)]"
+        aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}
       >
-        🔔
+        <Icons.notifications size={20} aria-hidden />
         {unread > 0 && (
-          <span className="absolute -right-2 -top-1 rounded-full bg-[var(--danger)] px-1.5 py-0.5 text-xs font-bold text-white">
+          <span className="absolute -right-1 -top-1 rounded-full bg-[var(--danger)] px-1.5 py-0.5 text-xs font-bold text-white">
             {unread > 99 ? "99+" : unread}
           </span>
         )}
@@ -208,6 +209,7 @@ export function BottomNav() {
     >
       {items.map((n) => {
         const active = pathname === n.href;
+        const Icon = Icons[n.icon as keyof typeof Icons];
         return (
           <Link
             key={n.id}
@@ -216,9 +218,7 @@ export function BottomNav() {
               active ? "text-[var(--primary)] font-bold" : "text-[var(--text-muted)]"
             }`}
           >
-            <span className="text-lg" aria-hidden>
-              {n.icon}
-            </span>
+            <Icon size={18} aria-hidden />
             <span>{n.label.split(" ")[0]}</span>
           </Link>
         );
