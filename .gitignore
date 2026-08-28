@@ -3,10 +3,13 @@ node_modules/
 .pnp.*
 .pnp.js
 
-# Environment files
+# Environment files (SECRETS — never commit)
 .env
 .env.local
 .env.*.local
+.env.production
+.env.staging
+backend/.env
 
 # Logs
 logs/

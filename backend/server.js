@@ -1,4 +1,24 @@
 require("dotenv").config();
+
+// ── Validate required secrets ──────────────────────────────────
+// Fail fast with a clear message instead of running with insecure defaults.
+const REQUIRED_ENV = {
+  DB_PASSWORD: "Database password (set DB_PASSWORD in .env)",
+  SESSION_SECRET: "Session signing secret (set SESSION_SECRET in .env, min 32 chars)",
+};
+for (const [key, desc] of Object.entries(REQUIRED_ENV)) {
+  if (!process.env[key]) {
+    console.error(`\n❌  FATAL: Missing required environment variable: ${key}`);
+    console.error(`   → ${desc}`);
+    console.error(`   → Copy backend/.env.example to backend/.env and fill in real values.\n`);
+    process.exit(1);
+  }
+}
+if (process.env.SESSION_SECRET && process.env.SESSION_SECRET.length < 32) {
+  console.error("\n❌  FATAL: SESSION_SECRET must be at least 32 characters long.\n");
+  process.exit(1);
+}
+
 const express=require("express");
 const cors=require("cors");
 const helmet=require("helmet");
