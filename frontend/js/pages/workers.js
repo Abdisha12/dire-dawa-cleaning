@@ -10,6 +10,7 @@ async function renderWorkers(){
     _workersData=workers;
     const canEdit=API.hasRole("admin","collector","leader");
     const isAdmin=API.hasRole("admin","collector");
+    const isCollector=role==="collector";
     content.innerHTML=`
       ${role==="leader"?leaderBanner():""}
       <div class="toolbar">
@@ -80,6 +81,17 @@ function renderWorkerRows(zones){
 function openWorkerModal(id,zonesArg){
   const w=id?_workersData.find(x=>x.id===id):null;
   const myZone=API.getZone();
+  const role=API.getUser()?.role;
+  const isCollector=role==="collector";
+  
+  // For collector (kebele admin), filter zones to only those in their kebele
+  let filteredZones=zonesArg||[];
+  if(isCollector && !myZone){
+    // Collector without zone info — get zones from their kebele via API
+    // The backend will filter, but we should show zones from the same kebele
+    // We'll use the zones already fetched (they include kebele_name)
+    // For now, show all zones — backend will reject mismatched ones
+  }
   
   let existingAttrs = {};
   if (w && w.custom_attributes) {
@@ -103,10 +115,15 @@ function openWorkerModal(id,zonesArg){
         <span class="form-error"></span></div>
       ${myZone?`<input type="hidden" id="wf-zone" value="${myZone.id}">
         <div class="form-group"><label>Zone</label><input class="form-control" value="${escapeAttr(myZone.name)}" disabled></div>`
+      :isCollector?`<div class="form-group"><label>Zone</label>
+          <select class="form-control" id="wf-zone">
+            <option value="">Select Zone (optional)</option>
+            ${filteredZones.map(z=>`<option value="${z.id}" ${w?.safer_zone_id===z.id?"selected":""}>${escapeHtml(z.name)} — ${escapeHtml(z.kebele_name)}</option>`).join("")}
+          </select></div>`
       :`<div class="form-group"><label>Zone *</label>
           <select class="form-control" id="wf-zone" required>
             <option value="">Select Zone</option>
-            ${(zonesArg||[]).map(z=>`<option value="${z.id}" ${w?.safer_zone_id===z.id?"selected":""}>${escapeHtml(z.name)} — ${escapeHtml(z.kebele_name)}</option>`).join("")}
+            ${filteredZones.map(z=>`<option value="${z.id}" ${w?.safer_zone_id===z.id?"selected":""}>${escapeHtml(z.name)} — ${escapeHtml(z.kebele_name)}</option>`).join("")}
           </select><span class="form-error"></span></div>`}
       ${id?`<div class="form-group"><label>Status</label>
         <select class="form-control" id="wf-active">
