@@ -236,6 +236,136 @@ Charts: swap `Chart.js` palette to high-contrast (e.g., `#22d3ee` for primary on
 
 ---
 
+## 10. Responsive Design
+
+**Breakpoints:** `360` (small phone) → `480` (phone) → `768` (tablet) → `1024` (laptop) → `1280` (desktop). `main.css` already uses `768`/`480`/`900`; new tokens: `--bp-sm: 480px`, `--bp-md: 768px`, `--bp-lg: 1024px`, `--bp-xl: 1280px`.
+
+**Desktop/laptop (≥1024):** sidebar `245px` + `main-wrap` + 4-col `stats-grid`, toolbar row, tables full, modal centered `560px`.
+
+**Tablet (768–1023):** sidebar still fixed but `stats-grid 2-col`, `form-grid 1-col`, `table-wrap` horizontal scroll with sticky first col option, filters wrap.
+
+**Android phones (<768):** not shrunk desktop — hamburger toggles `sidebar.open` (slide), `main-wrap padding-bottom 60px`, `mobile-bottom-nav` 5 primary actions (Dashboard, Inspections, Workers, Payments, Notifications) `flex` (existing `main.js:89`), `modal` → bottom sheet `max-h 85vh` with drag handle, `btn/form-control min-h 44px`, `stats-grid 1-col` at `480`, tables → card transform (see §12), forms single column, toolbar `flex-col`.
+
+**Maps on small screens:** full-bleed `height 60vh`, floating search + layer button (not sidebar), collapsible legend/drawer, touch gestures (pinch, long-press), bottom `Detail panel` sheet.
+
+---
+
+## 11. Accessibility — WCAG 2.2 AA by Design
+
+- **Keyboard:** tab order sidebar→top-bar→content, `focus` ring `3px rgba(37,99,235,.15)` on `form-control`/`btn`/`nav-link` (`:focus-visible`), modals trap focus, `Esc` closes.
+- **Focus states:** defined in tokens, not browser default.
+- **Contrast:** primary `#1d4ed8` on white `7.2:1`, text `111827` on `f9fafb` `15:1`, badges `*-l` backgrounds keep `4.5:1` text.
+- **Semantic HTML:** `aside nav`, `header`, `main`, `table > thead/tbody th[scope]`, `form > label[for]`, `dialog[aria-modal]`.
+- **Labels:** every `input/select` has `label`, icon buttons `aria-label` (e.g., hamburger “Menu”), `zone-badge` not icon-only.
+- **Screen-reader:** `aria-live` toasts, `aria-busy` loading, `aria-sort` tables, status badges include text + icon (not color-only: `✓ Paid` vs `⏳ Pending`).
+- **Errors:** inline `form-error` + `aria-describedby` + `aria-invalid`, toast for server errors, not color-only.
+- **Touch:** `44px` min target (already `main.css:371`), spacing prevents mis-tap.
+- **Reduced motion:** `@media (prefers-reduced-motion)` disables `slideIn 0.25s`/`spin 0.6s`/`transform` hover.
+- **Non-color indicators:** status via badge text+icon+left-border, not left-border alone.
+
+---
+
+## 12. Data Table System — Reusable
+
+Current pages implement tables independently (`paginate`+`filterTable` per page). Future: single `DataTable` component.
+
+**Features:**
+- Search (debounced 300ms, `filterTable` but server `?search=` for large sets), filtering (selects: kebele/type/status/month), sorting (click `th` → `?sort=&order=`), pagination (server `?page&limit=25`, `page-btn` + `limit` selector), column visibility (gear menu), export (CSV/Excel/PDF `format` param → `API.csvUrl`), row actions (edit/delete/view), bulk actions (checkbox + toolbar `Bulk Attendance`), loading skeleton, empty (icon + CTA), error (red + retry), mobile card.
+
+**Mobile transformation:** <768px `table → card stack` — each row becomes card with `title` (name/business) + `2×2` field grid + `Actions` bottom row; hide low-priority cols via `priority` prop. `documents` already uses card grid — unify.
+
+**Props:** `columns: {key,label,sortable,priority,render}`, `data`, `loading`, `emptyCTA`, `onSort`, `onPage`, `rowActions`, `bulkActions`.
+
+---
+
+## 13. Form System
+
+**Architecture:** `Form` wrapper + `Field` + `useForm` hook (future React Hook Form + Zod matching backend `validate.js`).
+
+**States:** `idle` → `validating` → `submitting` (btn `disabled` + spinner `Signing in…` as in `login.js`) → `success` (toast `Worker added` + close modal) / `error` (inline `form-error` + `toast` for server `err.code 23505→“Already exists”`). `disabled` propagates to all controls.
+
+**Validation:** field (required `validateForm`, `validateFaydaId 12d`, Fayda `formatFaydaId`) + server Zod errors mapped to `form-error` per field, not toast-only.
+
+**Confirmation:** `confirmDialog` for delete (`Delete this worker and all records?`), `review-modal` for state change.
+
+**Unsaved:** `beforeunload` + modal “Discard changes?” if `dirty`, `Reset` link.
+
+**Success feedback:** `toast` + row update + `leaderBanner` refresh. **Accessible errors:** `aria-describedby` links label→error, focus first invalid field.
+
+Covers: workers (attrs builder), businesses (kebele→zone cascade), inspections (photos×10), payments (business→target prefill), reports, users (role, pw), tools.
+
+---
+
+## 14. GIS UI Foundation — Future (no build yet)
+
+DB already: `kebeles.boundary MULTIPOLYGON`, `safer_zones.boundary MULTIPOLYGON`, `businesses/inspections/workers.location POINT` (SRID 4326) + GIST.
+
+**Future components (designed, not implemented):**
+- `CityMap` — base (MapLibre + OSM/Carto light), Kebele `MULTIPOLYGON` fills (color by achievement), Zone outlines, `LINESTRING` routes (future), `POINT` clusters (inspections/complaints/collection/hotspots/vehicles/workers) via `ST_AsGeoJSON`.
+- Controls: `LayerControls` (checkboxes kebele/zone/route/points), `Search` (kebele/zone/business), `Filters` (status/date), `Legend` (status colors), `Popup` (on click: name+status+actions), `SelectedFeature` highlight, `DetailPanel` (bottom sheet mobile, side drawer desktop with full record + `View Details` link).
+
+Operational, not decorative — e.g., tap hotspot → `Inspections` filtered list.
+
+---
+
+## 15. Mobile Field Workflow (future)
+
+**Designed flow (no offline sync yet — just UX):**
+
+```
+Login → My Kebele / My Zone (auto-scoped) → Today's Tasks (inspections/reports due, absent alerts)
+→ Worker / Inspection / Complaint card → Capture (fields + required photo/GPS if inspection)
+→ Submit (toast + sync badge) → Sync (future offline queue)
+```
+
+Screens: `Today` (list of 3 alert types from `notifications`), `Capture` (form with `Photo / GPS where required` toggle, `form-control` touch-friendly), `Submit` (offline banner if queued). Offline capability defined as `IndexedDB queue + background sync` but **not implemented** — document only.
+
+---
+
+## 16. Notification System
+
+**Architecture:** `in-app` card list (`notifications.js`) + bell `🔔` + badge poll 60s (`updateHeaderNotifBadge`).
+
+**Types (existing 3 + future):** `overdue_payment` 💳, `pending_report` 📝, `absent_worker` 👷, (future) `inspection_reminder`, `payment_alert`, `complaint_update`, `system` 🔔.
+
+**Severity:**
+
+- `informational` — blue `badge-blue` (pending report)
+- `warning` — orange `badge-orange` (pending inspection)
+- `urgent` — red `badge-red` + `border-left 4px primary` + `notif-unread` bg `blue-l` (overdue)
+- `success` — green `badge-green` (report approved)
+
+Differentiated by badge+icon+left-border+priority sort (urgent top). Future push via poll/WebSocket (not yet).
+
+---
+
+## 17. Empty / Error / Loading / Success States
+
+Every page already has 3; future standardizes.
+
+- **Loading:** `skeleton` (stats: 4 gray blocks pulse, table: 5 rows `height 44px` + shimmer) or `loading-overlay` spinner (current `spinnerHTML`). `aria-busy`.
+- **Empty:** `.empty` `icon 2.5rem` + title `No workers` + description `No businesses found` + primary CTA `+ Add Business` (role-gated). Current: `🏪 No businesses found`, `🔍 No inspections`, `📂 No documents` — keep.
+- **Error:** red `⚠️ escapeHtml(err.message)` + `Retry` button (re-calls `loadData`) + toast, no stack. Network error → `Unable to connect to backend (…5000)`.
+- **Success:** `toast` `✅ Worker added` + modal close + row inserted at top; zone report `submitted` badge change.
+
+No blank white pages — `boot()` hashes to `landing` if unauthenticated.
+
+---
+
+## 18. Search — Unified Strategy (not built yet)
+
+**UX:** global `⌘K` bar in `top-bar` (next to bell), placeholder `Search workers, businesses, zones…`. Debounced 300ms, min 2 chars, grouped results: `Workers (3) / Businesses (2) / Kebeles / Zones / Inspections / Reports` with `Rank` by relevance: exact name > owner > zone match > notes. Keyboard `↑↓` + `Enter` → detail. Scoped by role (Leader only sees their zone results). History/recent.
+
+Ranking kept server-side `ILike %q%` + `priority` weight; future `pg_trgm` GIN not needed yet. Define only.
+
+---
+
+## 19. Mobile Navigation
+
+Not desktop sidebar shrunk. <768px: `sidebar` hidden → `hamburger` toggles slide `translateX`; primary field actions in `mobile-bottom-nav` (Dashboard, Inspections, Workers, Payments, Alerts) — existing 5 matches most frequent ops per audit. Secondary navigation via `More` drawer (Tools, Reports, Documents, Settings). Auth pages full-width, landing hamburger. Priority: 1-tap to `Today's Tasks` / `Add Inspection` / `Mark Attendance`.
+
+---
+
 ## Next Steps (not in this phase)
 
 Proof of concept `frontend-next/` (Next.js + Tailwind + `tokens.css` + `KebeleSelector` + `Dashboard` with city/kebele/zone contexts) only to validate architecture before full rewrite. No page implementations until Phase 3.
