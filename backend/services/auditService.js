@@ -17,9 +17,9 @@ async function log(req, action, entityType, entityId = null, oldValues = null, n
     const ip = req.ip || req.headers["x-forwarded-for"] || req.connection?.remoteAddress || null;
     const ua = (req.headers["user-agent"] || "").slice(0, 255);
 
-    await db.execute(
+    await db.query(
       `INSERT INTO audit_log (user_id, action, entity_type, entity_id, old_values, new_values, ip_address, user_agent)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         userId,
         action,
@@ -46,23 +46,25 @@ async function getEntries({ entityType, entityId, userId, action, from, to, page
              LEFT JOIN users u ON u.id = al.user_id
              WHERE 1=1`;
   const params = [];
+  let p = 1;
 
-  if (entityType) { sql += " AND al.entity_type = ?"; params.push(entityType); }
-  if (entityId) { sql += " AND al.entity_id = ?"; params.push(entityId); }
-  if (userId) { sql += " AND al.user_id = ?"; params.push(userId); }
-  if (action) { sql += " AND al.action = ?"; params.push(action); }
-  if (from) { sql += " AND al.created_at >= ?"; params.push(from); }
-  if (to) { sql += " AND al.created_at <= ?"; params.push(to + " 23:59:59"); }
+  if (entityType) { sql += ` AND al.entity_type = $${p++}`; params.push(entityType); }
+  if (entityId) { sql += ` AND al.entity_id = $${p++}`; params.push(entityId); }
+  if (userId) { sql += ` AND al.user_id = $${p++}`; params.push(userId); }
+  if (action) { sql += ` AND al.action = $${p++}`; params.push(action); }
+  if (from) { sql += ` AND al.created_at >= $${p++}`; params.push(from); }
+  if (to) { sql += ` AND al.created_at <= $${p++}`; params.push(to + " 23:59:59"); }
 
   // Count
   const countSql = sql.replace(/SELECT al\.\*.*FROM/, "SELECT COUNT(*) AS total FROM");
-  const [[{ total }]] = await db.execute(countSql, params);
+  const countResult = await db.query(countSql, params);
+  const total = parseInt(countResult.rows[0].total, 10);
 
-  sql += " ORDER BY al.created_at DESC LIMIT ? OFFSET ?";
+  sql += ` ORDER BY al.created_at DESC LIMIT $${p++} OFFSET $${p++}`;
   params.push(limit, (page - 1) * limit);
-  const [rows] = await db.execute(sql, params);
+  const result = await db.query(sql, params);
 
-  return { rows, total, page, pages: Math.ceil(total / limit) };
+  return { rows: result.rows, total, page, pages: Math.ceil(total / limit) };
 }
 
 module.exports = { log, getEntries };

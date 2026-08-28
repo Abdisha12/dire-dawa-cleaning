@@ -18,7 +18,8 @@ describe("Kebele Admin Worker Management", function () {
     userIds = data.userIds;
 
     // Get two different kebeles
-    const [kebeles] = await db.execute("SELECT id, name, code FROM kebeles ORDER BY id LIMIT 2");
+    const kebelesResult = await db.query("SELECT id, name, code FROM kebeles ORDER BY id LIMIT 2");
+    const kebeles = kebelesResult.rows;
     if (kebeles.length < 2) {
       this.skip();
     }
@@ -26,8 +27,10 @@ describe("Kebele Admin Worker Management", function () {
     testKebele2 = kebeles[1];
 
     // Get zones from each kebele
-    const [zones1] = await db.execute("SELECT id, name FROM safer_zones WHERE kebele_id=? LIMIT 1", [testKebele1.id]);
-    const [zones2] = await db.execute("SELECT id, name FROM safer_zones WHERE kebele_id=? LIMIT 1", [testKebele2.id]);
+    const zones1Result = await db.query("SELECT id, name FROM safer_zones WHERE kebele_id=$1 LIMIT 1", [testKebele1.id]);
+    const zones1 = zones1Result.rows;
+    const zones2Result = await db.query("SELECT id, name FROM safer_zones WHERE kebele_id=$1 LIMIT 1", [testKebele2.id]);
+    const zones2 = zones2Result.rows;
     if (!zones1.length || !zones2.length) {
       this.skip();
     }
@@ -35,38 +38,38 @@ describe("Kebele Admin Worker Management", function () {
     testZone2 = zones2[0];
 
     // Assign test_collector to testKebele1
-    await db.execute("UPDATE kebeles SET collector_id=? WHERE id=?", [userIds.collector, testKebele1.id]);
+    await db.query("UPDATE kebeles SET collector_id=$1 WHERE id=$2", [userIds.collector, testKebele1.id]);
 
     // Create workers in each kebele
-    const [w1] = await db.execute(
-      "INSERT INTO workers (full_name, safer_zone_id) VALUES (?, ?)",
+    const w1Result = await db.query(
+      "INSERT INTO workers (full_name, safer_zone_id) VALUES ($1, $2) RETURNING id",
       ["Worker in Kebele 1", testZone1.id]
     );
-    workerInKebele1 = w1.insertId;
+    workerInKebele1 = w1Result.rows[0].id;
 
-    const [w2] = await db.execute(
-      "INSERT INTO workers (full_name, safer_zone_id) VALUES (?, ?)",
+    const w2Result = await db.query(
+      "INSERT INTO workers (full_name, safer_zone_id) VALUES ($1, $2) RETURNING id",
       ["Worker in Kebele 2", testZone2.id]
     );
-    workerInKebele2 = w2.insertId;
+    workerInKebele2 = w2Result.rows[0].id;
 
     // Create fresh sessions for all users (login invalidates old ones)
     const { v4: uuidv4 } = require("uuid");
     for (const [key, u] of Object.entries({ admin: userIds.admin, collector: userIds.collector, leader1: userIds.leader1, viewer: userIds.viewer })) {
       const token = uuidv4();
       const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      await db.execute("DELETE FROM sessions WHERE user_id = ?", [u]);
-      await db.execute("INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)", [token, u, expires]);
+      await db.query("DELETE FROM sessions WHERE user_id = $1", [u]);
+      await db.query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)", [token, u, expires]);
       tokens[key] = token;
     }
   });
 
   after(async function () {
     // Cleanup test data
-    if (workerInKebele1) await db.execute("DELETE FROM workers WHERE id=?", [workerInKebele1]);
-    if (workerInKebele2) await db.execute("DELETE FROM workers WHERE id=?", [workerInKebele2]);
+    if (workerInKebele1) await db.query("DELETE FROM workers WHERE id=$1", [workerInKebele1]);
+    if (workerInKebele2) await db.query("DELETE FROM workers WHERE id=$1", [workerInKebele2]);
     // Reset collector assignment
-    await db.execute("UPDATE kebeles SET collector_id=NULL WHERE collector_id=?", [userIds.collector]);
+    await db.query("UPDATE kebeles SET collector_id=NULL WHERE collector_id=$1", [userIds.collector]);
     await cleanupTestData();
   });
 
@@ -83,11 +86,11 @@ describe("Kebele Admin Worker Management", function () {
       expect(res.body).to.have.property("id");
 
       // Verify the worker was created
-      const [worker] = await db.execute("SELECT * FROM workers WHERE id=?", [res.body.id]);
-      expect(worker.length).to.equal(1);
+      const workerResult = await db.query("SELECT * FROM workers WHERE id=$1", [res.body.id]);
+      expect(workerResult.rows.length).to.equal(1);
 
       // Cleanup
-      await db.execute("DELETE FROM workers WHERE id=?", [res.body.id]);
+      await db.query("DELETE FROM workers WHERE id=$1", [res.body.id]);
     });
   });
 
@@ -133,9 +136,9 @@ describe("Kebele Admin Worker Management", function () {
       for (const w of res.body) {
         if (w.zone_name) {
           // Worker has a zone — verify it's in the collector's kebele
-          const [zone] = await db.execute("SELECT kebele_id FROM safer_zones WHERE id=?", [w.safer_zone_id]);
-          if (zone.length) {
-            expect(zone[0].kebele_id).to.equal(testKebele1.id);
+          const zoneResult = await db.query("SELECT kebele_id FROM safer_zones WHERE id=$1", [w.safer_zone_id]);
+          if (zoneResult.rows.length) {
+            expect(zoneResult.rows[0].kebele_id).to.equal(testKebele1.id);
           }
         }
       }
@@ -199,11 +202,11 @@ describe("Kebele Admin Worker Management", function () {
         .send({ fullName: "Audit Test Worker", saferZoneId: testZone2.id });
 
       // Check audit log for the unauthorized attempt
-      const [auditRows] = await db.execute(
-        "SELECT * FROM audit_log WHERE user_id=? AND action='UNAUTHORIZED' AND entity_type='worker' ORDER BY created_at DESC LIMIT 1",
+      const auditResult = await db.query(
+        "SELECT * FROM audit_log WHERE user_id=$1 AND action='UNAUTHORIZED' AND entity_type='worker' ORDER BY created_at DESC LIMIT 1",
         [userIds.collector]
       );
-      expect(auditRows.length).to.be.at.least(1);
+      expect(auditResult.rows.length).to.be.at.least(1);
     });
   });
 
@@ -219,7 +222,7 @@ describe("Kebele Admin Worker Management", function () {
       expect(res.status).to.equal(201);
 
       // Cleanup
-      await db.execute("DELETE FROM workers WHERE id=?", [res.body.id]);
+      await db.query("DELETE FROM workers WHERE id=$1", [res.body.id]);
     });
 
     it("admin can edit any worker", async function () {
@@ -232,13 +235,13 @@ describe("Kebele Admin Worker Management", function () {
 
     it("admin can delete any worker", async function () {
       // Create a temporary worker to delete
-      const [temp] = await db.execute(
-        "INSERT INTO workers (full_name, safer_zone_id) VALUES (?, ?)",
+      const tempResult = await db.query(
+        "INSERT INTO workers (full_name, safer_zone_id) VALUES ($1, $2) RETURNING id",
         ["Temp Delete Worker", testZone2.id]
       );
 
       const res = await request(app)
-        .delete(`/api/workers/${temp.insertId}`)
+        .delete(`/api/workers/${tempResult.rows[0].id}`)
         .set("x-session-token", tokens.admin);
       expect(res.status).to.equal(200);
     });
@@ -249,13 +252,13 @@ describe("Kebele Admin Worker Management", function () {
   // ════════════════════════════════════════════════════════════════
   describe("Test 9 — All 9 kebeles supported", function () {
     it("system has all 9 kebeles", async function () {
-      const [kebeles] = await db.execute("SELECT id, name FROM kebeles ORDER BY id");
-      expect(kebeles.length).to.equal(9);
+      const kebelesResult = await db.query("SELECT id, name FROM kebeles ORDER BY id");
+      expect(kebelesResult.rows.length).to.equal(9);
     });
 
     it("each kebele can have a collector assigned", async function () {
-      const [kebeles] = await db.execute("SELECT id, name FROM kebeles ORDER BY id");
-      for (const k of kebeles) {
+      const kebelesResult = await db.query("SELECT id, name FROM kebeles ORDER BY id");
+      for (const k of kebelesResult.rows) {
         // Just verify the column exists and is queryable
         expect(k).to.have.property("id");
         expect(k).to.have.property("name");

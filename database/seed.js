@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// database/seed.js — Development seed user creator
+// database/seed.js — Development seed user creator (PostgreSQL)
 // Creates seed users with passwords from SEED_PASSWORD env var.
 // NEVER run this in production.
 //
@@ -15,7 +15,7 @@
 require("dotenv").config({ path: __dirname + "/../backend/.env" });
 
 const bcrypt = require("bcryptjs");
-const mysql = require("mysql2/promise");
+const { Pool } = require("pg");
 
 const SEED_PASSWORD = process.env.SEED_PASSWORD;
 
@@ -42,12 +42,13 @@ const SEED_USERS = [
 ];
 
 async function seed() {
-  const db = await mysql.createConnection({
+  const db = new Pool({
     host: process.env.DB_HOST || "localhost",
-    port: parseInt(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || "root",
-    password: process.env.DB_PASSWORD || process.env.DB_ROOT_PASSWORD || "",
+    port: parseInt(process.env.DB_PORT) || 5432,
+    user: process.env.DB_USER || "ddcms",
+    password: process.env.DB_PASSWORD || "",
     database: process.env.DB_NAME || "dire_dawa_cleaning",
+    max: 2,
   });
 
   try {
@@ -55,25 +56,27 @@ async function seed() {
     console.log(`Seeding ${SEED_USERS.length} users...`);
 
     for (const u of SEED_USERS) {
-      await db.execute(
+      await db.query(
         `INSERT INTO users (username, password_hash, full_name, phone, role)
-         VALUES (?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE password_hash=VALUES(password_hash), full_name=VALUES(full_name)`,
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (username) DO UPDATE SET
+           password_hash=EXCLUDED.password_hash,
+           full_name=EXCLUDED.full_name`,
         [u.username, hash, u.fullName, u.phone, u.role]
       );
       console.log(`  ✓ ${u.username} (${u.role})`);
     }
 
     // Link collectors to kebeles
-    const [users] = await db.execute("SELECT id, username FROM users WHERE role='collector'");
+    const users = await db.query("SELECT id, username FROM users WHERE role='collector'");
     const collectorMap = {};
-    for (const u of users) collectorMap[u.username] = u.id;
+    for (const u of users.rows) collectorMap[u.username] = u.id;
 
     if (collectorMap.collector1) {
-      await db.execute("UPDATE kebeles SET collector_id=? WHERE code IN ('K01','K02','K05','K07','K09')", [collectorMap.collector1]);
+      await db.query("UPDATE kebeles SET collector_id=$1 WHERE code IN ('K01','K02','K05','K07','K09')", [collectorMap.collector1]);
     }
     if (collectorMap.collector2) {
-      await db.execute("UPDATE kebeles SET collector_id=? WHERE code IN ('K03','K04','K06','K08')", [collectorMap.collector2]);
+      await db.query("UPDATE kebeles SET collector_id=$1 WHERE code IN ('K03','K04','K06','K08')", [collectorMap.collector2]);
     }
 
     // Link leaders to zones
@@ -85,7 +88,7 @@ async function seed() {
     for (const la of leaderAssignments) {
       const uid = collectorMap[la.username];
       if (uid) {
-        await db.execute("UPDATE safer_zones SET leader_id=? WHERE name=?", [uid, la.zoneName]);
+        await db.query("UPDATE safer_zones SET leader_id=$1 WHERE name=$2", [uid, la.zoneName]);
       }
     }
 

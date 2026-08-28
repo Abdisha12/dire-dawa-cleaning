@@ -20,12 +20,13 @@ describe("Authorization", function () {
     userIds = data.userIds;
 
     // Get two different zones from different kebeles
-    const [zones] = await db.execute(
+    const zonesResult = await db.query(
       `SELECT sz.id AS zone_id, sz.kebele_id, sz.name AS zone_name,
               k.name AS kebele_name, k.id AS k_id
        FROM safer_zones sz JOIN kebeles k ON k.id = sz.kebele_id
        ORDER BY k.id, sz.id LIMIT 4`
     );
+    const zones = zonesResult.rows;
     if (zones.length < 2) {
       this.skip(); // Not enough test data
     }
@@ -379,42 +380,42 @@ describe("Authorization", function () {
   describe("Leader PUT authorization", function () {
     it("leader cannot PUT a business in another zone", async function () {
       // First get a business from zone2
-      const [biz] = await db.execute(
-        "SELECT b.id FROM businesses b JOIN safer_zones sz ON sz.id = b.safer_zone_id WHERE sz.id = ?",
+      const bizResult = await db.query(
+        "SELECT b.id FROM businesses b JOIN safer_zones sz ON sz.id = b.safer_zone_id WHERE sz.id = $1",
         [testZone2.zone_id]
       );
-      if (biz.length === 0) this.skip();
+      if (bizResult.rows.length === 0) this.skip();
 
       const res = await request(app)
-        .put(`/api/businesses/${biz[0].id}`)
+        .put(`/api/businesses/${bizResult.rows[0].id}`)
         .set("x-session-token", tokens.leader1)
         .send({ name: "Hacked Biz", type: "shop", saferZoneId: testZone2.zone_id });
       expect(res.status).to.be.oneOf([400, 403]);
     });
 
     it("leader cannot PUT an inspection in another zone", async function () {
-      const [insp] = await db.execute(
-        "SELECT i.id FROM inspections i WHERE i.safer_zone_id = ?",
+      const inspResult = await db.query(
+        "SELECT i.id FROM inspections i WHERE i.safer_zone_id = $1",
         [testZone2.zone_id]
       );
-      if (insp.length === 0) this.skip();
+      if (inspResult.rows.length === 0) this.skip();
 
       const res = await request(app)
-        .put(`/api/inspections/${insp[0].id}`)
+        .put(`/api/inspections/${inspResult.rows[0].id}`)
         .set("x-session-token", tokens.leader1)
         .send({ status: "danger", notes: "Hacked" });
       expect(res.status).to.be.oneOf([400, 403]);
     });
 
     it("leader cannot DELETE a worker in another zone", async function () {
-      const [worker] = await db.execute(
-        "SELECT w.id FROM workers w WHERE w.safer_zone_id = ?",
+      const workerResult = await db.query(
+        "SELECT w.id FROM workers w WHERE w.safer_zone_id = $1",
         [testZone2.zone_id]
       );
-      if (worker.length === 0) this.skip();
+      if (workerResult.rows.length === 0) this.skip();
 
       const res = await request(app)
-        .delete(`/api/workers/${worker[0].id}`)
+        .delete(`/api/workers/${workerResult.rows[0].id}`)
         .set("x-session-token", tokens.leader1);
       expect(res.status).to.be.oneOf([400, 403]);
     });

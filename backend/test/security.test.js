@@ -41,9 +41,9 @@ describe("Security", function () {
         // Should either reject (400) or sanitize the input
         if (res.status === 201) {
           // If created, verify the name is sanitized
-          const [rows] = await db.execute("SELECT full_name FROM workers WHERE id=?", [res.body.id]);
-          if (rows.length) {
-            expect(rows[0].full_name).to.not.contain("<script>");
+          const rowsResult = await db.query("SELECT full_name FROM workers WHERE id=$1", [res.body.id]);
+          if (rowsResult.rows.length) {
+            expect(rowsResult.rows[0].full_name).to.not.contain("<script>");
           }
         } else {
           expect(res.status).to.be.oneOf([400, 401, 403]);
@@ -61,9 +61,9 @@ describe("Security", function () {
           issuesReported: '<script>alert("xss")</script>',
         });
       if (res.status === 201) {
-        const [rows] = await db.execute("SELECT issues_reported FROM zone_reports WHERE id=?", [res.body.id]);
-        if (rows.length && rows[0].issues_reported) {
-          expect(rows[0].issues_reported).to.not.contain("<script>");
+        const rowsResult = await db.query("SELECT issues_reported FROM zone_reports WHERE id=$1", [res.body.id]);
+        if (rowsResult.rows.length && rowsResult.rows[0].issues_reported) {
+          expect(rowsResult.rows[0].issues_reported).to.not.contain("<script>");
         }
       }
     });
@@ -161,14 +161,14 @@ describe("Security", function () {
   describe("CSV injection protection", function () {
     it("payment report CSV does not contain raw formula payloads", async function () {
       // Create a business and payment with formula-like name
-      const [biz] = await db.execute(
-        "INSERT INTO businesses (name, owner_name, type, safer_zone_id) VALUES (?, ?, ?, ?)",
+      const bizResult = await db.query(
+        "INSERT INTO businesses (name, owner_name, type, safer_zone_id) VALUES ($1, $2, $3, $4) RETURNING id",
         ['=CMD("calc")', "Test Owner", "shop", 1]
       );
-      const bizId = biz.insertId;
+      const bizId = bizResult.rows[0].id;
 
-      await db.execute(
-        "INSERT INTO payments (business_id, amount, status, month, year, collected_by) VALUES (?, ?, ?, ?, ?, ?)",
+      await db.query(
+        "INSERT INTO payments (business_id, amount, status, month, year, collected_by) VALUES ($1, $2, $3, $4, $5, $6)",
         [bizId, 100, "paid", 1, 2026, getTestUserId_safe("admin")]
       );
 
@@ -182,8 +182,8 @@ describe("Security", function () {
       }
 
       // Cleanup
-      await db.execute("DELETE FROM payments WHERE business_id=?", [bizId]);
-      await db.execute("DELETE FROM businesses WHERE id=?", [bizId]);
+      await db.query("DELETE FROM payments WHERE business_id=$1", [bizId]);
+      await db.query("DELETE FROM businesses WHERE id=$1", [bizId]);
     });
   });
 

@@ -1,4 +1,4 @@
-// backend/test/helpers/setup.js — Test database helpers
+// backend/test/helpers/setup.js — Test database helpers (PostgreSQL)
 // Creates test users and cleans up after tests.
 const bcrypt = require("bcryptjs");
 const db = require("../../config/db");
@@ -19,15 +19,15 @@ async function seedTestData() {
   for (const [key, u] of Object.entries(TEST_USERS)) {
     const hash = await bcrypt.hash(u.password, 10);
     try {
-      const [r] = await db.execute(
-        "INSERT INTO users (username, password_hash, full_name, role) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)",
+      const r = await db.query(
+        "INSERT INTO users (username, password_hash, full_name, role) VALUES ($1, $2, $3, $4) ON CONFLICT (username) DO UPDATE SET id=users.id RETURNING id",
         [u.username, hash, u.full_name, u.role]
       );
-      testUserIds[key] = r.insertId;
+      testUserIds[key] = r.rows[0].id;
     } catch (e) {
       // User may already exist
-      const [rows] = await db.execute("SELECT id FROM users WHERE username = ?", [u.username]);
-      if (rows.length) testUserIds[key] = rows[0].id;
+      const result = await db.query("SELECT id FROM users WHERE username = $1", [u.username]);
+      if (result.rows.length) testUserIds[key] = result.rows[0].id;
     }
   }
 
@@ -36,8 +36,8 @@ async function seedTestData() {
   for (const [key, u] of Object.entries(TEST_USERS)) {
     const token = uuidv4();
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    await db.execute("DELETE FROM sessions WHERE user_id = ?", [testUserIds[key]]);
-    await db.execute("INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)", [token, testUserIds[key], expires]);
+    await db.query("DELETE FROM sessions WHERE user_id = $1", [testUserIds[key]]);
+    await db.query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)", [token, testUserIds[key], expires]);
     testSessions[key] = token;
   }
 
@@ -47,11 +47,11 @@ async function seedTestData() {
 async function cleanupTestData() {
   // Delete test sessions
   for (const id of Object.values(testUserIds)) {
-    await db.execute("DELETE FROM sessions WHERE user_id = ?", [id]);
+    await db.query("DELETE FROM sessions WHERE user_id = $1", [id]);
   }
   // Delete test users
   for (const u of Object.values(TEST_USERS)) {
-    await db.execute("DELETE FROM users WHERE username = ?", [u.username]);
+    await db.query("DELETE FROM users WHERE username = $1", [u.username]);
   }
 }
 

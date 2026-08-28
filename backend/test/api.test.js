@@ -146,8 +146,8 @@ describe("API validation and errors", function () {
       const { v4: uuidv4 } = require("uuid");
       const expiredToken = uuidv4();
       const pastDate = new Date(Date.now() - 86400000); // 1 day ago
-      await db.execute(
-        "INSERT INTO sessions (id, user_id, expires_at) VALUES (?, 1, ?)",
+      await db.query(
+        "INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, 1, $2)",
         [expiredToken, pastDate]
       );
 
@@ -156,7 +156,7 @@ describe("API validation and errors", function () {
         .set("x-session-token", expiredToken);
       expect(res.status).to.equal(401);
 
-      await db.execute("DELETE FROM sessions WHERE id=?", [expiredToken]);
+      await db.query("DELETE FROM sessions WHERE id=$1", [expiredToken]);
     });
 
     it("Bearer token via Authorization header works", async function () {

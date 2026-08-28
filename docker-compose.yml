@@ -1,21 +1,22 @@
 services:
 
-  # ── MariaDB ────────────────────────────────────────────────────
+  # ── PostgreSQL + PostGIS ─────────────────────────────────────
   db:
-    image: mariadb:11
+    image: postgis/postgis:16-3.4
     container_name: ddcms_db
     restart: unless-stopped
     environment:
-      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?ERROR: Set DB_ROOT_PASSWORD in .env file}
-      MARIADB_DATABASE: dire_dawa_cleaning
-      MARIADB_USER: ddcms
-      MARIADB_PASSWORD: ${DB_PASSWORD:?ERROR: Set DB_PASSWORD in .env file}
+      POSTGRES_DB: dire_dawa_cleaning
+      POSTGRES_USER: ddcms
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?ERROR: Set DB_PASSWORD in .env file}
+      # Root access for migrations (use POSTGRES_PASSWORD for initial setup)
+      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
-      - db_data:/var/lib/mysql
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - db_data:/var/lib/postgresql/data
+      - ./database/postgresql/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
     healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      start_period: 30s
+      test: ["CMD-SHELL", "pg_isready -U ddcms -d dire_dawa_cleaning"]
+      start_period: 15s
       interval: 10s
       timeout: 5s
       retries: 5
@@ -38,7 +39,7 @@ services:
         condition: service_healthy
     environment:
       DB_HOST: db
-      DB_PORT: 3306
+      DB_PORT: 5432
       DB_USER: ddcms
       DB_PASSWORD: ${DB_PASSWORD:?ERROR: Set DB_PASSWORD in .env file}
       DB_NAME: dire_dawa_cleaning

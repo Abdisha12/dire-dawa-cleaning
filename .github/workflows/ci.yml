@@ -10,14 +10,16 @@ jobs:
   backend-tests:
     runs-on: ubuntu-latest
     services:
-      mariadb:
-        image: mariadb:11
+      postgres:
+        image: postgis/postgis:16-3.4
         env:
-          MYSQL_ROOT_PASSWORD: ${{ secrets.DB_ROOT_PASSWORD }}
+          POSTGRES_DB: dire_dawa_cleaning
+          POSTGRES_USER: ddcms
+          POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
         ports:
-          - 3306:3306
+          - 5432:5432
         options: >-
-          --health-cmd="mysqladmin ping --silent"
+          --health-cmd="pg_isready -U ddcms -d dire_dawa_cleaning"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
@@ -28,27 +30,24 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
-      - name: Wait for MariaDB
+      - name: Wait for PostgreSQL
         run: |
           for i in {1..30}; do
-            mysqladmin ping -h 127.0.0.1 -P 3306 --silent && break || sleep 2
+            pg_isready -h 127.0.0.1 -p 5432 -U ddcms && break || sleep 2
           done
-
-      - name: Install mysql client
-        run: sudo apt-get update && sudo apt-get install -y default-mysql-client
 
       - name: Import database schema
         env:
-          MYSQL_PWD: ${{ secrets.DB_PASSWORD }}
-        run: mysql -h 127.0.0.1 -P 3306 -u ddcms < database/schema.sql || true
+          PGPASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: psql -h 127.0.0.1 -p 5432 -U ddcms -d dire_dawa_cleaning < database/postgresql/schema.sql
 
       - name: Run backend tests
         working-directory: backend
         env:
           DB_HOST: 127.0.0.1
-          DB_PORT: 3306
+          DB_PORT: 5432
           DB_USER: ddcms
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_NAME: dire_dawa_cleaning

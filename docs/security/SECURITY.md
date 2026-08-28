@@ -85,8 +85,7 @@ Authorization is enforced server-side in two layers:
 
 | Secret | Purpose | Min Length |
 |---|---|---|
-| `DB_ROOT_PASSWORD` | MariaDB root access | 16+ chars |
-| `DB_PASSWORD` | Application DB user | 16+ chars |
+| `DB_PASSWORD` | PostgreSQL application user (`ddcms`) | 16+ chars |
 | `SESSION_SECRET` | Session signing | 32+ chars |
 | `PAYMENT_WEBHOOK_SECRET` | Webhook HMAC verification | 32+ chars |
 
@@ -197,7 +196,7 @@ Audit logs are append-only (no update/delete operations).
 
 ## SQL Injection Prevention
 
-- All queries use parameterized statements (`?` placeholders)
+- All queries use parameterized statements (`$1, $2` placeholders via `pg`)
 - LIKE wildcards (`%`, `_`) are escaped in user input
 - Zod validation sanitizes input before it reaches queries
 - No string concatenation in SQL queries
@@ -229,13 +228,13 @@ Audit logs are append-only (no update/delete operations).
 - [ ] `.env` file is NOT in the repository
 - [ ] `NODE_ENV=production`
 - [ ] HTTPS enabled (via nginx/reverse proxy)
-- [ ] Firewall restricts database port (3306) to backend only
+- [ ] Firewall restricts database port (5432) to backend only
 - [ ] Backup procedure tested
 - [ ] Log rotation configured
 
 ### Network Security
 
-- Database (port 3306) is NOT exposed to the internet
+- Database (port 5432) is NOT exposed to the internet
 - Backend (port 5000) is NOT exposed — only accessible via nginx
 - Frontend (port 80/443) is the only public endpoint
 - Docker network isolates services

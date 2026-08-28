@@ -50,7 +50,19 @@ function errorHandler(err, req, res, _next) {
     return res.status(err.status).json({ error: err.message || "Bad request" });
   }
 
-  // ── Database errors — never leak SQL or credentials ────────
+  // ── PostgreSQL errors — never leak SQL or credentials ──────
+  if (err.code && (err.code.startsWith("23") || err.code.startsWith("42") || err.code === "23505")) {
+    logger.error("Database error", { code: err.code, message: err.message, stack: err.stack, url: req.url });
+    if (err.code === "23505") {
+      return res.status(409).json({ error: "Resource already exists" });
+    }
+    if (IS_PROD) {
+      return res.status(500).json({ error: "Internal server error" });
+    }
+    return res.status(500).json({ error: `Database error: ${err.code}` });
+  }
+
+  // ── Legacy MySQL errors (fallback) ─────────────────────────
   if (err.code && err.code.startsWith("ER_")) {
     logger.error("Database error", { code: err.code, message: err.message, stack: err.stack, url: req.url });
     if (IS_PROD) {

@@ -16,25 +16,22 @@ function parseCustomAttrs(rows){
   });
 }
 
-// Helper: get the kebele ID assigned to a kebele admin (collector)
 async function getCollectorKebeleId(userId){
-  const [rows]=await db.execute("SELECT id FROM kebeles WHERE collector_id=?",[userId]);
-  return rows.length?rows[0].id:null;
+  const result=await db.query("SELECT id FROM kebeles WHERE collector_id=$1",[userId]);
+  return result.rows.length?result.rows[0].id:null;
 }
 
-// Helper: verify a zone belongs to a kebele
 async function zoneBelongsToKebele(zoneId,kebeleId){
-  if(!zoneId) return true; // No zone specified is ok
-  const [rows]=await db.execute("SELECT id FROM safer_zones WHERE id=? AND kebele_id=?",[zoneId,kebeleId]);
-  return rows.length>0;
+  if(!zoneId) return true;
+  const result=await db.query("SELECT id FROM safer_zones WHERE id=$1 AND kebele_id=$2",[zoneId,kebeleId]);
+  return result.rows.length>0;
 }
 
-// Helper: verify a worker belongs to a kebele (via zone)
 async function workerBelongsToKebele(workerId,kebeleId){
-  const [rows]=await db.execute(
-    "SELECT w.id FROM workers w JOIN safer_zones sz ON sz.id=w.safer_zone_id WHERE w.id=? AND sz.kebele_id=?",
+  const result=await db.query(
+    "SELECT w.id FROM workers w JOIN safer_zones sz ON sz.id=w.safer_zone_id WHERE w.id=$1 AND sz.kebele_id=$2",
     [workerId,kebeleId]);
-  return rows.length>0;
+  return result.rows.length>0;
 }
 
 router.get("/summary/stats",async(req,res,next)=>{
@@ -44,24 +41,25 @@ router.get("/summary/stats",async(req,res,next)=>{
     const first=`${y}-${String(m).padStart(2,"0")}-01`;
     const last=new Date(y,m,0).toISOString().slice(0,10);
     let sql=`SELECT w.*,sz.name AS zone_name,k.name AS kebele_name,
-                    COUNT(CASE WHEN a.present=1 THEN 1 END) AS days_present,
-                    COUNT(CASE WHEN a.present=0 THEN 1 END) AS days_absent,
+                    COUNT(CASE WHEN a.present=TRUE THEN 1 END) AS days_present,
+                    COUNT(CASE WHEN a.present=FALSE THEN 1 END) AS days_absent,
                     COALESCE(SUM(a.bonus),0) AS total_bonus,
-                    COUNT(CASE WHEN a.present=1 THEN 1 END)*w.daily_wage+COALESCE(SUM(a.bonus),0) AS gross_wage
+                    COUNT(CASE WHEN a.present=TRUE THEN 1 END)*w.daily_wage+COALESCE(SUM(a.bonus),0) AS gross_wage
              FROM workers w LEFT JOIN safer_zones sz ON sz.id=w.safer_zone_id
              LEFT JOIN kebeles k ON k.id=sz.kebele_id
-             LEFT JOIN attendance a ON a.worker_id=w.id AND a.date BETWEEN ? AND ?
-             WHERE w.is_active=1`;
+             LEFT JOIN attendance a ON a.worker_id=w.id AND a.date BETWEEN $1 AND $2
+             WHERE w.is_active=TRUE`;
     const params=[first,last];
-    if(req.user.role==="leader"){sql+=" AND sz.leader_id=?";params.push(req.user.id);}
+    let paramIdx=3;
+    if(req.user.role==="leader"){sql+=` AND sz.leader_id=$${paramIdx}`;params.push(req.user.id);paramIdx++;}
     else if(req.user.role==="collector"){
       const kebeleId=await getCollectorKebeleId(req.user.id);
-      if(kebeleId){sql+=" AND k.id=?";params.push(kebeleId);}
+      if(kebeleId){sql+=` AND k.id=$${paramIdx}`;params.push(kebeleId);paramIdx++;}
     }
-    else if(req.query.zoneId){sql+=" AND w.safer_zone_id=?";params.push(req.query.zoneId);}
+    else if(req.query.zoneId){sql+=` AND w.safer_zone_id=$${paramIdx}`;params.push(req.query.zoneId);paramIdx++;}
     sql+=" GROUP BY w.id ORDER BY sz.name,w.full_name";
-    const [rows]=await db.execute(sql,params);
-    res.json(parseCustomAttrs(rows));
+    const result=await db.query(sql,params);
+    res.json(parseCustomAttrs(result.rows));
   }catch(err){next(err);}
 });
 
@@ -71,7 +69,6 @@ router.post("/attendance/bulk",requireRole("admin","collector","leader"),validat
     if(!date||!Array.isArray(records)||!records.length)
       return res.status(400).json({error:"date and records[] required"});
     for(const r of records){
-      // For collector (kebele admin), verify worker belongs to their kebele
       if(req.user.role==="collector"){
         const kebeleId=await getCollectorKebeleId(req.user.id);
         if(kebeleId){
@@ -79,9 +76,10 @@ router.post("/attendance/bulk",requireRole("admin","collector","leader"),validat
           if(!owns) return res.status(403).json({error:"Worker not in your kebele"});
         }
       }
-      await db.execute(
-        `INSERT INTO attendance (worker_id,date,present,bonus,recorded_by) VALUES (?,?,?,?,?)
-         ON DUPLICATE KEY UPDATE present=VALUES(present),bonus=VALUES(bonus)`,[r.workerId,date,r.present?1:0,r.bonus||null,req.user.id]);
+      await db.query(
+        `INSERT INTO attendance (worker_id,date,present,bonus,recorded_by) VALUES ($1,$2,$3,$4,$5)
+         ON CONFLICT (worker_id,date) DO UPDATE SET present=EXCLUDED.present, bonus=EXCLUDED.bonus`,
+        [r.workerId,date,!!r.present,r.bonus||null,req.user.id]);
     }
     audit.log(req,"CREATE","attendance",null,null,{date,count:records.length});
     res.json({message:`Saved ${records.length} records`});
@@ -94,16 +92,17 @@ router.get("/",async(req,res,next)=>{
              FROM workers w LEFT JOIN safer_zones sz ON sz.id=w.safer_zone_id
              LEFT JOIN kebeles k ON k.id=sz.kebele_id WHERE 1=1`;
     const params=[];
-    if(req.user.role==="leader"){sql+=" AND sz.leader_id=?";params.push(req.user.id);}
+    let paramIdx=1;
+    if(req.user.role==="leader"){sql+=` AND sz.leader_id=$${paramIdx}`;params.push(req.user.id);paramIdx++;}
     else if(req.user.role==="collector"){
       const kebeleId=await getCollectorKebeleId(req.user.id);
-      if(kebeleId){sql+=" AND k.id=?";params.push(kebeleId);}
+      if(kebeleId){sql+=` AND k.id=$${paramIdx}`;params.push(kebeleId);paramIdx++;}
       else{return res.json([]);}
     }
-    else if(req.query.zoneId){sql+=" AND w.safer_zone_id=?";params.push(req.query.zoneId);}
+    else if(req.query.zoneId){sql+=` AND w.safer_zone_id=$${paramIdx}`;params.push(req.query.zoneId);paramIdx++;}
     sql+=" ORDER BY sz.name,w.full_name";
-    const [rows]=await db.execute(sql,params);
-    res.json(parseCustomAttrs(rows));
+    const result=await db.query(sql,params);
+    res.json(parseCustomAttrs(result.rows));
   }catch(err){next(err);}
 });
 
@@ -112,12 +111,10 @@ router.post("/",requireRole("admin","collector","leader"),validate(schemas.creat
     const {fullName,contact,faydaId,dailyWage,saferZoneId,customAttributes}=req.body;
     if(!fullName) return res.status(400).json({error:"fullName required"});
 
-    // Collector (kebele admin): determine kebele from authenticated user, not from request
     if(req.user.role==="collector"){
       const kebeleId=await getCollectorKebeleId(req.user.id);
       if(!kebeleId) return res.status(403).json({error:"No kebele assigned to your account"});
 
-      // If a zone is specified, verify it belongs to the collector's kebele
       if(saferZoneId){
         const zoneOk=await zoneBelongsToKebele(saferZoneId,kebeleId);
         if(!zoneOk){
@@ -127,20 +124,20 @@ router.post("/",requireRole("admin","collector","leader"),validate(schemas.creat
       }
     }
 
-    // Leader: verify zone belongs to them
     if(req.user.role==="leader"){
-      const [zr]=await db.execute("SELECT id FROM safer_zones WHERE id=? AND leader_id=?",[saferZoneId,req.user.id]);
-      if(!zr.length) return res.status(403).json({error:"Not your zone"});
+      const zr=await db.query("SELECT id FROM safer_zones WHERE id=$1 AND leader_id=$2",[saferZoneId,req.user.id]);
+      if(!zr.rows.length) return res.status(403).json({error:"Not your zone"});
     }
 
     const attrs = customAttributes ? JSON.stringify(customAttributes) : null;
-    const [r]=await db.execute(
-      "INSERT INTO workers (full_name,contact,fayda_id,daily_wage,safer_zone_id,custom_attributes) VALUES (?,?,?,?,?,?)",
+    const r=await db.query(
+      "INSERT INTO workers (full_name,contact,fayda_id,daily_wage,safer_zone_id,custom_attributes) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id",
       [fullName,contact||null,faydaId||null,dailyWage||250,saferZoneId||null,attrs]);
-    audit.log(req,"CREATE","worker",r.insertId,null,{fullName,contact,dailyWage,saferZoneId});
-    res.status(201).json({id:r.insertId});
+    const insertedId=r.rows[0].id;
+    audit.log(req,"CREATE","worker",insertedId,null,{fullName,contact,dailyWage,saferZoneId});
+    res.status(201).json({id:insertedId});
   }catch(err){
-    if(err.code==="ER_DUP_ENTRY") return res.status(409).json({error:"Fayda ID already exists"});
+    if(err.code==="23505") return res.status(409).json({error:"Fayda ID already exists"});
     next(err);
   }
 });
@@ -149,7 +146,6 @@ router.put("/:id",requireRole("admin","collector","leader"),validate(schemas.upd
   try{
     const {fullName,contact,faydaId,dailyWage,saferZoneId,isActive,customAttributes}=req.body;
 
-    // Collector (kebele admin): verify worker belongs to their kebele
     if(req.user.role==="collector"){
       const kebeleId=await getCollectorKebeleId(req.user.id);
       if(kebeleId){
@@ -158,7 +154,6 @@ router.put("/:id",requireRole("admin","collector","leader"),validate(schemas.upd
           audit.log(req,"UNAUTHORIZED","worker",parseInt(req.params.id),null,{action:"cross_kebele_edit"});
           return res.status(403).json({error:"Worker not in your kebele"});
         }
-        // If moving to a new zone, verify it belongs to the same kebele
         if(saferZoneId){
           const zoneOk=await zoneBelongsToKebele(saferZoneId,kebeleId);
           if(!zoneOk){
@@ -169,18 +164,17 @@ router.put("/:id",requireRole("admin","collector","leader"),validate(schemas.upd
       }
     }
 
-    const [old]=await db.execute("SELECT full_name,contact,daily_wage,safer_zone_id,is_active FROM workers WHERE id=?",[req.params.id]);
+    const oldResult=await db.query("SELECT full_name,contact,daily_wage,safer_zone_id,is_active FROM workers WHERE id=$1",[req.params.id]);
     const attrs = customAttributes ? JSON.stringify(customAttributes) : null;
-    await db.execute("UPDATE workers SET full_name=?,contact=?,fayda_id=?,daily_wage=?,safer_zone_id=?,is_active=?,custom_attributes=? WHERE id=?",
-      [fullName,contact||null,faydaId||null,dailyWage,saferZoneId||null,isActive?1:0,attrs,req.params.id]);
-    audit.log(req,"UPDATE","worker",parseInt(req.params.id),old[0]||null,{fullName,contact,dailyWage,saferZoneId,isActive});
+    await db.query("UPDATE workers SET full_name=$1,contact=$2,fayda_id=$3,daily_wage=$4,safer_zone_id=$5,is_active=$6,custom_attributes=$7 WHERE id=$8",
+      [fullName,contact||null,faydaId||null,dailyWage,saferZoneId||null,isActive,attrs,req.params.id]);
+    audit.log(req,"UPDATE","worker",parseInt(req.params.id),oldResult.rows[0]||null,{fullName,contact,dailyWage,saferZoneId,isActive});
     res.json({message:"Updated"});
   }catch(err){next(err);}
 });
 
 router.delete("/:id",requireRole("admin","collector"),async(req,res,next)=>{
   try{
-    // Collector (kebele admin): verify worker belongs to their kebele
     if(req.user.role==="collector"){
       const kebeleId=await getCollectorKebeleId(req.user.id);
       if(kebeleId){
@@ -192,9 +186,9 @@ router.delete("/:id",requireRole("admin","collector"),async(req,res,next)=>{
       }
     }
 
-    const [old]=await db.execute("SELECT full_name,safer_zone_id FROM workers WHERE id=?",[req.params.id]);
-    await db.execute("DELETE FROM workers WHERE id=?",[req.params.id]);
-    audit.log(req,"DELETE","worker",parseInt(req.params.id),old[0]||null,null);
+    const oldResult=await db.query("SELECT full_name,safer_zone_id FROM workers WHERE id=$1",[req.params.id]);
+    await db.query("DELETE FROM workers WHERE id=$1",[req.params.id]);
+    audit.log(req,"DELETE","worker",parseInt(req.params.id),oldResult.rows[0]||null,null);
     res.json({message:"Deleted"});
   }
   catch(err){next(err);}
@@ -203,22 +197,23 @@ router.delete("/:id",requireRole("admin","collector"),async(req,res,next)=>{
 router.get("/:id/attendance",validate(schemas.workerAttendanceQuery,"query"),async(req,res,next)=>{
   try{
     const {from,to}=req.query;
-    let sql="SELECT a.*,u.full_name AS recorder_name FROM attendance a JOIN users u ON u.id=a.recorded_by WHERE a.worker_id=?";
+    let sql="SELECT a.*,u.full_name AS recorder_name FROM attendance a JOIN users u ON u.id=a.recorded_by WHERE a.worker_id=$1";
     const params=[req.params.id];
-    if(from){sql+=" AND a.date>=?";params.push(from);}
-    if(to){sql+=" AND a.date<=?";params.push(to);}
+    let paramIdx=2;
+    if(from){sql+=` AND a.date>=$${paramIdx}`;params.push(from);paramIdx++;}
+    if(to){sql+=` AND a.date<=$${paramIdx}`;params.push(to);paramIdx++;}
     sql+=" ORDER BY a.date DESC";
-    const [rows]=await db.execute(sql,params);
-    res.json(rows);
+    const result=await db.query(sql,params);
+    res.json(result.rows);
   }catch(err){next(err);}
 });
 
 router.get("/:id/salary",async(req,res,next)=>{
   try{
-    const [rows]=await db.execute(
-      "SELECT sp.*,u.full_name AS paid_by_name FROM salary_payments sp JOIN users u ON u.id=sp.paid_by WHERE sp.worker_id=? ORDER BY sp.paid_at DESC",
+    const result=await db.query(
+      "SELECT sp.*,u.full_name AS paid_by_name FROM salary_payments sp JOIN users u ON u.id=sp.paid_by WHERE sp.worker_id=$1 ORDER BY sp.paid_at DESC",
       [req.params.id]);
-    res.json(rows);
+    res.json(result.rows);
   }catch(err){next(err);}
 });
 
@@ -227,7 +222,6 @@ router.post("/:id/salary",requireRole("admin","collector","leader"),validate(sch
     const {amount,paidAt,periodFrom,periodTo,notes}=req.body;
     if(!amount||!paidAt||!periodFrom||!periodTo) return res.status(400).json({error:"amount,paidAt,periodFrom,periodTo required"});
 
-    // Collector (kebele admin): verify worker belongs to their kebele
     if(req.user.role==="collector"){
       const kebeleId=await getCollectorKebeleId(req.user.id);
       if(kebeleId){
@@ -236,11 +230,12 @@ router.post("/:id/salary",requireRole("admin","collector","leader"),validate(sch
       }
     }
 
-    const [r]=await db.execute(
-      "INSERT INTO salary_payments (worker_id,amount,paid_at,period_from,period_to,notes,paid_by) VALUES (?,?,?,?,?,?,?)",
+    const r=await db.query(
+      "INSERT INTO salary_payments (worker_id,amount,paid_at,period_from,period_to,notes,paid_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id",
       [req.params.id,amount,paidAt,periodFrom,periodTo,notes||null,req.user.id]);
-    audit.log(req,"CREATE","salary",r.insertId,null,{workerId:req.params.id,amount,periodFrom,periodTo});
-    res.status(201).json({id:r.insertId});
+    const insertedId=r.rows[0].id;
+    audit.log(req,"CREATE","salary",insertedId,null,{workerId:req.params.id,amount,periodFrom,periodTo});
+    res.status(201).json({id:insertedId});
   }catch(err){next(err);}
 });
 

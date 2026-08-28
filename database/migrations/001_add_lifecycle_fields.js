@@ -3,40 +3,35 @@
 // These fields were identified as missing during the lifecycle audit.
 // The schema.sql already includes them for new installations;
 // this migration handles existing databases.
+// NOTE: For PostgreSQL, ON UPDATE is handled by triggers (created in schema.sql).
 
 /**
- * @param {import('mysql2/promise').Connection} db
+ * @param {import('pg').Pool} db
  */
 async function up(db) {
-  // kebeles — collector assignments change, worth tracking
-  await db.execute(`
+  await db.query(`
     ALTER TABLE kebeles
-    ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    ON UPDATE CURRENT_TIMESTAMP
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()
   `);
 
-  // attendance — corrections affect wages, auditable
-  await db.execute(`
+  await db.query(`
     ALTER TABLE attendance
-    ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    ON UPDATE CURRENT_TIMESTAMP
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()
   `);
 
-  // salary_payments — financial record, adjustments need lifecycle
-  await db.execute(`
+  await db.query(`
     ALTER TABLE salary_payments
-    ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    ON UPDATE CURRENT_TIMESTAMP
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()
   `);
 }
 
 /**
- * @param {import('mysql2/promise').Connection} db
+ * @param {import('pg').Pool} db
  */
 async function down(db) {
-  await db.execute("ALTER TABLE kebeles DROP COLUMN updated_at");
-  await db.execute("ALTER TABLE attendance DROP COLUMN updated_at");
-  await db.execute("ALTER TABLE salary_payments DROP COLUMN updated_at");
+  await db.query("ALTER TABLE kebeles DROP COLUMN IF EXISTS updated_at");
+  await db.query("ALTER TABLE attendance DROP COLUMN IF EXISTS updated_at");
+  await db.query("ALTER TABLE salary_payments DROP COLUMN IF EXISTS updated_at");
 }
 
 module.exports = { up, down };

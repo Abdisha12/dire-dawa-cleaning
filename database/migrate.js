@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// database/migrate.js — Database migration runner for MariaDB
+// database/migrate.js — Database migration runner for PostgreSQL
 // Usage:
 //   node migrate.js up          Apply all pending migrations
 //   node migrate.js down        Rollback the last migration
@@ -10,41 +10,42 @@
 //   001_description.js   (sequential number + snake_case description)
 //
 // Each migration file exports:
-//   up(db)    — Apply the migration (receives mysql2 promise pool)
+//   up(db)    — Apply the migration (receives pg Pool)
 //   down(db)  — Rollback the migration
 
 require("dotenv").config({ path: __dirname + "/../backend/.env" });
 
 const fs = require("fs");
 const path = require("path");
-const mysql = require("mysql2/promise");
+const { Pool } = require("pg");
 
 const MIGRATIONS_DIR = path.join(__dirname, "migrations");
 const MIGRATION_TABLE = "_migrations";
 
-async function getConnection() {
-  return mysql.createConnection({
+function getPool() {
+  return new Pool({
     host: process.env.DB_HOST || "localhost",
-    port: parseInt(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || "root",
-    password: process.env.DB_PASSWORD || process.env.DB_ROOT_PASSWORD || "",
+    port: parseInt(process.env.DB_PORT) || 5432,
+    user: process.env.DB_USER || "ddcms",
+    password: process.env.DB_PASSWORD || "",
     database: process.env.DB_NAME || "dire_dawa_cleaning",
+    max: 2,
   });
 }
 
 async function ensureMigrationTable(db) {
-  await db.execute(`
+  await db.query(`
     CREATE TABLE IF NOT EXISTS ${MIGRATION_TABLE} (
-      id          INT AUTO_INCREMENT PRIMARY KEY,
+      id          SERIAL PRIMARY KEY,
       name        VARCHAR(255) NOT NULL UNIQUE,
-      applied_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      applied_at  TIMESTAMP NOT NULL DEFAULT NOW()
     )
   `);
 }
 
 async function getAppliedMigrations(db) {
-  const [rows] = await db.execute(`SELECT name FROM ${MIGRATION_TABLE} ORDER BY id`);
-  return rows.map(r => r.name);
+  const result = await db.query(`SELECT name FROM ${MIGRATION_TABLE} ORDER BY id`);
+  return result.rows.map(r => r.name);
 }
 
 function getMigrationFiles() {
@@ -68,16 +69,19 @@ async function migrateUp(db) {
   for (const file of pending) {
     const migration = require(path.join(MIGRATIONS_DIR, file));
     console.log(`▸ Applying: ${file}`);
+    const client = await db.connect();
     try {
-      await db.beginTransaction();
+      await client.query("BEGIN");
       await migration.up(db);
-      await db.execute(`INSERT INTO ${MIGRATION_TABLE} (name) VALUES (?)`, [file]);
-      await db.commit();
+      await client.query(`INSERT INTO ${MIGRATION_TABLE} (name) VALUES ($1)`, [file]);
+      await client.query("COMMIT");
       console.log(`  ✓ ${file} applied successfully`);
     } catch (err) {
-      await db.rollback();
+      await client.query("ROLLBACK");
       console.error(`  ✗ ${file} FAILED: ${err.message}`);
       process.exit(1);
+    } finally {
+      client.release();
     }
   }
 
@@ -106,16 +110,19 @@ async function migrateDown(db) {
   }
 
   console.log(`▸ Rolling back: ${last}`);
+  const client = await db.connect();
   try {
-    await db.beginTransaction();
+    await client.query("BEGIN");
     await migration.down(db);
-    await db.execute(`DELETE FROM ${MIGRATION_TABLE} WHERE name = ?`, [last]);
-    await db.commit();
+    await client.query(`DELETE FROM ${MIGRATION_TABLE} WHERE name = $1`, [last]);
+    await client.query("COMMIT");
     console.log(`  ✓ ${last} rolled back`);
   } catch (err) {
-    await db.rollback();
+    await client.query("ROLLBACK");
     console.error(`  ✗ Rollback FAILED: ${err.message}`);
     process.exit(1);
+  } finally {
+    client.release();
   }
 }
 
@@ -147,19 +154,19 @@ function createMigration(name) {
 // Migration: ${name}
 
 /**
- * @param {import('mysql2/promise').Connection} db
+ * @param {import('pg').Pool} db
  */
 async function up(db) {
   // Apply migration here
-  // Example: await db.execute('ALTER TABLE ...');
+  // Example: await db.query('ALTER TABLE ...');
 }
 
 /**
- * @param {import('mysql2/promise').Connection} db
+ * @param {import('pg').Pool} db
  */
 async function down(db) {
   // Rollback migration here
-  // Example: await db.execute('ALTER TABLE ...');
+  // Example: await db.query('ALTER TABLE ...');
 }
 
 module.exports = { up, down };
@@ -173,7 +180,7 @@ module.exports = { up, down };
 const [,, cmd, ...args] = process.argv;
 
 (async () => {
-  const db = await getConnection();
+  const db = getPool();
   try {
     switch (cmd) {
       case "up":

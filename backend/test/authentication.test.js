@@ -116,8 +116,8 @@ describe("Authentication", function () {
       // Create the user first
       const bcrypt = require("bcryptjs");
       const hash = await bcrypt.hash("RealPass123!", 10);
-      await db.execute(
-        "INSERT INTO users (username, password_hash, full_name, role) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)",
+      await db.query(
+        "INSERT INTO users (username, password_hash, full_name, role) VALUES ($1, $2, $3, $4) ON CONFLICT (username) DO UPDATE SET id=users.id RETURNING id",
         [username, hash, "Lockout Test", "viewer"]
       );
 
@@ -136,7 +136,7 @@ describe("Authentication", function () {
       expect(res.body.error).to.match(/locked/i);
 
       // Cleanup
-      await db.execute("DELETE FROM users WHERE username = ?", [username]);
+      await db.query("DELETE FROM users WHERE username = $1", [username]);
     });
   });
 

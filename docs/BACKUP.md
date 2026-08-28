@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Dire Dawa Cleaning system stores all operational data in MariaDB. Regular backups are
+The Dire Dawa Cleaning system stores all operational data in PostgreSQL + PostGIS. Regular backups are
 critical for disaster recovery. This document describes backup procedures, restoration, and
 retention policies.
 
@@ -26,7 +26,7 @@ backups/
 ```
 
 The script:
-1. Runs `mysqldump` inside the MariaDB container
+1. Runs `pg_dump` inside the PostgreSQL container (`--no-owner --no-acl --clean --if-exists`)
 2. Compresses with gzip
 3. Saves to `./backups/`
 4. Cleans up backups older than 30 days
@@ -37,6 +37,7 @@ The script:
 |---|---|---|
 | `DB_CONTAINER` | `ddcms_db` | Docker container name |
 | `DB_NAME` | `dire_dawa_cleaning` | Database name |
+| `DB_USER` | `ddcms` | Database user |
 | `BACKUP_DIR` | `./backups` | Backup storage directory |
 | `RETENTION_DAYS` | `30` | Days to keep backups |
 
@@ -55,12 +56,9 @@ ls -la backups/
 ### Manual Restore
 
 ```bash
-# Decompress
-gunzip backups/dire_dawa_cleaning_20260828_143000.sql.gz
-
-# Restore
-docker exec -i ddcms_db mysql -u root -p"$DB_ROOT_PASSWORD" dire_dawa_cleaning \
-  < backups/dire_dawa_cleaning_20260828_143000.sql
+# Restore directly with psql
+gunzip -c backups/dire_dawa_cleaning_20260828_143000.sql.gz | \
+  docker exec -i ddcms_db psql -U ddcms -d dire_dawa_cleaning
 
 # Recompress (optional)
 gzip backups/dire_dawa_cleaning_20260828_143000.sql
@@ -75,7 +73,7 @@ The backup script includes a verification mode that tests restoration in an isol
 ```
 
 This:
-1. Creates a temporary MariaDB container on port 3307
+1. Creates a temporary PostgreSQL + PostGIS container on port 5433
 2. Restores the backup into it
 3. Verifies tables exist
 4. Cleans up the temporary container
@@ -94,6 +92,7 @@ For production, consider:
 - Weekly full backups retained for 90 days
 - Monthly backups retained for 1 year
 - Off-site backup storage (S3, external drive)
+- Point-in-time recovery via WAL archiving (`archive_mode = on`)
 
 ## Cron Schedule (Production)
 
@@ -108,10 +107,12 @@ For production, consider:
 ## What Gets Backed Up
 
 - All 16 tables (users, sessions, kebeles, safer_zones, businesses, payments, etc.)
-- Schema structure (CREATE TABLE)
-- Stored routines (procedures, functions)
-- Triggers
-- Event scheduler definitions
+- Schema structure (CREATE TABLE, ENUM types, PostGIS extension)
+- Spatial indexes (GIST)
+- Triggers (`updated_at`)
+- Data (seed + operational)
+
+`pg_dump --clean --if-exists` includes DROP statements so restores are idempotent.
 
 ## What Is NOT Backed Up
 

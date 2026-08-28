@@ -7,8 +7,8 @@ const logger = require("../config/logger");
  */
 async function notify(userId, type, title, message, link = null) {
   try {
-    await db.execute(
-      `INSERT INTO notifications (user_id, type, title, message, link) VALUES (?, ?, ?, ?, ?)`,
+    await db.query(
+      `INSERT INTO notifications (user_id, type, title, message, link) VALUES ($1, $2, $3, $4, $5)`,
       [userId, type, title, message, link]
     );
   } catch (err) {
@@ -21,8 +21,8 @@ async function notify(userId, type, title, message, link = null) {
  */
 async function notifyRole(role, type, title, message, link = null) {
   try {
-    const [users] = await db.execute("SELECT id FROM users WHERE role = ? AND is_active = 1", [role]);
-    for (const u of users) {
+    const result = await db.query("SELECT id FROM users WHERE role = $1 AND is_active = TRUE", [role]);
+    for (const u of result.rows) {
       await notify(u.id, type, title, message, link);
     }
   } catch (err) {
@@ -40,18 +40,18 @@ async function generateOverdueAlerts() {
     const curMonth = now.getMonth() + 1;
 
     // Find businesses with pending payments in past months or marked overdue
-    const [overdues] = await db.execute(
+    const result = await db.query(
       `SELECT p.id, p.amount, p.month, p.year, b.name AS business_name, sz.id AS zone_id, sz.name AS zone_name, sz.leader_id, k.collector_id
        FROM payments p
        JOIN businesses b ON b.id = p.business_id
        JOIN safer_zones sz ON sz.id = b.safer_zone_id
        JOIN kebeles k ON k.id = sz.kebele_id
-       WHERE p.status = 'overdue' OR (p.status = 'pending' AND (p.year < ? OR (p.year = ? AND p.month < ?)))`,
-      [curYear, curYear, curMonth]
+       WHERE p.status = 'overdue' OR (p.status = 'pending' AND (p.year < $1 OR (p.year = $1 AND p.month < $2)))`,
+      [curYear, curMonth]
     );
 
     let count = 0;
-    for (const item of overdues) {
+    for (const item of result.rows) {
       const msg = `Overdue payment of ETB ${parseFloat(item.amount).toLocaleString()} for ${item.business_name} (${item.zone_name}, Month ${item.month}/${item.year}).`;
       
       // Notify collector assigned to kebele
@@ -83,19 +83,19 @@ async function generatePendingReportAlerts() {
     const curMonth = now.getMonth() + 1;
 
     // Find zones without an approved/submitted report for current or previous month
-    const [zonesWithoutReports] = await db.execute(
+    const result = await db.query(
       `SELECT sz.id, sz.name AS zone_name, sz.leader_id, k.collector_id
        FROM safer_zones sz
        JOIN kebeles k ON k.id = sz.kebele_id
        WHERE sz.leader_id IS NOT NULL
          AND sz.id NOT IN (
-           SELECT safer_zone_id FROM zone_reports WHERE report_year = ? AND report_month = ? AND status IN ('submitted','approved')
+           SELECT safer_zone_id FROM zone_reports WHERE report_year = $1 AND report_month = $2 AND status IN ('submitted','approved')
          )`,
       [curYear, curMonth]
     );
 
     let count = 0;
-    for (const z of zonesWithoutReports) {
+    for (const z of result.rows) {
       const msg = `Monthly zone report for ${z.zone_name} is pending submission for Month ${curMonth}/${curYear}.`;
       if (z.leader_id) {
         await notify(z.leader_id, "pending_report", "📝 Monthly Zone Report Pending", msg, "#zonereports");
@@ -120,17 +120,17 @@ async function generatePendingReportAlerts() {
 async function generateAbsentWorkerAlerts() {
   try {
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-    const [absences] = await db.execute(
+    const result = await db.query(
       `SELECT a.date, w.full_name AS worker_name, sz.name AS zone_name, sz.leader_id
        FROM attendance a
        JOIN workers w ON w.id = a.worker_id
        JOIN safer_zones sz ON sz.id = w.safer_zone_id
-       WHERE a.date = ? AND a.present = 0 AND sz.leader_id IS NOT NULL`,
+       WHERE a.date = $1 AND a.present = FALSE AND sz.leader_id IS NOT NULL`,
       [yesterday]
     );
 
     let count = 0;
-    for (const a of absences) {
+    for (const a of result.rows) {
       const msg = `Worker ${a.worker_name} was marked absent in ${a.zone_name} on ${a.date}.`;
       await notify(a.leader_id, "absent_worker", "👷 Absent Worker Notice", msg, "#workers");
       count++;

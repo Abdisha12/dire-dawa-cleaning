@@ -44,26 +44,29 @@ router.get("/", async (req, res, next) => {
                LEFT JOIN kebeles k ON k.id = d.kebele_id
                WHERE 1=1`;
     const params = [];
+    let paramIdx = 1;
 
     if (req.user.role === "leader") {
-      sql += " AND sz.leader_id = ?";
+      sql += ` AND sz.leader_id = $${paramIdx}`;
       params.push(req.user.id);
+      paramIdx++;
     } else {
-      if (saferZoneId) { sql += " AND d.safer_zone_id = ?"; params.push(saferZoneId); }
-      if (kebeleId) { sql += " AND d.kebele_id = ?"; params.push(kebeleId); }
+      if (saferZoneId) { sql += ` AND d.safer_zone_id = $${paramIdx}`; params.push(saferZoneId); paramIdx++; }
+      if (kebeleId) { sql += ` AND d.kebele_id = $${paramIdx}`; params.push(kebeleId); paramIdx++; }
     }
 
-    if (category) { sql += " AND d.category = ?"; params.push(category); }
+    if (category) { sql += ` AND d.category = $${paramIdx}`; params.push(category); paramIdx++; }
     if (search) {
-      sql += " AND (d.title LIKE ? OR d.description LIKE ? OR d.file_name LIKE ?)";
+      sql += ` AND (d.title LIKE $${paramIdx} OR d.description LIKE $${paramIdx + 1} OR d.file_name LIKE $${paramIdx + 2})`;
       const escaped = search.replace(/%/g, '\\%').replace(/_/g, '\\_');
       const q = `%${escaped}%`;
       params.push(q, q, q);
+      paramIdx += 3;
     }
 
     sql += " ORDER BY d.created_at DESC";
-    const [rows] = await db.execute(sql, params);
-    res.json(rows);
+    const result = await db.query(sql, params);
+    res.json(result.rows);
   } catch (err) { next(err); }
 });
 
@@ -80,9 +83,9 @@ router.post("/", requireRole("admin", "collector", "leader"),
 
     const relativePath = `/uploads/documents/${req.file.filename}`;
 
-    const [r] = await db.execute(
+    const r = await db.query(
       `INSERT INTO documents (title, description, category, file_path, file_name, file_size, mime_type, safer_zone_id, kebele_id, uploaded_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
       [
         title,
         description || null,
@@ -96,21 +99,21 @@ router.post("/", requireRole("admin", "collector", "leader"),
         req.user.id
       ]
     );
+    const insertedId = r.rows[0].id;
 
-    audit.log(req, "CREATE", "document", r.insertId, null, { title, category, fileName: req.file.originalname });
-    res.status(201).json({ id: r.insertId, title, category, filePath: relativePath });
+    audit.log(req, "CREATE", "document", insertedId, null, { title, category, fileName: req.file.originalname });
+    res.status(201).json({ id: insertedId, title, category, filePath: relativePath });
   } catch (err) { next(err); }
 });
 
 // GET /api/documents/:id/download — download/stream file
 router.get("/:id/download", async (req, res, next) => {
   try {
-    const [rows] = await db.execute("SELECT * FROM documents WHERE id = ?", [req.params.id]);
-    if (!rows.length) return res.status(404).json({ error: "Document not found" });
-    const doc = rows[0];
+    const result = await db.query("SELECT * FROM documents WHERE id = $1", [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ error: "Document not found" });
+    const doc = result.rows[0];
     const fullPath = path.join(__dirname, "..", doc.file_path);
 
-    // Path traversal guard — resolve and verify inside uploads directory
     const resolved = path.resolve(fullPath);
     const uploadsDir = path.resolve(__dirname, "../uploads/documents");
     if (!resolved.startsWith(uploadsDir)) {
@@ -127,8 +130,8 @@ router.get("/:id/download", async (req, res, next) => {
 router.put("/:id", requireRole("admin", "collector", "leader"), validate(schemas.updateDocument), async (req, res, next) => {
   try {
     const { title, description, category } = req.body;
-    await db.execute(
-      "UPDATE documents SET title = ?, description = ?, category = ? WHERE id = ?",
+    await db.query(
+      "UPDATE documents SET title = $1, description = $2, category = $3 WHERE id = $4",
       [title, description || null, category, req.params.id]
     );
     audit.log(req, "UPDATE", "document", parseInt(req.params.id), null, { title, category });
@@ -139,17 +142,16 @@ router.put("/:id", requireRole("admin", "collector", "leader"), validate(schemas
 // DELETE /api/documents/:id — delete file & record
 router.delete("/:id", requireRole("admin", "collector"), async (req, res, next) => {
   try {
-    const [rows] = await db.execute("SELECT * FROM documents WHERE id = ?", [req.params.id]);
-    if (!rows.length) return res.status(404).json({ error: "Not found" });
-    const doc = rows[0];
+    const result = await db.query("SELECT * FROM documents WHERE id = $1", [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ error: "Not found" });
+    const doc = result.rows[0];
 
     const fullPath = path.join(__dirname, "..", doc.file_path);
-    // Path traversal guard
     const resolved = path.resolve(fullPath);
     const uploadsDir = path.resolve(__dirname, "../uploads/documents");
     if (resolved.startsWith(uploadsDir) && fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
 
-    await db.execute("DELETE FROM documents WHERE id = ?", [req.params.id]);
+    await db.query("DELETE FROM documents WHERE id = $1", [req.params.id]);
     audit.log(req, "DELETE", "document", parseInt(req.params.id), { title: doc.title }, null);
     res.json({ message: "Deleted" });
   } catch (err) { next(err); }

@@ -10,15 +10,13 @@ const { generatePaymentsExcel, generatePayrollExcel, generateInspectionsExcel, g
 const router = express.Router();
 router.use(authenticate);
 
-// Prefix dangerous values to prevent CSV formula injection in spreadsheets.
-// Values starting with = + - @ \t \r or " can be interpreted as formulas.
 function sanitizeCSVValue(v) {
   if (v === null || v === undefined) return "";
   const s = String(v);
   if (!s.length) return "";
   const first = s.charAt(0);
   if (first === "=" || first === "+" || first === "-" || first === "@" || first === "\t" || first === "\r") {
-    return "'" + s; // Prefix with single quote — spreadsheet treats as text
+    return "'" + s;
   }
   return s;
 }
@@ -45,11 +43,13 @@ router.get("/payments/monthly", validate(schemas.reportQuery, "query"), async (r
                     u.full_name AS collector
              FROM payments p JOIN businesses b ON b.id=p.business_id
              JOIN safer_zones sz ON sz.id=b.safer_zone_id JOIN kebeles k ON k.id=sz.kebele_id
-             JOIN users u ON u.id=p.collected_by WHERE p.month=? AND p.year=?`;
+             JOIN users u ON u.id=p.collected_by WHERE p.month=$1 AND p.year=$2`;
     const params = [m, y];
-    if (req.user.role === "leader") { sql += " AND sz.leader_id=?"; params.push(req.user.id); }
+    let paramIdx = 3;
+    if (req.user.role === "leader") { sql += ` AND sz.leader_id=$${paramIdx}`; params.push(req.user.id); paramIdx++; }
     sql += " ORDER BY k.code,sz.name,b.name";
-    const [rows] = await db.execute(sql, params);
+    const rowsResult = await db.query(sql, params);
+    const rows = rowsResult.rows;
 
     if (req.query.format === "csv") {
       res.setHeader("Content-Type", "text/csv");
@@ -78,13 +78,13 @@ router.get("/payments/monthly", validate(schemas.reportQuery, "query"), async (r
 router.get("/payments/yearly", validate(schemas.reportQuery, "query"), async (req, res, next) => {
   try {
     const y = req.query.year || new Date().getFullYear();
-    const [rows] = await db.execute(
+    const rowsResult = await db.query(
       `SELECT p.month,COUNT(*) AS count,
-              SUM(CASE WHEN p.status="paid" THEN p.amount END) AS collected,
-              SUM(CASE WHEN p.status="pending" THEN p.amount END) AS pending,
-              SUM(CASE WHEN p.status="overdue" THEN p.amount END) AS overdue
-       FROM payments p WHERE p.year=? GROUP BY p.month ORDER BY p.month`, [y]);
-    res.json(rows);
+              SUM(CASE WHEN p.status='paid' THEN p.amount END) AS collected,
+              SUM(CASE WHEN p.status='pending' THEN p.amount END) AS pending,
+              SUM(CASE WHEN p.status='overdue' THEN p.amount END) AS overdue
+       FROM payments p WHERE p.year=$1 GROUP BY p.month ORDER BY p.month`, [y]);
+    res.json(rowsResult.rows);
   } catch (err) { next(err); }
 });
 
@@ -95,18 +95,20 @@ router.get("/workers/monthly", validate(schemas.reportQuery, "query"), async (re
     const first = `${y}-${String(m).padStart(2, "0")}-01`;
     const last = new Date(y, m, 0).toISOString().slice(0, 10);
     let sql = `SELECT w.full_name,sz.name AS zone,k.name AS kebele,w.daily_wage,
-                    COUNT(CASE WHEN a.present=1 THEN 1 END) AS days_present,
-                    COUNT(CASE WHEN a.present=0 THEN 1 END) AS days_absent,
+                    COUNT(CASE WHEN a.present=TRUE THEN 1 END) AS days_present,
+                    COUNT(CASE WHEN a.present=FALSE THEN 1 END) AS days_absent,
                     COALESCE(SUM(a.bonus),0) AS total_bonus,
-                    (COUNT(CASE WHEN a.present=1 THEN 1 END)*w.daily_wage+COALESCE(SUM(a.bonus),0)) AS gross
+                    (COUNT(CASE WHEN a.present=TRUE THEN 1 END)*w.daily_wage+COALESCE(SUM(a.bonus),0)) AS gross
              FROM workers w LEFT JOIN safer_zones sz ON sz.id=w.safer_zone_id
              LEFT JOIN kebeles k ON k.id=sz.kebele_id
-             LEFT JOIN attendance a ON a.worker_id=w.id AND a.date BETWEEN ? AND ?
-             WHERE w.is_active=1`;
+             LEFT JOIN attendance a ON a.worker_id=w.id AND a.date BETWEEN $1 AND $2
+             WHERE w.is_active=TRUE`;
     const params = [first, last];
-    if (req.user.role === "leader") { sql += " AND sz.leader_id=?"; params.push(req.user.id); }
+    let paramIdx = 3;
+    if (req.user.role === "leader") { sql += ` AND sz.leader_id=$${paramIdx}`; params.push(req.user.id); paramIdx++; }
     sql += " GROUP BY w.id ORDER BY sz.name,w.full_name";
-    const [rows] = await db.execute(sql, params);
+    const rowsResult = await db.query(sql, params);
+    const rows = rowsResult.rows;
 
     if (req.query.format === "csv") {
       res.setHeader("Content-Type", "text/csv");
@@ -142,11 +144,13 @@ router.get("/inspections", validate(schemas.reportQuery, "query"), async (req, r
              JOIN users u ON u.id=i.inspected_by
              LEFT JOIN inspection_photos ip ON ip.inspection_id=i.id WHERE 1=1`;
     const params = [];
-    if (req.user.role === "leader") { sql += " AND sz.leader_id=?"; params.push(req.user.id); }
-    if (from) { sql += " AND i.date>=?"; params.push(from); }
-    if (to) { sql += " AND i.date<=?"; params.push(to); }
+    let paramIdx = 1;
+    if (req.user.role === "leader") { sql += ` AND sz.leader_id=$${paramIdx}`; params.push(req.user.id); paramIdx++; }
+    if (from) { sql += ` AND i.date>=$${paramIdx}`; params.push(from); paramIdx++; }
+    if (to) { sql += ` AND i.date<=$${paramIdx}`; params.push(to); paramIdx++; }
     sql += " GROUP BY i.id ORDER BY i.date DESC,k.code";
-    const [rows] = await db.execute(sql, params);
+    const rowsResult = await db.query(sql, params);
+    const rows = rowsResult.rows;
 
     if (req.query.format === "csv") {
       res.setHeader("Content-Type", "text/csv");
@@ -180,28 +184,31 @@ router.get("/monthly-summary", async (req, res, next) => {
     const first = `${y}-${String(m).padStart(2, "0")}-01`;
     const last = new Date(y, m, 0).toISOString().slice(0, 10);
 
-    const [payments] = await db.execute(
+    const paymentsResult = await db.query(
       `SELECT p.id, b.name AS business, sz.name AS zone, p.amount, p.method, p.status
        FROM payments p JOIN businesses b ON b.id=p.business_id
-       JOIN safer_zones sz ON sz.id=b.safer_zone_id WHERE p.month=? AND p.year=?`, [m, y]
+       JOIN safer_zones sz ON sz.id=b.safer_zone_id WHERE p.month=$1 AND p.year=$2`, [m, y]
     );
+    const payments = paymentsResult.rows;
 
-    const [workers] = await db.execute(
+    const workersResult = await db.query(
       `SELECT w.full_name, sz.name AS zone,
-              COUNT(CASE WHEN a.present=1 THEN 1 END) AS days_present,
-              COUNT(CASE WHEN a.present=0 THEN 1 END) AS days_absent,
-              (COUNT(CASE WHEN a.present=1 THEN 1 END)*w.daily_wage+COALESCE(SUM(a.bonus),0)) AS gross
+              COUNT(CASE WHEN a.present=TRUE THEN 1 END) AS days_present,
+              COUNT(CASE WHEN a.present=FALSE THEN 1 END) AS days_absent,
+              (COUNT(CASE WHEN a.present=TRUE THEN 1 END)*w.daily_wage+COALESCE(SUM(a.bonus),0)) AS gross
        FROM workers w LEFT JOIN safer_zones sz ON sz.id=w.safer_zone_id
-       LEFT JOIN attendance a ON a.worker_id=w.id AND a.date BETWEEN ? AND ?
-       WHERE w.is_active=1 GROUP BY w.id`, [first, last]
+       LEFT JOIN attendance a ON a.worker_id=w.id AND a.date BETWEEN $1 AND $2
+       WHERE w.is_active=TRUE GROUP BY w.id`, [first, last]
     );
+    const workers = workersResult.rows;
 
-    const [inspections] = await db.execute(
+    const inspectionsResult = await db.query(
       `SELECT i.date, k.name AS kebele, sz.name AS zone, i.status, u.full_name AS inspector
        FROM inspections i JOIN kebeles k ON k.id=i.kebele_id
        LEFT JOIN safer_zones sz ON sz.id=i.safer_zone_id JOIN users u ON u.id=i.inspected_by
-       WHERE i.date BETWEEN ? AND ?`, [first, last]
+       WHERE i.date BETWEEN $1 AND $2`, [first, last]
     );
+    const inspections = inspectionsResult.rows;
 
     if (req.query.format === "xlsx") {
       const buffer = await generateMonthlySummaryExcel({ payments, workers, inspections }, m, y);

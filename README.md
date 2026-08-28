@@ -70,16 +70,18 @@ dire-dawa-cleaning/
 ```bash
 # 1. Prerequisites
 sudo pacman -Syu
-sudo pacman -S nodejs npm mariadb
+sudo pacman -S nodejs npm postgresql postgis
 
-# 2. Initialize & start MariaDB
-sudo mariadb-install-db --user=mysql --basedir=/usr --datadir=/var/lib/mysql
-sudo systemctl enable --now mariadb
-sudo mysql_secure_installation
+# 2. Initialize & start PostgreSQL (with PostGIS)
+sudo -u postgres initdb -D /var/lib/postgres/data
+sudo systemctl enable --now postgresql
+sudo -u postgres createuser -s $USER
+sudo -u postgres createdb dire_dawa_cleaning
 
-# 3. Create database
+# 3. Create schema (PostGIS)
 cd dire-dawa-cleaning
-mysql -u root -p < database/schema.sql
+psql -U ddcms -d dire_dawa_cleaning -h localhost -f database/postgresql/schema.sql
+# Or via Docker: docker compose up -d db  (auto-initializes from schema.sql)
 
 # 4. Backend
 cd backend
@@ -193,10 +195,12 @@ All data-listing endpoints (`/businesses`, `/workers`, `/payments`,
 **Settings → Zone — Leader Assignment**, select the zone, choose the leader,
 click Save.
 
-**MySQL connection failed**
+**PostgreSQL connection failed**
 ```bash
-sudo systemctl status mariadb
-sudo systemctl restart mariadb
+sudo systemctl status postgresql
+sudo systemctl restart postgresql
+# Docker: docker compose logs db
+# Check: pg_isready -h localhost -p 5432 -U ddcms
 ```
 
 **Port 5000 in use**

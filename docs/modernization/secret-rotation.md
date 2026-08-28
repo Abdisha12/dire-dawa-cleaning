@@ -21,8 +21,8 @@ could access it.
 
 ### 1. Database Password
 
-- **What:** MariaDB root and application user password
-- **Where it was:** `.env` file in the original archive, `docker-compose.yml` fallback
+- **What:** PostgreSQL application user password (`ddcms`)
+- **Where it was:** `.env` file in the original archive, `docker-compose.yml` fallback (previously `DB_ROOT_PASSWORD` for MariaDB)
 - **Current state:** `.env` not in Git; Docker Compose now requires explicit `.env`
 - **Action required:**
   1. Generate a new strong password (32+ random characters)

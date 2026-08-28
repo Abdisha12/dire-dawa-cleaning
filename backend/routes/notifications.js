@@ -14,41 +14,44 @@ router.get("/", async (req, res, next) => {
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
     const offset = (page - 1) * limit;
 
-    let sql = "SELECT * FROM notifications WHERE user_id = ?";
+    let sql = "SELECT * FROM notifications WHERE user_id = $1";
     const params = [req.user.id];
+    let paramIdx = 2;
 
     if (isRead !== undefined && isRead !== "") {
-      sql += " AND is_read = ?";
-      params.push(isRead === "true" || isRead === "1" ? 1 : 0);
+      sql += ` AND is_read = $${paramIdx}`;
+      params.push(isRead === "true" || isRead === "1");
+      paramIdx++;
     }
 
     const countSql = sql.replace("SELECT *", "SELECT COUNT(*) AS total");
-    const [[{ total }]] = await db.execute(countSql, params);
+    const countResult = await db.query(countSql, params);
+    const total = countResult.rows[0].total;
 
-    sql += " ORDER BY created_at DESC LIMIT ? OFFSET ?";
+    sql += ` ORDER BY created_at DESC LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`;
     params.push(limit, offset);
 
-    const [rows] = await db.execute(sql, params);
-    res.json({ rows, total, page, pages: Math.ceil(total / limit) });
+    const result = await db.query(sql, params);
+    res.json({ rows: result.rows, total, page, pages: Math.ceil(total / limit) });
   } catch (err) { next(err); }
 });
 
 // GET /api/notifications/unread-count — number of unread notifications for badge
 router.get("/unread-count", async (req, res, next) => {
   try {
-    const [[{ count }]] = await db.execute(
-      "SELECT COUNT(*) AS count FROM notifications WHERE user_id = ? AND is_read = 0",
+    const result = await db.query(
+      "SELECT COUNT(*) AS count FROM notifications WHERE user_id = $1 AND is_read = FALSE",
       [req.user.id]
     );
-    res.json({ unreadCount: count });
+    res.json({ unreadCount: result.rows[0].count });
   } catch (err) { next(err); }
 });
 
 // PUT /api/notifications/:id/read — mark single as read
 router.put("/:id/read", async (req, res, next) => {
   try {
-    await db.execute(
-      "UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?",
+    await db.query(
+      "UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2",
       [req.params.id, req.user.id]
     );
     res.json({ message: "Marked as read" });
@@ -58,8 +61,8 @@ router.put("/:id/read", async (req, res, next) => {
 // PUT /api/notifications/read-all — mark all current user's notifications as read
 router.put("/read-all", async (req, res, next) => {
   try {
-    await db.execute(
-      "UPDATE notifications SET is_read = 1 WHERE user_id = ?",
+    await db.query(
+      "UPDATE notifications SET is_read = TRUE WHERE user_id = $1",
       [req.user.id]
     );
     res.json({ message: "All marked as read" });
@@ -69,8 +72,8 @@ router.put("/read-all", async (req, res, next) => {
 // DELETE /api/notifications/:id — delete notification
 router.delete("/:id", async (req, res, next) => {
   try {
-    await db.execute(
-      "DELETE FROM notifications WHERE id = ? AND user_id = ?",
+    await db.query(
+      "DELETE FROM notifications WHERE id = $1 AND user_id = $2",
       [req.params.id, req.user.id]
     );
     res.json({ message: "Deleted" });

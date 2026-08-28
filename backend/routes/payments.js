@@ -9,7 +9,6 @@ const validate = require("../middleware/validate");
 const schemas = require("../middleware/schemas");
 const router = express.Router();
 
-// Dedicated HMAC key for payment webhook signatures (separate from SESSION_SECRET)
 const PAYMENT_WEBHOOK_SECRET = process.env.PAYMENT_WEBHOOK_SECRET || process.env.SESSION_SECRET;
 if (!PAYMENT_WEBHOOK_SECRET) {
   logger.warn("No PAYMENT_WEBHOOK_SECRET or SESSION_SECRET set — webhook signature verification disabled");
@@ -29,7 +28,6 @@ async function handleGatewayCallback(req, res, next, gateway) {
 
     const { signature, tradeNo, outTradeNo, status, amount } = payload;
     
-    // Signature verification for Sandbox / Mock callbacks
     const dataToVerify = { tradeNo, outTradeNo, status, amount, timestamp: payload.timestamp };
     const expectedSignature = PAYMENT_WEBHOOK_SECRET
       ? crypto.createHmac("sha256", PAYMENT_WEBHOOK_SECRET).update(JSON.stringify(dataToVerify)).digest("hex")
@@ -43,13 +41,12 @@ async function handleGatewayCallback(req, res, next, gateway) {
     const finalStatus = status === "SUCCESS" ? "paid" : "failed";
     const paidAtVal = status === "SUCCESS" ? new Date() : null;
 
-    // Update payment record in database
-    const [result] = await db.execute(
-      "UPDATE payments SET status=?, paid_at=? WHERE receipt_number=? AND gateway_name=?",
+    const result = await db.query(
+      "UPDATE payments SET status=$1, paid_at=$2 WHERE receipt_number=$3 AND gateway_name=$4",
       [finalStatus, paidAtVal, outTradeNo, gateway]
     );
 
-    if (result.affectedRows === 0) {
+    if (result.rowCount === 0) {
       logger.warn(`No pending payment found matching receipt ${outTradeNo} for ${gateway}`);
       return res.status(404).json({ error: "Payment record not found" });
     }
@@ -71,30 +68,44 @@ router.get("/summary/dashboard", validate(schemas.dashboardQuery, "query"), asyn
   try {
     const y = req.query.year || new Date().getFullYear();
     const m = req.query.month || new Date().getMonth() + 1;
-    let whereExtra = "", extraParams = [];
+    let whereExtra = "", extraParams = [], extraIdx = 3;
     if (req.user.role === "leader") {
-      whereExtra = " AND sz.leader_id=?"; extraParams = [req.user.id];
+      whereExtra = ` AND sz.leader_id=$${extraIdx}`; extraParams = [req.user.id];
     }
-    const [[totals]] = await db.execute(
-      `SELECT SUM(CASE WHEN p.status="paid" THEN p.amount ELSE 0 END) AS total_collected,
-              SUM(CASE WHEN p.status="pending" THEN p.amount ELSE 0 END) AS total_pending,
-              SUM(CASE WHEN p.status="overdue" THEN p.amount ELSE 0 END) AS total_overdue
+    const totalsResult = await db.query(
+      `SELECT SUM(CASE WHEN p.status='paid' THEN p.amount ELSE 0 END) AS total_collected,
+              SUM(CASE WHEN p.status='pending' THEN p.amount ELSE 0 END) AS total_pending,
+              SUM(CASE WHEN p.status='overdue' THEN p.amount ELSE 0 END) AS total_overdue
        FROM payments p JOIN businesses b ON b.id=p.business_id
        JOIN safer_zones sz ON sz.id=b.safer_zone_id
-       WHERE p.year=? AND p.month=?${whereExtra}`, [y, m, ...extraParams]);
-    const [byKebele] = await db.execute(
+       WHERE p.year=$1 AND p.month=$2${whereExtra}`, [y, m, ...extraParams]);
+    const totals = totalsResult.rows[0];
+
+    let whereExtra2 = "", extraParams2 = [], extraIdx2 = 3;
+    if (req.user.role === "leader") {
+      whereExtra2 = ` AND sz.leader_id=$${extraIdx2}`; extraParams2 = [req.user.id];
+    }
+    const byKebeleResult = await db.query(
       `SELECT k.name AS kebele,k.code,
-              SUM(CASE WHEN p.status="paid" THEN p.amount ELSE 0 END) AS collected,
+              SUM(CASE WHEN p.status='paid' THEN p.amount ELSE 0 END) AS collected,
               SUM(b.monthly_target) AS target
        FROM businesses b JOIN safer_zones sz ON sz.id=b.safer_zone_id
        JOIN kebeles k ON k.id=sz.kebele_id
-       LEFT JOIN payments p ON p.business_id=b.id AND p.month=? AND p.year=?${whereExtra}
-       GROUP BY k.id ORDER BY k.code`, [m, y, ...extraParams]);
-    const [monthly] = await db.execute(
+       LEFT JOIN payments p ON p.business_id=b.id AND p.month=$1 AND p.year=$2${whereExtra2}
+       GROUP BY k.id ORDER BY k.code`, [m, y, ...extraParams2]);
+    const byKebele = byKebeleResult.rows;
+
+    let whereExtra3 = "", extraParams3 = [], extraIdx3 = 2;
+    if (req.user.role === "leader") {
+      whereExtra3 = ` AND sz.leader_id=$${extraIdx3}`; extraParams3 = [req.user.id];
+    }
+    const monthlyResult = await db.query(
       `SELECT p.month,SUM(p.amount) AS collected FROM payments p
        JOIN businesses b ON b.id=p.business_id JOIN safer_zones sz ON sz.id=b.safer_zone_id
-       WHERE p.year=? AND p.status="paid"${whereExtra}
-       GROUP BY p.month ORDER BY p.month`, [y, ...extraParams]);
+       WHERE p.year=$1 AND p.status='paid'${whereExtra3}
+       GROUP BY p.month ORDER BY p.month`, [y, ...extraParams3]);
+    const monthly = monthlyResult.rows;
+
     res.json({ totals, byKebele, monthly });
   } catch (err) { next(err); }
 });
@@ -110,18 +121,19 @@ router.get("/", async (req, res, next) => {
              JOIN kebeles k ON k.id=sz.kebele_id
              JOIN users u ON u.id=p.collected_by WHERE 1=1`;
     const params = [];
-    if (req.user.role === "leader") { sql += " AND sz.leader_id=?"; params.push(req.user.id); }
+    let paramIdx = 1;
+    if (req.user.role === "leader") { sql += ` AND sz.leader_id=$${paramIdx}`; params.push(req.user.id); paramIdx++; }
     else {
-      if (businessId) { sql += " AND p.business_id=?"; params.push(businessId); }
-      if (kebeleId) { sql += " AND k.id=?"; params.push(kebeleId); }
-      if (saferZoneId) { sql += " AND sz.id=?"; params.push(saferZoneId); }
+      if (businessId) { sql += ` AND p.business_id=$${paramIdx}`; params.push(businessId); paramIdx++; }
+      if (kebeleId) { sql += ` AND k.id=$${paramIdx}`; params.push(kebeleId); paramIdx++; }
+      if (saferZoneId) { sql += ` AND sz.id=$${paramIdx}`; params.push(saferZoneId); paramIdx++; }
     }
-    if (month) { sql += " AND p.month=?"; params.push(month); }
-    if (year) { sql += " AND p.year=?"; params.push(year); }
-    if (status) { sql += " AND p.status=?"; params.push(status); }
+    if (month) { sql += ` AND p.month=$${paramIdx}`; params.push(month); paramIdx++; }
+    if (year) { sql += ` AND p.year=$${paramIdx}`; params.push(year); paramIdx++; }
+    if (status) { sql += ` AND p.status=$${paramIdx}`; params.push(status); paramIdx++; }
     sql += " ORDER BY p.year DESC,p.month DESC,b.name";
-    const [rows] = await db.execute(sql, params);
-    res.json(rows);
+    const result = await db.query(sql, params);
+    res.json(result.rows);
   } catch (err) { next(err); }
 });
 
@@ -131,10 +143,10 @@ router.post("/", requireRole("admin", "collector", "leader"), validate(schemas.c
     if (!businessId || !amount || !month || !year) return res.status(400).json({error: "businessId,amount,month,year required"});
     
     if (req.user.role === "leader") {
-      const [zr] = await db.execute(
-        "SELECT b.id FROM businesses b JOIN safer_zones sz ON sz.id=b.safer_zone_id WHERE b.id=? AND sz.leader_id=?",
+      const zr = await db.query(
+        "SELECT b.id FROM businesses b JOIN safer_zones sz ON sz.id=b.safer_zone_id WHERE b.id=$1 AND sz.leader_id=$2",
         [businessId, req.user.id]);
-      if (!zr.length) return res.status(403).json({ error: "Business not in your zone" });
+      if (!zr.rows.length) return res.status(403).json({ error: "Business not in your zone" });
     }
 
     const receipt = genReceipt();
@@ -146,9 +158,9 @@ router.post("/", requireRole("admin", "collector", "leader"), validate(schemas.c
     let gatewayRef = null;
 
     if (isGateway) {
-      const [bRows] = await db.execute("SELECT name FROM businesses WHERE id=?", [businessId]);
-      if (!bRows.length) return res.status(404).json({ error: "Business not found" });
-      const businessName = bRows[0].name;
+      const bResult = await db.query("SELECT name FROM businesses WHERE id=$1", [businessId]);
+      if (!bResult.rows.length) return res.status(404).json({ error: "Business not found" });
+      const businessName = bResult.rows[0].name;
 
       const host = req.headers.host;
       const checkout = await paymentService.initiatePayment({
@@ -162,15 +174,16 @@ router.post("/", requireRole("admin", "collector", "leader"), validate(schemas.c
       gatewayRef = checkout.gatewayRef;
     }
 
-    const [r] = await db.execute(
+    const r = await db.query(
       `INSERT INTO payments (business_id,amount,method,status,month,year,paid_at,receipt_number,notes,collected_by,gateway_name,gateway_ref,payment_url)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
       [businessId, amount, method || "cash", initialStatus, month, year, paidAtVal, receipt, notes || null, req.user.id, isGateway ? method : null, gatewayRef, paymentUrl]
     );
+    const insertedId = r.rows[0].id;
 
-    audit.log(req,"CREATE","payment",r.insertId,null,{businessId,amount,method:method||"cash",month,year,status:initialStatus,receiptNumber:receipt});
+    audit.log(req,"CREATE","payment",insertedId,null,{businessId,amount,method:method||"cash",month,year,status:initialStatus,receiptNumber:receipt});
     res.status(201).json({
-      id: r.insertId,
+      id: insertedId,
       receiptNumber: receipt,
       paidAt: paidAtVal,
       status: initialStatus,
@@ -178,16 +191,16 @@ router.post("/", requireRole("admin", "collector", "leader"), validate(schemas.c
       gatewayName: isGateway ? method : null
     });
   } catch (err) {
-    if (err.code === "ER_DUP_ENTRY") return res.status(409).json({ error: "Payment already recorded for this period" });
+    if (err.code === "23505") return res.status(409).json({ error: "Payment already recorded for this period" });
     next(err);
   }
 });
 
 router.get("/:id/verify", async (req, res, next) => {
   try {
-    const [rows] = await db.execute("SELECT * FROM payments WHERE id=?", [req.params.id]);
-    if (!rows.length) return res.status(404).json({ error: "Payment record not found" });
-    const payment = rows[0];
+    const result = await db.query("SELECT * FROM payments WHERE id=$1", [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ error: "Payment record not found" });
+    const payment = result.rows[0];
     res.json({ status: payment.status });
   } catch (err) {
     next(err);
@@ -197,19 +210,19 @@ router.get("/:id/verify", async (req, res, next) => {
 router.put("/:id", requireRole("admin", "collector"), validate(schemas.updatePayment), async (req, res, next) => {
   try {
     const { amount, method, status, notes } = req.body;
-    const [old] = await db.execute("SELECT amount,method,status,notes FROM payments WHERE id=?", [req.params.id]);
-    await db.execute("UPDATE payments SET amount=?,method=?,status=?,notes=? WHERE id=?",
+    const oldResult = await db.query("SELECT amount,method,status,notes FROM payments WHERE id=$1", [req.params.id]);
+    await db.query("UPDATE payments SET amount=$1,method=$2,status=$3,notes=$4 WHERE id=$5",
       [amount, method, status, notes || null, req.params.id]);
-    audit.log(req,"UPDATE","payment",parseInt(req.params.id),old[0]||null,{amount,method,status,notes});
+    audit.log(req,"UPDATE","payment",parseInt(req.params.id),oldResult.rows[0]||null,{amount,method,status,notes});
     res.json({ message: "Updated" });
   } catch (err) { next(err); }
 });
 
 router.delete("/:id", requireRole("admin"), async (req, res, next) => {
   try {
-    const [old] = await db.execute("SELECT business_id,amount,method,status,month,year FROM payments WHERE id=?", [req.params.id]);
-    await db.execute("DELETE FROM payments WHERE id=?", [req.params.id]);
-    audit.log(req,"DELETE","payment",parseInt(req.params.id),old[0]||null,null);
+    const oldResult = await db.query("SELECT business_id,amount,method,status,month,year FROM payments WHERE id=$1", [req.params.id]);
+    await db.query("DELETE FROM payments WHERE id=$1", [req.params.id]);
+    audit.log(req,"DELETE","payment",parseInt(req.params.id),oldResult.rows[0]||null,null);
     res.json({ message: "Deleted" });
   }
   catch (err) { next(err); }

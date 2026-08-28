@@ -1,22 +1,34 @@
-const mysql = require("mysql2/promise");
+// backend/config/db.js — PostgreSQL connection pool
+const { Pool } = require("pg");
 require("dotenv").config();
-const pool = mysql.createPool({
-  host: process.env.DB_HOST||"localhost", port: parseInt(process.env.DB_PORT)||3306,
-  user: process.env.DB_USER||"root", password: process.env.DB_PASSWORD||"",
-  database: process.env.DB_NAME||"dire_dawa_cleaning",
-  waitForConnections:true, connectionLimit:10, queueLimit:0,
-  timezone:"+03:00", decimalNumbers:true
+
+const pool = new Pool({
+  host: process.env.DB_HOST || "localhost",
+  port: parseInt(process.env.DB_PORT) || 5432,
+  user: process.env.DB_USER || "ddcms",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "dire_dawa_cleaning",
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
 });
-(async()=>{
-  // During tests we avoid failing the process so unit tests that don't need DB can run.
-  try{
-    const c=await pool.getConnection(); console.log("✅  MySQL connected:",process.env.DB_NAME); c.release();
-  } catch(e){
-    if(process.env.NODE_ENV === "test") {
-      console.warn("⚠️  MySQL connection failed (test mode) - continuing:", e.message);
+
+// Test connection on startup
+(async () => {
+  try {
+    const client = await pool.connect();
+    const res = await client.query("SELECT current_database(), version()");
+    console.log("✅  PostgreSQL connected:", res.rows[0].current_database);
+    console.log("   Version:", res.rows[0].version.split(",")[0]);
+    client.release();
+  } catch (e) {
+    if (process.env.NODE_ENV === "test") {
+      console.warn("⚠️  PostgreSQL connection failed (test mode) - continuing:", e.message);
     } else {
-      console.error("❌  MySQL failed:",e.message); process.exit(1);
+      console.error("❌  PostgreSQL failed:", e.message);
+      process.exit(1);
     }
   }
 })();
-module.exports=pool;
+
+module.exports = pool;

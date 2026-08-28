@@ -22,12 +22,12 @@ router.get("/", requireRole("admin"), async (req, res, next) => {
 router.get("/:id", requireRole("admin"), async (req, res, next) => {
   try {
     const db = require("../config/db");
-    const [rows] = await db.execute(
+    const result = await db.query(
       `SELECT al.*, u.full_name AS user_name, u.role AS user_role
        FROM audit_log al LEFT JOIN users u ON u.id = al.user_id
-       WHERE al.id = ?`, [req.params.id]);
-    if (!rows.length) return res.status(404).json({ error: "Not found" });
-    res.json(rows[0]);
+       WHERE al.id = $1`, [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ error: "Not found" });
+    res.json(result.rows[0]);
   } catch (err) { next(err); }
 });
 

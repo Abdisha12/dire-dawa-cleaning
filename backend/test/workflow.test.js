@@ -90,7 +90,7 @@ describe("Business workflows", function () {
 
     it("cleanup: delete test report", async function () {
       if (!reportId) return this.skip();
-      await db.execute("DELETE FROM zone_reports WHERE id=?", [reportId]);
+      await db.query("DELETE FROM zone_reports WHERE id=$1", [reportId]);
     });
   });
 
@@ -114,7 +114,7 @@ describe("Business workflows", function () {
       expect(res2.status).to.equal(409);
 
       // Cleanup
-      await db.execute("DELETE FROM zone_reports WHERE safer_zone_id=2 AND report_month=4 AND report_year=2026");
+      await db.query("DELETE FROM zone_reports WHERE safer_zone_id=2 AND report_month=4 AND report_year=2026");
     });
   });
 

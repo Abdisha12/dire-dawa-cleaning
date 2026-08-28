@@ -1,5 +1,5 @@
 #!/bin/bash
-# scripts/backup-db.sh — Database backup script
+# scripts/backup-db.sh — PostgreSQL database backup script
 # Usage:
 #   ./scripts/backup-db.sh              # Full backup
 #   ./scripts/backup-db.sh --verify     # Backup + verify restoration
@@ -8,6 +8,7 @@
 # Environment variables:
 #   DB_CONTAINER  — Container name (default: ddcms_db)
 #   DB_NAME       — Database name (default: dire_dawa_cleaning)
+#   DB_USER       — Database user (default: ddcms)
 #   BACKUP_DIR    — Backup storage directory (default: ./backups)
 #   RETENTION_DAYS — Days to keep backups (default: 30)
 
@@ -15,6 +16,7 @@ set -euo pipefail
 
 DB_CONTAINER="${DB_CONTAINER:-ddcms_db}"
 DB_NAME="${DB_NAME:-dire_dawa_cleaning}"
+DB_USER="${DB_USER:-ddcms}"
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-30}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -38,8 +40,8 @@ docker ps --format '{{.Names}}' | grep -q "^${DB_CONTAINER}$" || err "Container 
 do_backup() {
   mkdir -p "$BACKUP_DIR"
   echo "Backing up ${DB_NAME} from ${DB_CONTAINER}..."
-  docker exec "$DB_CONTAINER" mysqldump -u root -p"${DB_ROOT_PASSWORD}" \
-    --single-transaction --routines --triggers --events "$DB_NAME" \
+  docker exec "$DB_CONTAINER" pg_dump -U "$DB_USER" -d "$DB_NAME" \
+    --no-owner --no-acl --clean --if-exists \
     | gzip > "$BACKUP_FILE"
 
   SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
@@ -50,28 +52,29 @@ do_backup() {
 do_verify() {
   echo "Verifying backup restoration..."
   VERIFY_CONTAINER="ddcms_verify_$$"
-  VERIFY_PORT=3307
+  VERIFY_PORT=5433
 
   docker run -d --name "$VERIFY_CONTAINER" \
-    -e MARIADB_ROOT_PASSWORD=verify_test \
-    -e MARIADB_DATABASE="${DB_NAME}_verify" \
-    -p ${VERIFY_PORT}:3306 \
-    mariadb:11 >/dev/null 2>&1
+    -e POSTGRES_USER="$DB_USER" \
+    -e POSTGRES_PASSWORD=verify_test \
+    -e POSTGRES_DB="${DB_NAME}_verify" \
+    -p ${VERIFY_PORT}:5432 \
+    postgis/postgis:16-3.4 >/dev/null 2>&1
 
-  sleep 15  # Wait for MariaDB to initialize
+  sleep 15  # Wait for PostgreSQL to initialize
 
   # Restore backup
   gunzip -c "$BACKUP_FILE" | docker exec -i "$VERIFY_CONTAINER" \
-    mysql -u root -pverify_test "${DB_NAME}_verify" 2>/dev/null
+    psql -U "$DB_USER" -d "${DB_NAME}_verify" >/dev/null 2>&1
 
   # Verify tables exist
   TABLE_COUNT=$(docker exec "$VERIFY_CONTAINER" \
-    mysql -u root -pverify_test -N \
-    -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${DB_NAME}_verify'" 2>/dev/null)
+    psql -U "$DB_USER" -d "${DB_NAME}_verify" -t -c \
+    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public'" 2>/dev/null | tr -d ' ')
 
   docker rm -f "$VERIFY_CONTAINER" >/dev/null 2>&1
 
-  if [ "$TABLE_COUNT" -gt 0 ]; then
+  if [ "$TABLE_COUNT" -gt 0 ] 2>/dev/null; then
     log "Verification passed: ${TABLE_COUNT} tables restored successfully"
   else
     err "Verification FAILED: no tables found after restoration"
@@ -89,7 +92,7 @@ do_restore() {
 
   echo "Restoring from ${RESTORE_FILE}..."
   gunzip -c "$RESTORE_FILE" | docker exec -i "$DB_CONTAINER" \
-    mysql -u root -p"${DB_ROOT_PASSWORD}" "$DB_NAME" 2>/dev/null
+    psql -U "$DB_USER" -d "$DB_NAME" >/dev/null 2>&1
   log "Restore complete"
 }
 
