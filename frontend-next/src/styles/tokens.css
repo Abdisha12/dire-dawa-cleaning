@@ -1,0 +1,137 @@
+/* styles/tokens.css — Phase 2 municipal design tokens
+   Central source of truth — no arbitrary colors per component.
+   Referenced in Phase 2 §§7-8,11,23.
+*/
+
+:root {
+  /* ——— Colors — municipal: trust/cleanliness/public service ——— */
+  --primary: #1d4ed8;
+  --primary-d: #1e40af;
+  --primary-foreground: #ffffff;
+  --primary-l: #eff6ff;
+
+  --secondary: #7c3aed;
+  --secondary-foreground: #ffffff;
+
+  --success: #16a34a;
+  --success-l: #dcfce7;
+  --success-foreground: #ffffff;
+
+  --warning: #ea580c;
+  --warning-l: #fff7ed;
+
+  --danger: #dc2626;
+  --danger-l: #fee2e2;
+
+  /* information = blue per Phase 2 semantic */
+  --information: #2563eb;
+  --information-l: #eff6ff;
+
+  --neutral: #6b7280;
+  --neutral-l: #f3f4f6;
+
+  --background: #f9fafb;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
+  --text: #111827;
+  --text-muted: #6b7280;
+  --text-subtle: #9ca3af;
+  --disabled: #d1d5db;
+  --disabled-bg: #f3f4f6;
+
+  /* status mapping (typed, not free colors) */
+  --status-draft: #374151;
+  --status-draft-bg: #f3f4f6;
+  --status-submitted: #2563eb;
+  --status-submitted-bg: #eff6ff;
+  --status-reviewed: #ea580c;
+  --status-reviewed-bg: #fff7ed;
+  --status-approved: #16a34a;
+  --status-approved-bg: #dcfce7;
+
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-500: #6b7280;
+  --gray-700: #374151;
+  --gray-900: #111827;
+  --white: #ffffff;
+
+  /* ——— Typography — Inter + Segoe fallback ——— */
+  --font: Inter, "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, monospace;
+  --text-base: 15px;
+  --leading: 1.5;
+  --h-hero: 2.6rem;
+  --h-section: 1.9rem;
+  --h-card: 0.95rem;
+  --label: 0.75rem;
+
+  /* ——— Spacing — 4-64 scale ——— */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-12: 48px;
+  --s-16: 64px;
+
+  /* layout */
+  --sidebar-w: 245px;
+  --header-h: 60px;
+  --bottom-nav-h: 60px;
+
+  /* ——— Radii ——— */
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 14px;
+  --r-pill: 999px;
+
+  /* ——— Shadows — restrained ——— */
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 25px 60px -15px rgba(29, 78, 216, 0.35);
+
+  /* ——— Breakpoints — for reference (use in media queries) ——— */
+  --bp-sm: 480px;
+  --bp-md: 768px;
+  --bp-lg: 1024px;
+  --bp-xl: 1280px;
+
+  /* ——— Transitions ——— */
+  --ease: 0.15s ease;
+  --ease-modal: 0.25s ease;
+  --spin: 0.6s linear infinite;
+
+  /* ——— z-index layers ——— */
+  --z-sidebar: 100;
+  --z-topbar: 50;
+  --z-bottomnav: 400;
+  --z-modal: 500;
+  --z-toast: 1000;
+}
+
+/* Dark mode tokens — prepared, not active until Phase 3 toggle.
+   Use: <html data-theme="dark"> or prefers-color-scheme. */
+[data-theme="dark"] {
+  --background: #0f172a;
+  --surface: #1e293b;
+  --surface-raised: #334155;
+  --border: #334155;
+  --border-strong: #475569;
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+  --text-subtle: #64748b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    /* kept opt-in via data-theme to avoid auto inversion breaking charts */
+  }
+}
