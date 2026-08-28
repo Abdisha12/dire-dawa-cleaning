@@ -5,6 +5,26 @@ const {authenticate,requireRole}=require("../middleware/auth");
 const router=express.Router();
 router.use(authenticate);
 
+// ── State machine: valid transitions ──────────────────────────
+// draft → submitted → reviewed → approved
+// Only these transitions are allowed. Any other is rejected.
+const VALID_TRANSITIONS = {
+  draft:     ["submitted"],
+  submitted: ["reviewed"],
+  reviewed:  ["approved"],
+};
+
+function canTransition(from, to) {
+  return VALID_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
+// Role-based transition permissions
+const ROLE_TRANSITIONS = {
+  draft_to_submitted: ["admin", "collector", "leader"],
+  submitted_to_reviewed: ["admin", "collector"],
+  reviewed_to_approved: ["admin"],
+};
+
 // Leader submits, collector reviews
 router.get("/",async(req,res,next)=>{
   try{
@@ -46,7 +66,7 @@ router.get("/:id",async(req,res,next)=>{
 router.post("/",requireRole("admin","collector","leader"),async(req,res,next)=>{
   try{
     const {saferZoneId,reportDate,reportMonth,reportYear,workersPresent,workersAbsent,
-           collectionTotal,issuesReported,actionsTaken,toolsStatus,status}=req.body;
+           collectionTotal,issuesReported,actionsTaken,toolsStatus}=req.body;
     if(!saferZoneId||!reportDate) return res.status(400).json({error:"saferZoneId and reportDate required"});
     if(req.user.role==="leader"){
       const [zr]=await db.execute("SELECT id FROM safer_zones WHERE id=? AND leader_id=?",[saferZoneId,req.user.id]);
@@ -54,16 +74,17 @@ router.post("/",requireRole("admin","collector","leader"),async(req,res,next)=>{
     }
     const month=reportMonth||new Date(reportDate).getMonth()+1;
     const year=reportYear||new Date(reportDate).getFullYear();
+    // Always create as draft — status is set by server, not client
     const [r]=await db.execute(
       `INSERT INTO zone_reports
        (safer_zone_id,report_date,report_month,report_year,submitted_by,status,
         workers_present,workers_absent,collection_total,issues_reported,actions_taken,tools_status)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [saferZoneId,reportDate,month,year,req.user.id,status||"draft",
+      [saferZoneId,reportDate,month,year,req.user.id,"draft",
        workersPresent||0,workersAbsent||0,collectionTotal||0,
        issuesReported||null,actionsTaken||null,toolsStatus||null]);
-    audit.log(req,"CREATE","zone_report",r.insertId,null,{saferZoneId,reportDate,status:status||"draft",workersPresent,workersAbsent,collectionTotal});
-    res.status(201).json({id:r.insertId});
+    audit.log(req,"CREATE","zone_report",r.insertId,null,{saferZoneId,reportDate,status:"draft",workersPresent,workersAbsent,collectionTotal});
+    res.status(201).json({id:r.insertId,status:"draft"});
   }catch(err){next(err);}
 });
 
@@ -77,13 +98,34 @@ router.put("/:id",requireRole("admin","collector","leader"),async(req,res,next)=
          WHERE zr.id=? AND sz.leader_id=?`,[req.params.id,req.user.id]);
       if(!check.length) return res.status(403).json({error:"Not your zone's report"});
     }
-    const [old]=await db.execute("SELECT workers_present,workers_absent,collection_total,status FROM zone_reports WHERE id=?",[req.params.id]);
+
+    // Fetch current status for state machine validation
+    const [[current]]=await db.execute("SELECT status FROM zone_reports WHERE id=?",[req.params.id]);
+    if(!current) return res.status(404).json({error:"Report not found"});
+
+    // If client requests a status change, validate the transition
+    let newStatus = current.status;
+    if(status && status !== current.status) {
+      if(!canTransition(current.status, status)) {
+        return res.status(400).json({
+          error:`Invalid transition: ${current.status} → ${status}. Allowed: ${VALID_TRANSITIONS[current.status]?.join(", ")||"none"}`
+        });
+      }
+      // Check role authorization for this transition
+      const transitionKey=`${current.status}_to_${status}`;
+      const allowedRoles=ROLE_TRANSITIONS[transitionKey];
+      if(allowedRoles && !allowedRoles.includes(req.user.role)) {
+        return res.status(403).json({error:`Role '${req.user.role}' cannot transition from ${current.status} to ${status}`});
+      }
+      newStatus = status;
+    }
+
     await db.execute(
       `UPDATE zone_reports SET workers_present=?,workers_absent=?,collection_total=?,
        issues_reported=?,actions_taken=?,tools_status=?,status=? WHERE id=?`,
-      [workersPresent,workersAbsent,collectionTotal,issuesReported||null,actionsTaken||null,toolsStatus||null,status,req.params.id]);
-    audit.log(req,"UPDATE","zone_report",parseInt(req.params.id),old[0]||null,{workersPresent,workersAbsent,collectionTotal,status});
-    res.json({message:"Updated"});
+      [workersPresent,workersAbsent,collectionTotal,issuesReported||null,actionsTaken||null,toolsStatus||null,newStatus,req.params.id]);
+    audit.log(req,"UPDATE","zone_report",parseInt(req.params.id),{status:current.status},{workersPresent,workersAbsent,collectionTotal,status:newStatus});
+    res.json({message:"Updated",status:newStatus});
   }catch(err){next(err);}
 });
 
@@ -93,10 +135,29 @@ router.put("/:id/review",requireRole("admin","collector"),async(req,res,next)=>{
     const {status,reviewerNotes}=req.body;
     if(!["reviewed","approved"].includes(status))
       return res.status(400).json({error:"status must be reviewed or approved"});
+
+    // Fetch current status for state machine validation
+    const [[current]]=await db.execute("SELECT status FROM zone_reports WHERE id=?",[req.params.id]);
+    if(!current) return res.status(404).json({error:"Report not found"});
+
+    // Validate transition
+    if(!canTransition(current.status, status)) {
+      return res.status(400).json({
+        error:`Invalid transition: ${current.status} → ${status}. Allowed: ${VALID_TRANSITIONS[current.status]?.join(", ")||"none"}`
+      });
+    }
+
+    // Check role authorization
+    const transitionKey=`${current.status}_to_${status}`;
+    const allowedRoles=ROLE_TRANSITIONS[transitionKey];
+    if(allowedRoles && !allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({error:`Role '${req.user.role}' cannot transition from ${current.status} to ${status}`});
+    }
+
     await db.execute(
       "UPDATE zone_reports SET status=?,reviewed_by=?,reviewed_at=NOW(),reviewer_notes=? WHERE id=?",
       [status,req.user.id,reviewerNotes||null,req.params.id]);
-    audit.log(req,"APPROVE","zone_report",parseInt(req.params.id),null,{status,reviewerNotes});
+    audit.log(req,"APPROVE","zone_report",parseInt(req.params.id),{status:current.status},{status,reviewerNotes});
     res.json({message:`Report ${status}`});
   }catch(err){next(err);}
 });

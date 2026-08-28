@@ -8,12 +8,28 @@ const { generatePaymentsExcel, generatePayrollExcel, generateInspectionsExcel, g
 const router = express.Router();
 router.use(authenticate);
 
+// Prefix dangerous values to prevent CSV formula injection in spreadsheets.
+// Values starting with = + - @ \t \r or " can be interpreted as formulas.
+function sanitizeCSVValue(v) {
+  if (v == null) return "";
+  const s = String(v);
+  if (!s.length) return "";
+  const first = s.charAt(0);
+  if (first === "=" || first === "+" || first === "-" || first === "@" || first === "\t" || first === "\r") {
+    return "'" + s; // Prefix with single quote — spreadsheet treats as text
+  }
+  return s;
+}
+
 function toCSV(rows) {
   if (!rows.length) return "";
   const h = Object.keys(rows[0]).join(",");
   const lines = rows.map(r => Object.values(r).map(v => {
-    if (v == null) return ""; const s = String(v);
-    return s.includes(",") || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+    const val = sanitizeCSVValue(v);
+    if (!val) return "";
+    return val.includes(",") || val.includes('"') || val.includes("\n")
+      ? `"${val.replace(/"/g, '""')}"`
+      : val;
   }).join(","));
   return [h, ...lines].join("\r\n");
 }
