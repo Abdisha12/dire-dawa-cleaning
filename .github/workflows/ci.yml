@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MYSQL_ROOT_PASSWORD: ddcms_root_pass
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Wait for MariaDB
+        run: |
+          for i in {1..30}; do
+            mysqladmin ping -h 127.0.0.1 -P 3306 --silent && break || sleep 2
+          done
+
+      - name: Install mysql client
+        run: sudo apt-get update && sudo apt-get install -y default-mysql-client
+
+      - name: Import database schema
+        env:
+          MYSQL_PWD: ddcms_root_pass
+        run: mysql -h 127.0.0.1 -P 3306 -u root < database/schema.sql || true
+
+      - name: Run backend tests
+        working-directory: backend
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASSWORD: ddcms_root_pass
+          DB_NAME: dire_dawa_cleaning
+          NODE_ENV: test
+        run: |
+          npm ci
+          npm test
