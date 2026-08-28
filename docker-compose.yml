@@ -44,6 +44,7 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:?ERROR: Set SESSION_SECRET in .env file (min 32 chars)}
       SESSION_EXPIRY_HOURS: ${SESSION_EXPIRY_HOURS:-8}
       MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-5}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
     volumes:
       # Persist uploaded inspection photos
       - uploads_data:/app/uploads

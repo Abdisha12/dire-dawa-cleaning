@@ -29,6 +29,37 @@ const fs=require("fs");
 const logger=require("./config/logger");
 const errorHandler=require("./middleware/errorHandler");
 
+// ── CORS origin allowlist ─────────────────────────────────────
+// Comma-separated list of allowed origins in CORS_ORIGINS env var.
+// In production behind nginx, frontend and backend share an origin,
+// so this list is typically empty (same-origin = no CORS headers needed).
+// For local development, add http://localhost:3000 or similar.
+const allowedOrigins = (process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map(s => s.trim())
+  .filter(Boolean);
+
+function corsOriginCallback(req, cb) {
+  // Allow requests with no Origin header (same-origin, curl, server-to-server)
+  const origin = req.header("Origin");
+  if (!origin) return cb(null, true);
+
+  // In production behind nginx reverse proxy, the frontend is served on
+  // the same origin — no cross-origin requests should arrive.
+  // If CORS_ORIGINS is empty, reject all cross-origin requests.
+  if (allowedOrigins.length === 0) {
+    logger.warn(`CORS blocked origin: ${origin} (no CORS_ORIGINS configured)`);
+    return cb(null, false);
+  }
+
+  if (allowedOrigins.includes(origin)) {
+    return cb(null, true);
+  }
+
+  logger.warn(`CORS blocked unauthorized origin: ${origin}`);
+  return cb(null, false);
+}
+
 const authRoutes=require("./routes/auth");
 const userRoutes=require("./routes/users");
 const locationRoutes=require("./routes/locations");
@@ -55,7 +86,12 @@ fs.mkdirSync(path.join(__dirname,"uploads/documents"),{recursive:true});
 fs.mkdirSync(path.join(__dirname,"logs"),{recursive:true});
 
 app.use(helmet({crossOriginResourcePolicy:{policy:"cross-origin"}}));
-app.use(cors({origin:"*",methods:["GET","POST","PUT","DELETE","OPTIONS"],allowedHeaders:["Content-Type","Authorization","x-session-token"]}));
+app.use(cors({
+  origin: corsOriginCallback,
+  methods: ["GET","POST","PUT","DELETE","OPTIONS"],
+  allowedHeaders: ["Content-Type","Authorization","x-session-token"],
+  credentials: true
+}));
 app.use("/api/auth/login",rateLimit({windowMs:15*60*1000,max:20,message:{error:"Too many login attempts"}}));
 app.use("/api/",rateLimit({windowMs:60*1000,max:500,message:{error:"Rate limit exceeded"}}));
 app.use(express.json({limit:"10mb"}));

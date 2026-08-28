@@ -53,6 +53,8 @@ jobs:
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_NAME: dire_dawa_cleaning
           NODE_ENV: test
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          CORS_ORIGINS: ""
         run: |
           npm ci
           npm test
