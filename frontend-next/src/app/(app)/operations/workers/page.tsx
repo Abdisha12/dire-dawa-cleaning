@@ -47,7 +47,14 @@ export default function WorkersPage() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [zoneFilter, setZoneFilter] = React.useState<string>("");
+  const [statusFilter, setStatusFilter] = React.useState<string>(""); // active | inactive | ""
+  const [kebeleFilter, setKebeleFilter] = React.useState<string>(() => (kebeleId ? String(kebeleId) : ""));
+  const [page, setPage] = React.useState(1);
+  const [total, setTotal] = React.useState(0);
+  const [pages, setPages] = React.useState(1);
+  const limit = 25;
 
   // Modals
   const [editing, setEditing] = React.useState<Worker | null>(null);
@@ -57,63 +64,97 @@ export default function WorkersPage() {
   const [salaryWorker, setSalaryWorker] = React.useState<Worker | null>(null);
   const [idCardWorker, setIdCardWorker] = React.useState<Worker | null>(null);
 
+  // Summary stats state (respecting scope)
+  const [summary, setSummary] = React.useState<{ total: number; active: number; inactive: number; totalWage: number } | null>(null);
+
   // For collector: filter zones to their kebele (client side, backend also enforces)
   const visibleZones = React.useMemo(() => {
     if (role === "leader" && zone) return zones.filter((z) => z.id === zone.id);
     if (role === "collector" && kebeleId) return zones.filter((z) => z.kebele_id === kebeleId);
+    if (kebeleFilter) return zones.filter((z) => String(z.kebele_id) === kebeleFilter);
     return zones;
-  }, [zones, role, zone, kebeleId]);
+  }, [zones, role, zone, kebeleId, kebeleFilter]);
+
+  // Debounce search 300ms + cancel obsolete
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Keep kebeleFilter in sync with context for Admin (All Kebeles), locked for collector
+  React.useEffect(() => {
+    if (kebeleId) setKebeleFilter(String(kebeleId));
+    else if (role === "admin") setKebeleFilter((prev) => prev); // keep selection
+  }, [kebeleId, role]);
 
   const fetchData = React.useCallback(async () => {
     setLoading(true);
     setError(null);
+    const ctrl = new AbortController();
     try {
-      const [z, w] = await Promise.all([
+      const params: Record<string, string> = { page: String(page), limit: String(limit) };
+      if (debouncedSearch) params.search = debouncedSearch;
+      if (statusFilter) params.status = statusFilter;
+      if (kebeleFilter) params.kebeleId = kebeleFilter;
+      if (zoneFilter) params.zoneId = zoneFilter;
+
+      const [z, wRes] = await Promise.all([
         api.getSaferZones().then((r) => r.zones),
-        api.getWorkers(zoneFilter ? { zoneId: zoneFilter } : {}),
+        api.getWorkers(params, { signal: ctrl.signal }),
       ]);
       setZones(z);
-      // Normalize custom_attributes if string
-      setWorkers(
-        w.map((r) => {
-          if (r.custom_attributes && typeof r.custom_attributes === "string") {
-            try {
-              return { ...r, custom_attributes: JSON.parse(r.custom_attributes as unknown as string) };
-            } catch {
-              return r;
-            }
+      // Handle paginated {data,total,page,pages} or array fallback
+      const wData: Worker[] = Array.isArray(wRes) ? (wRes as Worker[]) : (wRes as { data: Worker[] }).data || [];
+      const meta = Array.isArray(wRes) ? { total: wData.length, pages: 1 } : (wRes as { total: number; pages: number; page: number });
+      const normalized = wData.map((r) => {
+        if (r.custom_attributes && typeof r.custom_attributes === "string") {
+          try {
+            return { ...r, custom_attributes: JSON.parse(r.custom_attributes as unknown as string) };
+          } catch {
+            return r;
           }
-          return r;
-        })
-      );
+        }
+        return r;
+      });
+      setWorkers(normalized);
+      if (!Array.isArray(wRes)) {
+        setTotal(meta.total);
+        setPages(meta.pages);
+      } else {
+        setTotal(normalized.length);
+        setPages(1);
+      }
+
+      // Summary: fetch total/active/inactive via separate counts (or derive)
+      // For scope accuracy, use current filtered total + active count via status filter
+      // We fetch active/inactive counts in parallel with same filters but status constrained
+      const activeParams = { ...params, status: "active", page: "1", limit: "1" };
+      const inactiveParams = { ...params, status: "inactive", page: "1", limit: "1" };
+      const [activeRes, inactiveRes] = await Promise.all([
+        api.getWorkers(activeParams, { signal: ctrl.signal }).catch(() => ({ total: 0 } as unknown as Worker[])),
+        api.getWorkers(inactiveParams, { signal: ctrl.signal }).catch(() => ({ total: 0 } as unknown as Worker[])),
+      ]);
+      const activeTotal = Array.isArray(activeRes) ? (activeRes as Worker[]).length : (activeRes as { total: number }).total || 0;
+      const inactiveTotal = Array.isArray(inactiveRes) ? (inactiveRes as Worker[]).length : (inactiveRes as { total: number }).total || 0;
+      const wage = normalized.filter((w) => w.is_active).reduce((s, w) => s + Number(w.daily_wage), 0);
+      setSummary({ total: Array.isArray(wRes) ? normalized.length : meta.total, active: activeTotal, inactive: inactiveTotal, totalWage: wage });
     } catch (e) {
+      if ((e as Error).name === "AbortError") return;
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
       setLoading(false);
     }
-  }, [zoneFilter]);
+    return () => ctrl.abort();
+  }, [page, limit, debouncedSearch, statusFilter, kebeleFilter, zoneFilter]);
 
   React.useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  const filtered = React.useMemo(() => {
-    if (!search.trim()) return workers;
-    const q = search.toLowerCase();
-    return workers.filter(
-      (w) =>
-        w.full_name.toLowerCase().includes(q) ||
-        (w.contact || "").toLowerCase().includes(q) ||
-        (w.fayda_id || "").toLowerCase().includes(q) ||
-        (w.zone_name || "").toLowerCase().includes(q)
-    );
-  }, [workers, search]);
-
-  const stats = React.useMemo(() => {
-    const active = workers.filter((w) => w.is_active).length;
-    const totalWage = workers.filter((w) => w.is_active).reduce((s, w) => s + Number(w.daily_wage), 0);
-    return { total: workers.length, active, totalWage };
-  }, [workers]);
+  const stats = summary || { total: workers.length, active: workers.filter((w) => w.is_active).length, inactive: workers.filter((w) => !w.is_active).length, totalWage: workers.filter((w) => w.is_active).reduce((s, w) => s + Number(w.daily_wage), 0) };
 
   const handleDelete = async (id: number) => {
     if (!confirm("Delete this worker and all records?")) return;
@@ -181,49 +222,97 @@ export default function WorkersPage() {
         )}
       </div>
 
-      {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard label="Total Workers" value={stats.total} accent="blue" />
-        <StatCard label="Active" value={stats.active} accent="green" />
-        <StatCard label="Daily Wage Total" value={fmtETB(stats.totalWage)} accent="orange" />
+      {/* Workforce summary — respects scope, API-supported only */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Total" value={stats.total} sub="Workers in scope" accent="blue" />
+        <StatCard label="Active" value={stats.active} sub="is_active=true" accent="green" />
+        <StatCard label="Inactive" value={stats.inactive} sub="is_active=false" accent="orange" />
+        <StatCard label="Daily Wage Total" value={fmtETB(stats.totalWage)} sub="Active workers" accent="purple" />
       </div>
 
-      {/* Toolbar */}
-      <div className="flex flex-wrap gap-3">
-        {role !== "leader" && (
-          <Select
-            value={zoneFilter}
-            onChange={(e) => setZoneFilter(e.target.value)}
-            className="w-[200px]"
-            aria-label="Filter by zone"
-          >
-            <option value="">All Zones</option>
-            {visibleZones.map((z) => (
-              <option key={z.id} value={String(z.id)}>
-                {z.name} ({z.kebele_name})
-              </option>
-            ))}
-          </Select>
+      {/* Reusable filter system — role-aware */}
+      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+        {/* Kebele — Admin can select, Kebele Admin locked, Leader read-only */}
+        {role === "admin" && (
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="f-kebele">Kebele</Label>
+            <Select
+              id="f-kebele"
+              value={kebeleFilter}
+              onChange={(e) => { setKebeleFilter(e.target.value); setZoneFilter(""); setPage(1); }}
+              className="w-[160px]"
+              aria-label="Filter by kebele"
+            >
+              <option value="">All Kebeles</option>
+              {/* Use actual kebele records? Derive from zones' kebele_name uniqueness */}
+              {Array.from(new Map(zones.map((z) => [z.kebele_id, z.kebele_name])).entries()).map(([id, name]) => (
+                <option key={String(id)} value={String(id)}>
+                  {name}
+                </option>
+              ))}
+            </Select>
+          </div>
         )}
-        <Input
-          placeholder="🔍 Search workers…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-[260px]"
-          aria-label="Search workers"
-        />
+        {role === "collector" && kebeleId && (
+          <div className="flex flex-col gap-1">
+            <Label>Kebele</Label>
+            <div className="rounded bg-[var(--information-l)] px-3 py-2 text-sm font-medium text-[var(--primary)]">My Kebele — locked</div>
+          </div>
+        )}
+        {role !== "leader" && (
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="f-zone">Safer Zone</Label>
+            <Select
+              id="f-zone"
+              value={zoneFilter}
+              onChange={(e) => { setZoneFilter(e.target.value); setPage(1); }}
+              className="w-[200px]"
+              aria-label="Filter by zone"
+            >
+              <option value="">All Zones</option>
+              {visibleZones.map((z) => (
+                <option key={z.id} value={String(z.id)}>
+                  {z.name} ({z.kebele_name})
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="f-status">Status</Label>
+          <Select id="f-status" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="w-[140px]" aria-label="Filter by status">
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </Select>
+        </div>
+        <div className="flex flex-1 flex-col gap-1">
+          <Label htmlFor="f-search">Search</Label>
+          <Input
+            id="f-search"
+            placeholder="Name, phone, Fayda…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="max-w-[280px]"
+            aria-label="Search workers"
+          />
+        </div>
+        <div className="text-xs text-[var(--text-muted)]">{total} total · page {page}/{pages}</div>
       </div>
 
-      {/* Table */}
+      {/* Table — server-side pagination 25/page */}
       <DataTable
         columns={columns}
-        data={filtered}
+        data={workers}
         loading={loading}
         error={error}
         onRetry={fetchData}
         emptyTitle="No workers"
         emptyDescription={canEdit ? "Add your first worker to get started." : "No workers in this scope."}
         getRowKey={(w) => String(w.id)}
+        page={page}
+        pages={pages}
+        onPage={(p) => setPage(p)}
         rowActions={
           canEdit
             ? (w) => (

@@ -88,21 +88,56 @@ router.post("/attendance/bulk",requireRole("admin","collector","leader"),validat
 
 router.get("/",async(req,res,next)=>{
   try{
-    let sql=`SELECT w.*,sz.name AS zone_name,k.name AS kebele_name
-             FROM workers w LEFT JOIN safer_zones sz ON sz.id=w.safer_zone_id
-             LEFT JOIN kebeles k ON k.id=sz.kebele_id WHERE 1=1`;
-    const params=[];
-    let paramIdx=1;
-    if(req.user.role==="leader"){sql+=` AND sz.leader_id=$${paramIdx}`;params.push(req.user.id);paramIdx++;}
+    const page = Math.max(1, parseInt(String(req.query.page || "0"), 10) || 0);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "0"), 10) || 0));
+    const hasPagination = page > 0 && limit > 0;
+    const search = (req.query.search as string || "").trim();
+    const status = (req.query.status as string || "").trim(); // active | inactive
+    const kebeleIdParam = req.query.kebeleId ? String(req.query.kebeleId) : null;
+    const zoneIdParam = req.query.zoneId ? String(req.query.zoneId) : null;
+
+    let baseSql=` FROM workers w LEFT JOIN safer_zones sz ON sz.id=w.safer_zone_id LEFT JOIN kebeles k ON k.id=sz.kebele_id WHERE 1=1`;
+    const whereParams: unknown[] = [];
+    let wIdx = 1;
+
+    if(req.user.role==="leader"){ baseSql+=` AND sz.leader_id=$${wIdx}`; whereParams.push(req.user.id); wIdx++; }
     else if(req.user.role==="collector"){
       const kebeleId=await getCollectorKebeleId(req.user.id);
-      if(kebeleId){sql+=` AND k.id=$${paramIdx}`;params.push(kebeleId);paramIdx++;}
-      else{return res.json([]);}
+      if(kebeleId){ baseSql+=` AND k.id=$${wIdx}`; whereParams.push(kebeleId); wIdx++; }
+      else{ return res.json(hasPagination ? { data: [], total: 0, page: 1, pages: 0 } : []); }
+    } else {
+      // Admin / viewer: allow kebele filter
+      if(kebeleIdParam){ baseSql+=` AND k.id=$${wIdx}`; whereParams.push(parseInt(kebeleIdParam,10)); wIdx++; }
+      else if(zoneIdParam){ baseSql+=` AND w.safer_zone_id=$${wIdx}`; whereParams.push(parseInt(zoneIdParam,10)); wIdx++; }
     }
-    else if(req.query.zoneId){sql+=` AND w.safer_zone_id=$${paramIdx}`;params.push(req.query.zoneId);paramIdx++;}
-    sql+=" ORDER BY sz.name,w.full_name";
-    const result=await db.query(sql,params);
-    res.json(parseCustomAttrs(result.rows));
+    // Collector/leader already scoped; if they also pass zoneId, honor it additionally
+    if((req.user.role==="collector" || req.user.role==="leader") && zoneIdParam){
+      baseSql+=` AND w.safer_zone_id=$${wIdx}`; whereParams.push(parseInt(zoneIdParam,10)); wIdx++;
+    }
+
+    if(search){
+      baseSql+=` AND (w.full_name ILIKE $${wIdx} OR w.contact ILIKE $${wIdx} OR w.fayda_id ILIKE $${wIdx})`;
+      whereParams.push(`%${search}%`);
+      wIdx++;
+    }
+    if(status === "active"){ baseSql+=` AND w.is_active=TRUE`; }
+    else if(status === "inactive"){ baseSql+=` AND w.is_active=FALSE`; }
+
+    if(!hasPagination){
+      const sql=`SELECT w.*,sz.name AS zone_name,k.name AS kebele_name${baseSql} ORDER BY sz.name,w.full_name`;
+      const result=await db.query(sql, whereParams);
+      return res.json(parseCustomAttrs(result.rows));
+    }
+
+    const countSql=`SELECT COUNT(*)::int AS total${baseSql}`;
+    const countRes=await db.query(countSql, whereParams);
+    const total = countRes.rows[0]?.total || 0;
+    const pages = Math.max(1, Math.ceil(total / limit));
+    const offset = (page - 1) * limit;
+    const dataSql=`SELECT w.*,sz.name AS zone_name,k.name AS kebele_name${baseSql} ORDER BY sz.name,w.full_name LIMIT $${wIdx} OFFSET $${wIdx+1}`;
+    const dataParams=[...whereParams, limit, offset];
+    const result=await db.query(dataSql, dataParams);
+    res.json({ data: parseCustomAttrs(result.rows), total, page, pages });
   }catch(err){next(err);}
 });
 
