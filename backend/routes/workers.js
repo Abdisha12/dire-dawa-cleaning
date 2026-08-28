@@ -14,10 +14,6 @@ function parseCustomAttrs(rows){
   });
 }
 
-function leaderZoneFilter(user){
-  return user.role==="leader"?" AND sz.leader_id="+user.id:" ";
-}
-
 router.get("/summary/stats",async(req,res,next)=>{
   try{
     const y=req.query.year||new Date().getFullYear();

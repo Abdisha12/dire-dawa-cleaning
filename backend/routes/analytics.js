@@ -5,9 +5,17 @@ const { authenticate } = require("../middleware/auth");
 const router = express.Router();
 router.use(authenticate);
 
-// Helper for zone/leader filter
+// Helper for zone/leader filter — returns { clause, param } for parameterized queries
 function leaderZoneFilter(req) {
-  return req.user.role === "leader" ? " AND sz.leader_id = " + db.escape(req.user.id) : "";
+  if (req.user.role === "leader") {
+    return { clause: " AND sz.leader_id = ?", param: req.user.id };
+  }
+  return { clause: "", param: null };
+}
+
+function filterClause(req) {
+  const f = leaderZoneFilter(req);
+  return { clause: f.clause, params: f.param ? [f.param] : [] };
 }
 
 // GET /api/analytics/attendance — attendance rate metrics
@@ -17,7 +25,7 @@ router.get("/attendance", async (req, res, next) => {
     const m = req.query.month || new Date().getMonth() + 1;
     const first = `${y}-${String(m).padStart(2, "0")}-01`;
     const last = new Date(y, m, 0).toISOString().slice(0, 10);
-    const filter = leaderZoneFilter(req);
+    const { clause: filter, params: filterParams } = filterClause(req);
 
     // Overall attendance rate
     const [[overall]] = await db.execute(
@@ -29,7 +37,7 @@ router.get("/attendance", async (req, res, next) => {
        JOIN workers w ON w.id = a.worker_id
        LEFT JOIN safer_zones sz ON sz.id = w.safer_zone_id
        WHERE a.date BETWEEN ? AND ?${filter}`,
-      [first, last]
+      [first, last, ...filterParams]
     );
 
     // By Zone attendance breakdown
@@ -45,7 +53,7 @@ router.get("/attendance", async (req, res, next) => {
        JOIN kebeles k ON k.id = sz.kebele_id
        WHERE a.date BETWEEN ? AND ?${filter}
        GROUP BY sz.id ORDER BY rate DESC`,
-      [first, last]
+      [first, last, ...filterParams]
     );
 
     const totalRec = overall.total_records || 0;
@@ -70,7 +78,7 @@ router.get("/payments", async (req, res, next) => {
   try {
     const y = req.query.year || new Date().getFullYear();
     const m = req.query.month || new Date().getMonth() + 1;
-    const filter = leaderZoneFilter(req);
+    const { clause: filter, params: filterParams } = filterClause(req);
 
     // By payment method breakdown
     const [byMethod] = await db.execute(
@@ -80,7 +88,7 @@ router.get("/payments", async (req, res, next) => {
        JOIN safer_zones sz ON sz.id = b.safer_zone_id
        WHERE p.year = ? AND p.month = ? AND p.status = 'paid'${filter}
        GROUP BY p.method`,
-      [y, m]
+      [y, m, ...filterParams]
     );
 
     // Status breakdown (paid, pending, overdue)
@@ -91,7 +99,7 @@ router.get("/payments", async (req, res, next) => {
        JOIN safer_zones sz ON sz.id = b.safer_zone_id
        WHERE p.year = ? AND p.month = ?${filter}
        GROUP BY p.status`,
-      [y, m]
+      [y, m, ...filterParams]
     );
 
     res.json({ byMethod, byStatus });
@@ -103,7 +111,7 @@ router.get("/inspections", async (req, res, next) => {
   try {
     const from = req.query.from || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
     const to = req.query.to || new Date().toISOString().slice(0, 10);
-    const filter = leaderZoneFilter(req);
+    const { clause: filter, params: filterParams } = filterClause(req);
 
     const [statusDist] = await db.execute(
       `SELECT i.status, COUNT(*) AS count
@@ -111,7 +119,7 @@ router.get("/inspections", async (req, res, next) => {
        LEFT JOIN safer_zones sz ON sz.id = i.safer_zone_id
        WHERE i.date BETWEEN ? AND ?${filter}
        GROUP BY i.status`,
-      [from, to]
+      [from, to, ...filterParams]
     );
 
     const [byZone] = await db.execute(
@@ -124,7 +132,7 @@ router.get("/inspections", async (req, res, next) => {
        JOIN safer_zones sz ON sz.id = i.safer_zone_id
        WHERE i.date BETWEEN ? AND ?${filter}
        GROUP BY sz.id ORDER BY total_inspections DESC`,
-      [from, to]
+      [from, to, ...filterParams]
     );
 
     res.json({ statusDist, byZone });
@@ -136,7 +144,7 @@ router.get("/zones", async (req, res, next) => {
   try {
     const y = req.query.year || new Date().getFullYear();
     const m = req.query.month || new Date().getMonth() + 1;
-    const filter = leaderZoneFilter(req);
+    const { clause: filter, params: filterParams } = filterClause(req);
 
     const [rows] = await db.execute(
       `SELECT sz.id AS zone_id, sz.name AS zone_name, k.name AS kebele_name, u.full_name AS leader_name,
@@ -175,7 +183,7 @@ router.get("/zones", async (req, res, next) => {
        ) i_stats ON i_stats.safer_zone_id = sz.id
        WHERE 1=1${filter}
        ORDER BY collection_rate DESC, attendance_rate DESC`,
-      [y, m, m, y, m, y]
+      [y, m, m, y, m, y, ...filterParams]
     );
 
     // Calculate composite score for ranking
@@ -194,7 +202,7 @@ router.get("/zones", async (req, res, next) => {
 router.get("/trends", async (req, res, next) => {
   try {
     const y = req.query.year || new Date().getFullYear();
-    const filter = leaderZoneFilter(req);
+    const { clause: filter, params: filterParams } = filterClause(req);
 
     const [monthlyCollections] = await db.execute(
       `SELECT p.month, SUM(CASE WHEN p.status='paid' THEN p.amount ELSE 0 END) AS collected,
@@ -205,7 +213,7 @@ router.get("/trends", async (req, res, next) => {
        JOIN safer_zones sz ON sz.id = b.safer_zone_id
        WHERE p.year = ?${filter}
        GROUP BY p.month ORDER BY p.month`,
-      [y]
+      [y, ...filterParams]
     );
 
     const [monthlyAttendance] = await db.execute(
@@ -216,7 +224,7 @@ router.get("/trends", async (req, res, next) => {
        JOIN safer_zones sz ON sz.id = w.safer_zone_id
        WHERE YEAR(a.date) = ?${filter}
        GROUP BY MONTH(a.date) ORDER BY month`,
-      [y]
+      [y, ...filterParams]
     );
 
     res.json({ monthlyCollections, monthlyAttendance });

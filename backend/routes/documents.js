@@ -60,7 +60,8 @@ router.get("/", async (req, res, next) => {
     if (category) { sql += " AND d.category = ?"; params.push(category); }
     if (search) {
       sql += " AND (d.title LIKE ? OR d.description LIKE ? OR d.file_name LIKE ?)";
-      const q = `%${search}%`;
+      const escaped = search.replace(/%/g, '\\%').replace(/_/g, '\\_');
+      const q = `%${escaped}%`;
       params.push(q, q, q);
     }
 
