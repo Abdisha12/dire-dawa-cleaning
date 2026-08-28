@@ -1,13 +1,29 @@
+"use client";
+
 import { Card, CardHeader, CardTitle, StatCard } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { KebeleSelector, KebeleSummary } from "@/features/kebeles/components/kebele-selector";
+import { useAuth } from "@/lib/auth-context";
+import { useKebele } from "@/lib/kebele-context";
 
 export default function DashboardPage() {
-  // Foundation placeholder — real data fetching in Phase 4
+  const { user } = useAuth();
+  const { selectedKebele } = useKebele();
+  const role = user?.role;
+  const contextLabel =
+    role === "admin" ? "All Kebeles — City-wide" : role === "collector" ? "My Kebele — locked" : role === "leader" ? "My Safer Zone" : "—";
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-[#ddd6fe] bg-[#ede9fe] p-3 text-sm">
-        🏷️ <strong>Foundation Shell</strong> — Dashboard context will be <strong>City → My Kebele → My Zone</strong> per Phase 2 §5. Data fetching via TanStack Query in next phase.
+      <div className="flex flex-wrap items-start justify-between gap-4 rounded-lg border border-[#ddd6fe] bg-[#ede9fe] p-3">
+        <div className="text-sm">
+          <strong>Operational Context:</strong> {contextLabel} {selectedKebele ? `· ${selectedKebele.name}` : ""}
+          <div className="text-xs text-[var(--text-muted)]">Backend is authoritative — selector is UX only (kebeles.collector_id / zone.leader_id).</div>
+        </div>
+        <div className="min-w-[260px] flex-1 max-w-sm">
+          <KebeleSelector />
+        </div>
       </div>
+      <KebeleSummary />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Kebeles" value="9" sub="Dire Dawa" accent="blue" />
