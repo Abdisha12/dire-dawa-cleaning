@@ -6,6 +6,7 @@ const fs = require("fs");
 const db = require("../config/db");
 const audit = require("../services/auditService");
 const { authenticate, requireRole } = require("../middleware/auth");
+const { createFileFilter, validateUploadedFile, handleMulterError } = require("../middleware/uploadSecurity");
 
 const router = express.Router();
 
@@ -16,15 +17,15 @@ const storage = multer.diskStorage({
     cb(null, dir);
   },
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const safeName = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, "_");
-    cb(null, `doc_${Date.now()}_${safeName}${ext}`);
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `doc_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
   }
 });
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: createFileFilter("document"),
 });
 
 router.use(authenticate);
@@ -64,7 +65,11 @@ router.get("/", async (req, res, next) => {
 });
 
 // POST /api/documents — upload document with metadata
-router.post("/", requireRole("admin", "collector", "leader"), upload.single("file"), async (req, res, next) => {
+router.post("/", requireRole("admin", "collector", "leader"),
+  upload.single("file"),
+  validateUploadedFile("document"),
+  handleMulterError,
+  async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: "File upload required" });
     const { title, description, category, saferZoneId, kebeleId } = req.body;
@@ -102,6 +107,13 @@ router.get("/:id/download", async (req, res, next) => {
     const doc = rows[0];
     const fullPath = path.join(__dirname, "..", doc.file_path);
 
+    // Path traversal guard — resolve and verify inside uploads directory
+    const resolved = path.resolve(fullPath);
+    const uploadsDir = path.resolve(__dirname, "../uploads/documents");
+    if (!resolved.startsWith(uploadsDir)) {
+      return res.status(400).json({ error: "Invalid file path" });
+    }
+
     if (!fs.existsSync(fullPath)) return res.status(404).json({ error: "File missing on disk" });
 
     res.download(fullPath, doc.file_name);
@@ -129,7 +141,10 @@ router.delete("/:id", requireRole("admin", "collector"), async (req, res, next) 
     const doc = rows[0];
 
     const fullPath = path.join(__dirname, "..", doc.file_path);
-    if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+    // Path traversal guard
+    const resolved = path.resolve(fullPath);
+    const uploadsDir = path.resolve(__dirname, "../uploads/documents");
+    if (resolved.startsWith(uploadsDir) && fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
 
     await db.execute("DELETE FROM documents WHERE id = ?", [req.params.id]);
     audit.log(req, "DELETE", "document", parseInt(req.params.id), { title: doc.title }, null);

@@ -6,7 +6,7 @@ services:
     container_name: ddcms_db
     restart: unless-stopped
     environment:
-      MARIADB_ROOT_PASSWORD: ${DB_PASSWORD:?ERROR: Set DB_PASSWORD in .env file}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?ERROR: Set DB_ROOT_PASSWORD in .env file}
       MARIADB_DATABASE: dire_dawa_cleaning
       MARIADB_USER: ddcms
       MARIADB_PASSWORD: ${DB_PASSWORD:?ERROR: Set DB_PASSWORD in .env file}

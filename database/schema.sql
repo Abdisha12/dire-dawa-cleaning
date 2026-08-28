@@ -382,3 +382,11 @@ INSERT IGNORE INTO tools (name,category,quantity,condition_status,safer_zone_id)
   ('Safety Uniforms','uniform',8,'good',1),
   ('Bleach Chemical 20L','chemical',5,'good',2),
   ('Wheelbarrow','equipment',3,'fair',2);
+
+-- ── Application user least-privilege grants ───────────────────
+-- The MariaDB Docker image creates 'ddcms'@'%' via MARIADB_USER/MARIADB_PASSWORD.
+-- Revoke broad privileges and grant only what the application needs.
+-- NOTE: This runs AFTER schema creation, so the user already has CREATE/INSERT from Docker.
+-- We restrict to DML only (no DDL) for runtime safety.
+GRANT SELECT, INSERT, UPDATE, DELETE ON dire_dawa_cleaning.* TO 'ddcms'@'%';
+FLUSH PRIVILEGES;

@@ -5,16 +5,15 @@ const fs=require("fs");
 const db=require("../config/db");
 const audit=require("../services/auditService");
 const {authenticate,requireRole}=require("../middleware/auth");
+const {createFileFilter,validateUploadedFile,handleMulterError}=require("../middleware/uploadSecurity");
 const router=express.Router();
 router.use(authenticate);
 
 const storage=multer.diskStorage({
   destination:(req,file,cb)=>{const d=path.join(__dirname,"../uploads/inspections");fs.mkdirSync(d,{recursive:true});cb(null,d);},
-  filename:(req,file,cb)=>cb(null,`insp_${Date.now()}_${Math.random().toString(36).slice(2)}${path.extname(file.originalname)}`)
+  filename:(req,file,cb)=>cb(null,`insp_${Date.now()}_${Math.random().toString(36).slice(2)}${path.extname(file.originalname).toLowerCase()}`)
 });
-const upload=multer({storage,limits:{fileSize:5*1024*1024},fileFilter:(req,file,cb)=>{
-  if(!file.mimetype.startsWith("image/")) return cb(new Error("Images only"));cb(null,true);
-}});
+const upload=multer({storage,limits:{fileSize:5*1024*1024},fileFilter:createFileFilter("inspection")});
 
 router.get("/",async(req,res,next)=>{
   try{
@@ -56,7 +55,11 @@ router.get("/:id",async(req,res,next)=>{
   }catch(err){next(err);}
 });
 
-router.post("/",requireRole("admin","collector","leader"),upload.array("photos",10),async(req,res,next)=>{
+router.post("/",requireRole("admin","collector","leader"),
+  upload.array("photos",10),
+  validateUploadedFile("inspection"),
+  handleMulterError,
+  async(req,res,next)=>{
   try{
     const {kebeleId,saferZoneId,date,status,notes}=req.body;
     if(!kebeleId||!date) return res.status(400).json({error:"kebeleId and date required"});
@@ -80,7 +83,11 @@ router.post("/",requireRole("admin","collector","leader"),upload.array("photos",
   }
 });
 
-router.put("/:id",requireRole("admin","collector","leader"),upload.array("photos",10),async(req,res,next)=>{
+router.put("/:id",requireRole("admin","collector","leader"),
+  upload.array("photos",10),
+  validateUploadedFile("inspection"),
+  handleMulterError,
+  async(req,res,next)=>{
   try{
     const {status,notes}=req.body;
     const [old]=await db.execute("SELECT status,notes FROM inspections WHERE id=?",[req.params.id]);
@@ -100,6 +107,10 @@ router.delete("/photo/:photoId",requireRole("admin","collector","leader"),async(
     const [rows]=await db.execute("SELECT * FROM inspection_photos WHERE id=?",[req.params.photoId]);
     if(!rows.length) return res.status(404).json({error:"Photo not found"});
     const full=path.join(__dirname,"..",rows[0].file_path);
+    // Path traversal guard
+    const resolved=path.resolve(full);
+    const uploadsDir=path.resolve(__dirname,"../uploads/inspections");
+    if(!resolved.startsWith(uploadsDir)) return res.status(400).json({error:"Invalid file path"});
     if(fs.existsSync(full)) fs.unlinkSync(full);
     await db.execute("DELETE FROM inspection_photos WHERE id=?",[req.params.photoId]);
     res.json({message:"Photo deleted"});
@@ -110,7 +121,12 @@ router.delete("/:id",requireRole("admin","collector"),async(req,res,next)=>{
   try{
     const [old]=await db.execute("SELECT kebele_id,safer_zone_id,date,status FROM inspections WHERE id=?",[req.params.id]);
     const [photos]=await db.execute("SELECT file_path FROM inspection_photos WHERE inspection_id=?",[req.params.id]);
-    for(const p of photos){const f=path.join(__dirname,"..",p.file_path);if(fs.existsSync(f))fs.unlinkSync(f);}
+    const uploadsDir=path.resolve(__dirname,"../uploads/inspections");
+    for(const p of photos){
+      const f=path.join(__dirname,"..",p.file_path);
+      // Path traversal guard
+      if(path.resolve(f).startsWith(uploadsDir) && fs.existsSync(f)) fs.unlinkSync(f);
+    }
     await db.execute("DELETE FROM inspections WHERE id=?",[req.params.id]);
     audit.log(req,"DELETE","inspection",parseInt(req.params.id),old[0]||null,null);
     res.json({message:"Deleted"});
