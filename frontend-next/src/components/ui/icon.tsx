@@ -31,6 +31,12 @@ import {
   ChevronDown,
   SearchX,
   Inbox,
+  CalendarCheck,
+  Map,
+  MessageSquare,
+  TrendingUp,
+  UserCircle,
+  Cog,
 } from "lucide-react";
 import type { LucideProps } from "lucide-react";
 
@@ -63,6 +69,12 @@ export const Icons = {
   chevronDown: ChevronDown,
   empty: SearchX,
   inbox: Inbox,
+  attendance: CalendarCheck,
+  gis: Map,
+  complaints: MessageSquare,
+  performance: TrendingUp,
+  myaccount: UserCircle,
+  system: Cog,
 };
 
 export type IconName = keyof typeof Icons;
