@@ -60,28 +60,41 @@ dire-dawa-cleaning/
 │   │       └── settings.js       zone↔leader, kebele↔collector assignment
 │   └── index.html
 └── database/
-    └── schema.sql            9 kebeles × 12 zones = 108 zones, seed data
+     ├── schema.sql            MariaDB legacy (retained for rollback)
+     ├── postgresql/
+     │   ├── schema.sql        PostgreSQL 16 + PostGIS 3.4 (canonical, 16 tables, 5 GEOMETRY, 35 indexes)
+     │   ├── migrate-data.sh   MariaDB → PG helper
+     │   └── validate-migration.js  row-count / FK validation
+     └── MIGRATIONS.md         reproducible migration docs
 ```
 
 ---
 
-## ⚙️ Setup (CachyOS / Arch Linux)
+> **Phase 1:** PostgreSQL 16 + PostGIS 3.4 (migrated from MariaDB). See
+> `docs/modernization/phase-1-postgresql-postgis.md` for versions, schema, migration, GIS foundation, indexing, roles, backup/rollback, validation.
+
+## ⚙️ Setup (CachyOS / Arch Linux — PostgreSQL)
 
 ```bash
 # 1. Prerequisites
 sudo pacman -Syu
 sudo pacman -S nodejs npm postgresql postgis
 
-# 2. Initialize & start PostgreSQL (with PostGIS)
+# 2. Docker (recommended) — fresh DB with PostGIS
+cp .env.example .env && nano .env   # set DB_PASSWORD (32+), SESSION_SECRET, PAYMENT_WEBHOOK_SECRET
+cp backend/.env.example backend/.env # same DB_PASSWORD
+docker compose up -d db             # auto-applies database/postgresql/schema.sql
+docker exec ddcms_db psql -U ddcms -d dire_dawa_cleaning -c "SELECT PostGIS_Version();"
+DB_HOST=localhost node database/migrate.js up
+SEED_PASSWORD=<strong> node database/seed.js
+docker compose up --build -d        # backend + frontend + db
+
+# 3. Manual PostgreSQL (without Docker)
 sudo -u postgres initdb -D /var/lib/postgres/data
 sudo systemctl enable --now postgresql
 sudo -u postgres createuser -s $USER
 sudo -u postgres createdb dire_dawa_cleaning
-
-# 3. Create schema (PostGIS)
-cd dire-dawa-cleaning
 psql -U ddcms -d dire_dawa_cleaning -h localhost -f database/postgresql/schema.sql
-# Or via Docker: docker compose up -d db  (auto-initializes from schema.sql)
 
 # 4. Backend
 cd backend
