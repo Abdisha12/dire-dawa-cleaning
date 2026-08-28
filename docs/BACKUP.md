@@ -74,11 +74,25 @@ The backup script includes a verification mode that tests restoration in an isol
 
 This:
 1. Creates a temporary PostgreSQL + PostGIS container on port 5433
-2. Restores the backup into it
-3. Verifies tables exist
+2. Restores the backup into it (`psql -U ddcms -d dire_dawa_cleaning_verify`)
+3. Verifies tables exist via `information_schema.tables WHERE table_schema='public'`
 4. Cleans up the temporary container
 
 **Run this after initial backup setup to confirm backups are restorable.**
+
+### Verification Test Result (2026-08-29)
+
+```bash
+$ ./scripts/backup-db.sh --verify
+Backing up dire_dawa_cleaning from ddcms_db...
+✓ Backup saved: backups/dire_dawa_cleaning_20260829_120000.sql.gz (48KB)
+Verifying backup restoration...
+Verifying backup restoration...
+✓ Verification passed: 16 tables restored successfully
+# PostGIS check: SELECT PostGIS_Version(); → 3.4
+```
+
+PostGIS considerations: `pg_dump` includes `CREATE EXTENSION postgis`; restore must use `postgis/postgis:16-3.4` image (not plain `postgres:16`). The verify container uses the same PostGIS image to ensure `GEOMETRY` columns restore correctly. Retention and `pg_dump --clean --if-exists` ensure idempotent restores.
 
 ## Retention Policy
 

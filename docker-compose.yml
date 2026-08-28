@@ -9,8 +9,6 @@ services:
       POSTGRES_DB: dire_dawa_cleaning
       POSTGRES_USER: ddcms
       POSTGRES_PASSWORD: ${DB_PASSWORD:?ERROR: Set DB_PASSWORD in .env file}
-      # Root access for migrations (use POSTGRES_PASSWORD for initial setup)
-      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./database/postgresql/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro

@@ -271,7 +271,7 @@ CREATE TABLE IF NOT EXISTS zone_reports (
   reviewer_notes   TEXT,
   created_at       TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at       TIMESTAMP NOT NULL DEFAULT NOW(),
-  UNIQUE (safer_zone_id, report_month, report_year)
+  UNIQUE (safer_zone_id, report_year, report_month)
 );
 CREATE TRIGGER trg_zone_reports_updated_at BEFORE UPDATE ON zone_reports
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -319,20 +319,81 @@ CREATE TRIGGER trg_documents_updated_at BEFORE UPDATE ON documents
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- ── Performance indexes ─────────────────────────────────────────
+-- Covers actual query patterns from 15 route modules + 2 services.
+-- Each index maps to a WHERE / JOIN / ORDER BY / GROUP BY observed in code.
+-- FK columns that PostgreSQL does NOT auto-index are explicitly indexed.
 
-CREATE INDEX idx_sz_leader ON safer_zones(leader_id);
-CREATE INDEX idx_payment_status_period ON payments(status, year, month);
-CREATE INDEX idx_insp_photo_inspid ON inspection_photos(inspection_id);
-CREATE INDEX idx_insp_date ON inspections(date);
-CREATE INDEX idx_attendance_date ON attendance(date);
-CREATE INDEX idx_worker_zone ON workers(safer_zone_id);
-CREATE INDEX idx_zr_zone_period_status ON zone_reports(safer_zone_id, report_year, report_month, status);
-CREATE INDEX idx_biz_zone ON businesses(safer_zone_id);
-CREATE INDEX idx_users_role_active ON users(role, is_active);
+-- Kebele lookup (collector assignment, worker filter by kebele via JOIN)
 CREATE INDEX idx_kebele_collector ON kebeles(collector_id);
+
+-- Zone lookup (leader filter, kebele filter, zone membership checks)
+CREATE INDEX idx_sz_leader ON safer_zones(leader_id);
+CREATE INDEX idx_sz_kebele ON safer_zones(kebele_id);
+
+-- Worker lookup (zone filter, active filter, leader/collector scoping)
+CREATE INDEX idx_worker_zone ON workers(safer_zone_id);
+CREATE INDEX idx_workers_active_zone ON workers(is_active, safer_zone_id);
+
+-- User lookup (role filtering for leaders endpoint, notification targeting)
+CREATE INDEX idx_users_role_active ON users(role, is_active);
+
+-- Payments (year/month/status combos used in analytics, dashboard, reports;
+-- business FK; receipt/gateway callback lookup)
+CREATE INDEX idx_payments_year_month_status ON payments(year, month, status);
+CREATE INDEX idx_payments_year_month ON payments(year, month);
+CREATE INDEX idx_payments_status ON payments(status);
+CREATE INDEX idx_payments_business ON payments(business_id);
+
+-- Attendance (worker + date range is the hot path for payroll/stats)
+CREATE INDEX idx_attendance_worker_date ON attendance(worker_id, date);
+CREATE INDEX idx_attendance_date ON attendance(date);
+CREATE INDEX idx_attendance_date_present ON attendance(date, present);
+
+-- Salary payments (per-worker history ordered by paid_at)
+CREATE INDEX idx_salary_worker_paid ON salary_payments(worker_id, paid_at DESC);
+
+-- Inspections (kebele, zone, status, date each filtered independently)
+CREATE INDEX idx_insp_date ON inspections(date);
+CREATE INDEX idx_inspections_kebele ON inspections(kebele_id);
+CREATE INDEX idx_inspections_zone ON inspections(safer_zone_id);
+CREATE INDEX idx_inspections_status ON inspections(status);
+CREATE INDEX idx_inspections_status_date ON inspections(status, date);
+CREATE INDEX idx_insp_photo_inspid ON inspection_photos(inspection_id);
+
+-- Tools (zone FK not auto-indexed in PG)
+CREATE INDEX idx_tools_zone ON tools(safer_zone_id);
+
+-- Businesses (zone JOIN, active filter, kebele JOIN path)
+CREATE INDEX idx_biz_zone ON businesses(safer_zone_id);
+CREATE INDEX idx_businesses_active ON businesses(is_active);
+
+-- Reports / zone_reports (zone+period+status filter, report_date ordering)
+CREATE INDEX idx_zr_zone_period_status ON zone_reports(safer_zone_id, report_year, report_month, status);
+CREATE INDEX idx_zr_report_date ON zone_reports(report_date DESC);
+CREATE INDEX idx_zr_status ON zone_reports(status);
+
+-- Audit logs (admin filtering by entity, user, action, date ordering)
+CREATE INDEX idx_audit_entity ON audit_log(entity_type, entity_id);
+CREATE INDEX idx_audit_user ON audit_log(user_id);
+CREATE INDEX idx_audit_action ON audit_log(action);
+CREATE INDEX idx_audit_created ON audit_log(created_at DESC);
+
+-- Notifications (user inbox, unread badge, ordering)
+CREATE INDEX idx_notif_user_read_created ON notifications(user_id, is_read, created_at DESC);
+CREATE INDEX idx_notif_created ON notifications(created_at DESC);
+
+-- Documents (category/zone/kebele filters, ordering)
+CREATE INDEX idx_doc_category ON documents(category);
+CREATE INDEX idx_doc_zone ON documents(safer_zone_id);
+CREATE INDEX idx_doc_kebele ON documents(kebele_id);
+CREATE INDEX idx_doc_created ON documents(created_at DESC);
+
+-- Sessions (FK not auto-indexed, expiry cleanup, auth middleware)
+CREATE INDEX idx_sessions_user ON sessions(user_id);
 CREATE INDEX idx_session_expiry ON sessions(expires_at);
 
--- PostGIS spatial indexes (for future use)
+-- ── PostGIS spatial indexes ────────────────────────────────────
+-- GIST only on GEOMETRY columns; no spatial index on non-spatial data.
 CREATE INDEX idx_kebele_boundary ON kebeles USING GIST (boundary);
 CREATE INDEX idx_zone_boundary ON safer_zones USING GIST (boundary);
 CREATE INDEX idx_business_location ON businesses USING GIST (location);
@@ -414,8 +475,18 @@ INSERT INTO tools (name, category, quantity, condition_status, safer_zone_id) VA
   ('Wheelbarrow','equipment',3,'fair',2)
 ON CONFLICT DO NOTHING;
 
--- ── Application user ────────────────────────────────────────────
--- Create the application user with limited privileges.
+-- ── Database roles & least privilege ──────────────────────────
+-- Three roles:
+--   postgres         — superuser (Docker init, owns schema, not used by app)
+--   ddcms            — application user (DML only, no DDL, no superuser)
+--   ddcms_migrator   — migration user (DDL + DML for schema changes)
+--
+-- The Docker image creates POSTGRES_USER as superuser; this script runs
+-- as that superuser and creates the least-privilege application roles.
+-- If POSTGRES_USER itself is 'ddcms', strip superuser immediately.
+
+-- Ensure application user exists (password 'changeme' is placeholder;
+-- Docker Compose sets real password via POSTGRES_PASSWORD/DB_PASSWORD)
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'ddcms') THEN
@@ -423,9 +494,37 @@ BEGIN
   END IF;
 END $$;
 
+-- Strip superuser if ddcms was created as Docker superuser (least privilege)
+ALTER ROLE ddcms NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+
+-- Migration user (for schema changes, not used by app at runtime)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'ddcms_migrator') THEN
+    CREATE ROLE ddcms_migrator LOGIN PASSWORD 'changeme';
+  END IF;
+END $$;
+ALTER ROLE ddcms_migrator NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+
+-- Revoke overly broad public privileges
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+REVOKE ALL ON DATABASE dire_dawa_cleaning FROM PUBLIC;
+
+-- Application user: connect + usage + DML only (no DDL)
 GRANT CONNECT ON DATABASE dire_dawa_cleaning TO ddcms;
 GRANT USAGE ON SCHEMA public TO ddcms;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ddcms;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ddcms;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ddcms;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO ddcms;
+
+-- Migration user: full DDL + DML (can CREATE/ALTER, but not superuser)
+GRANT CONNECT ON DATABASE dire_dawa_cleaning TO ddcms_migrator;
+GRANT CREATE, USAGE ON SCHEMA public TO ddcms_migrator;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO ddcms_migrator;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO ddcms_migrator;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ddcms_migrator;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ddcms_migrator;
+
+-- Ensure PostGIS extension is usable by both
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO ddcms, ddcms_migrator;
