@@ -27,15 +27,7 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
 });
 
-// Middleware for token in query param when downloading files directly in browser tab
-function authParamOrHeader(req, res, next) {
-  if (req.query.token && !req.headers["x-session-token"]) {
-    req.headers["x-session-token"] = req.query.token;
-  }
-  authenticate(req, res, next);
-}
-
-router.use(authParamOrHeader);
+router.use(authenticate);
 
 // GET /api/documents — list documents with category, zone, kebele filters & search
 router.get("/", async (req, res, next) => {

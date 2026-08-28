@@ -133,7 +133,7 @@ function filterTable(tableId,searchVal){
   tbody.querySelectorAll("tr").forEach(tr=>{tr.style.display=tr.textContent.toLowerCase().includes(q)?"":"none";});
 }
 
-function downloadCSV(url){const a=document.createElement("a");a.href=url;a.target="_blank";document.body.appendChild(a);a.click();a.remove();}
+function downloadCSV(url){API.downloadFile(url).catch(err=>toast(err.message,"error"));}
 
 const spinnerHTML=`<div class="loading-overlay"><div class="spinner"></div> Loading…</div>`;
 

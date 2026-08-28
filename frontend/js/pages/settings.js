@@ -9,8 +9,10 @@ async function renderSettings(){
         <div class="card">
           <div class="card-title">🔑 Change My Password</div>
           <div class="form-grid">
+            <div class="form-group"><label>Current Password *</label>
+              <input class="form-control" id="my-pw-current" type="password" placeholder="Enter current password"></div>
             <div class="form-group"><label>New Password *</label>
-              <input class="form-control" id="my-pw-new" type="password" minlength="6" placeholder="Min 6 characters"></div>
+              <input class="form-control" id="my-pw-new" type="password" minlength="8" placeholder="Min 8 chars, letter + number"></div>
             <div class="form-group"><label>Confirm Password *</label>
               <input class="form-control" id="my-pw-confirm" type="password" placeholder="Repeat new password"></div>
           </div>
@@ -23,13 +25,18 @@ async function renderSettings(){
         </p>
       </div>`;
     document.getElementById("btn-change-my-pw").addEventListener("click",async()=>{
+      const cp=document.getElementById("my-pw-current").value;
       const np=document.getElementById("my-pw-new").value;
-      const cp=document.getElementById("my-pw-confirm").value;
-      if(np.length<6){toast("Min 6 characters","error");return;}
-      if(np!==cp){toast("Passwords do not match","error");return;}
+      const cf=document.getElementById("my-pw-confirm").value;
+      if(!cp){toast("Current password required","error");return;}
+      if(np.length<8){toast("Min 8 characters","error");return;}
+      if(!/[a-zA-Z]/.test(np)){toast("Must contain at least one letter","error");return;}
+      if(!/[0-9]/.test(np)){toast("Must contain at least one number","error");return;}
+      if(np!==cf){toast("Passwords do not match","error");return;}
       try{
-        await API.changePassword(user.id,np);
+        await API.changePassword(user.id,{currentPassword:cp,newPassword:np,confirmPassword:cf});
         toast("Password updated!","success");
+        document.getElementById("my-pw-current").value="";
         document.getElementById("my-pw-new").value="";
         document.getElementById("my-pw-confirm").value="";
       }catch(err){toast(escapeHtml(err.message),"error");}
@@ -110,8 +117,10 @@ async function renderSettings(){
         <div class="card">
           <div class="card-title">🔑 Change My Password</div>
           <div class="form-grid">
+            <div class="form-group"><label>Current Password *</label>
+              <input class="form-control" id="my-pw-current" type="password"></div>
             <div class="form-group"><label>New Password *</label>
-              <input class="form-control" id="my-pw-new" type="password" minlength="6"></div>
+              <input class="form-control" id="my-pw-new" type="password" minlength="8"></div>
             <div class="form-group"><label>Confirm *</label>
               <input class="form-control" id="my-pw-confirm" type="password"></div>
           </div>
@@ -131,13 +140,17 @@ async function renderSettings(){
     document.getElementById("btn-add-zone").addEventListener("click",()=>openAddZoneModal(kebeles,leaders));
 
     document.getElementById("btn-change-my-pw").addEventListener("click",async()=>{
+      const cp=document.getElementById("my-pw-current").value;
       const np=document.getElementById("my-pw-new").value;
-      const cp=document.getElementById("my-pw-confirm").value;
-      if(np.length<6){toast("Min 6 characters","error");return;}
-      if(np!==cp){toast("Passwords do not match","error");return;}
-      try{await API.changePassword(API.getUser().id,np);toast("Password updated!","success");
-        document.getElementById("my-pw-new").value="";document.getElementById("my-pw-confirm").value="";}
-      catch(err){toast(err.message,"error");}
+      const cf=document.getElementById("my-pw-confirm").value;
+      if(!cp){toast("Current password required","error");return;}
+      if(np.length<8){toast("Min 8 characters","error");return;}
+      if(!/[a-zA-Z]/.test(np)){toast("Must contain at least one letter","error");return;}
+      if(!/[0-9]/.test(np)){toast("Must contain at least one number","error");return;}
+      if(np!==cf){toast("Passwords do not match","error");return;}
+      try{await API.changePassword(API.getUser().id,{currentPassword:cp,newPassword:np,confirmPassword:cf});toast("Password updated!","success");
+        document.getElementById("my-pw-current").value="";document.getElementById("my-pw-new").value="";document.getElementById("my-pw-confirm").value="";}
+      catch(err){toast(escapeHtml(err.message),"error");}
     });
   }catch(err){
     content.innerHTML=`<div class="empty"><div class="icon">⚠️</div><p>${escapeHtml(err.message)}</p></div>`;

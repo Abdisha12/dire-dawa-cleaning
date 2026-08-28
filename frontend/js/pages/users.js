@@ -160,10 +160,15 @@ function openUserModal(id,meArg){
 }
 
 function openChangePassword(id,username){
+  const isSelf=API.getUser()?.id===id;
+  const needCurrentPassword=isSelf;
   buildModal("pw-modal",`🔑 Change Password — ${escapeHtml(username)}`,`
     <div class="form-grid">
-      <div class="form-group" style="grid-column:1/-1"><label>New Password * (min 6 chars)</label>
-        <input class="form-control" id="pw-new" type="password" minlength="6" required>
+      ${needCurrentPassword?`<div class="form-group" style="grid-column:1/-1"><label>Current Password *</label>
+        <input class="form-control" id="pw-current" type="password" required>
+        <span class="form-error"></span></div>`:""}
+      <div class="form-group" style="grid-column:1/-1"><label>New Password * (min 8 chars, letter + number)</label>
+        <input class="form-control" id="pw-new" type="password" minlength="8" required>
         <span class="form-error"></span></div>
       <div class="form-group" style="grid-column:1/-1"><label>Confirm Password *</label>
         <input class="form-control" id="pw-confirm" type="password" required>
@@ -174,10 +179,13 @@ function openChangePassword(id,username){
   );
   openModal("pw-modal");
   document.getElementById("pw-save").addEventListener("click",async()=>{
-    const np=document.getElementById("pw-new").value,cp=document.getElementById("pw-confirm").value;
-    if(np.length<6){toast("Min 6 characters","error");return;}
-    if(np!==cp){toast("Passwords do not match","error");return;}
-    try{await API.changePassword(id,np);closeModal("pw-modal");toast("Password changed!","success");}
+    const cp=needCurrentPassword?document.getElementById("pw-current").value:undefined;
+    const np=document.getElementById("pw-new").value,cf=document.getElementById("pw-confirm").value;
+    if(np.length<8){toast("Min 8 characters","error");return;}
+    if(!/[a-zA-Z]/.test(np)){toast("Must contain at least one letter","error");return;}
+    if(!/[0-9]/.test(np)){toast("Must contain at least one number","error");return;}
+    if(np!==cf){toast("Passwords do not match","error");return;}
+    try{await API.changePassword(id,{currentPassword:cp,newPassword:np,confirmPassword:cf});closeModal("pw-modal");toast("Password changed!","success");}
     catch(err){toast(escapeHtml(err.message),"error");}
   });
 }

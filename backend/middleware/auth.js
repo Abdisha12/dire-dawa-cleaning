@@ -3,7 +3,7 @@ const logger=require("../config/logger");
 
 async function authenticate(req,res,next){
   try{
-    const token=req.headers["x-session-token"]||req.headers["authorization"]?.replace("Bearer ","")||req.query.token;
+    const token=req.headers["x-session-token"]||req.headers["authorization"]?.replace("Bearer ","");
     if(!token) return res.status(401).json({error:"No session token"});
     const [rows]=await db.execute(
       `SELECT s.id AS sid, u.id, u.username, u.full_name, u.role, u.is_active

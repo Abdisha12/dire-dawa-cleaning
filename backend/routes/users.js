@@ -63,11 +63,32 @@ router.put("/:id",requireRole("admin"),async(req,res,next)=>{
 router.put("/:id/password",async(req,res,next)=>{
   try{
     const tid=parseInt(req.params.id);
-    if(req.user.role!=="admin"&&req.user.id!==tid) return res.status(403).json({error:"Forbidden"});
-    const {password}=req.body;
-    if(!password||password.length<6) return res.status(400).json({error:"Min 6 characters"});
-    await db.execute("UPDATE users SET password_hash=? WHERE id=?",[await bcrypt.hash(password,10),tid]);
-    audit.log(req,"PASSWORD_CHANGE","user",tid,null,{targetUserId:tid});
+    const isAdmin=req.user.role==="admin";
+    const isSelf=req.user.id===tid;
+
+    // Non-admins can only change their own password
+    if(!isAdmin && !isSelf) return res.status(403).json({error:"Forbidden"});
+
+    const {currentPassword,newPassword,confirmPassword}=req.body;
+    if(!newPassword) return res.status(400).json({error:"New password required"});
+
+    // Require current password for self-changes (admin resetting others is the only exception)
+    if(isSelf) {
+      if(!currentPassword) return res.status(400).json({error:"Current password required"});
+      const [[user]]=await db.execute("SELECT password_hash FROM users WHERE id=?",[tid]);
+      if(!user) return res.status(404).json({error:"User not found"});
+      const match=await bcrypt.compare(currentPassword,user.password_hash);
+      if(!match) return res.status(403).json({error:"Current password is incorrect"});
+    }
+
+    // Password validation
+    if(newPassword.length<8) return res.status(400).json({error:"Min 8 characters"});
+    if(!/[a-zA-Z]/.test(newPassword)) return res.status(400).json({error:"Must contain at least one letter"});
+    if(!/[0-9]/.test(newPassword)) return res.status(400).json({error:"Must contain at least one number"});
+    if(confirmPassword && newPassword!==confirmPassword) return res.status(400).json({error:"Passwords do not match"});
+
+    await db.execute("UPDATE users SET password_hash=? WHERE id=?",[await bcrypt.hash(newPassword,10),tid]);
+    audit.log(req,"PASSWORD_CHANGE","user",tid,null,{targetUserId:tid,adminReset:!isSelf&&isAdmin});
     res.json({message:"Password updated"});
   }catch(err){next(err);}
 });

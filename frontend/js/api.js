@@ -45,6 +45,24 @@ const API=(()=>{
     hasRole:(...roles)=>{const u=getUser();return u&&roles.includes(u.role);},
     getZone:()=>getUser()?.zone||null,
 
+    // Authenticated file download — fetches with session header, triggers browser save
+    async downloadFile(url, defaultFilename) {
+      const res = await fetch(url, { headers: { "x-session-token": getToken() || "" } });
+      if (res.status === 401) { clearAuth(); window.location.hash = "#login"; return; }
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || `Download failed (HTTP ${res.status})`); }
+      const blob = await res.blob();
+      const cd = res.headers.get("content-disposition") || "";
+      const fnMatch = cd.match(/filename="?([^";\n]+)"?/i);
+      const filename = fnMatch ? fnMatch[1] : defaultFilename || "download";
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+    },
+
     // Public (no auth)
     getPublicStats:()=>req("GET","/public/stats"),
 
@@ -59,7 +77,7 @@ const API=(()=>{
     createUser:(d)=>req("POST","/users",d),
     updateUser:(id,d)=>req("PUT",`/users/${id}`,d),
     deleteUser:(id)=>req("DELETE",`/users/${id}`),
-    changePassword:(id,p)=>req("PUT",`/users/${id}/password`,{password:p}),
+    changePassword:(id,d)=>req("PUT",`/users/${id}/password`,d),
 
     // Kebeles
     getKebeles:()=>req("GET","/kebeles"),
@@ -143,7 +161,7 @@ const API=(()=>{
     uploadDocument:(fd)=>req("POST","/documents",fd,true),
     updateDocument:(id,d)=>req("PUT",`/documents/${id}`,d),
     deleteDocument:(id)=>req("DELETE",`/documents/${id}`),
-    documentDownloadUrl:(id)=>`${BASE}/documents/${id}/download?token=${getToken()}`,
+    documentDownloadUrl:(id)=>`${BASE}/documents/${id}/download`,
 
     // Reports/CSV
     getPaymentReport:(p={})=>req("GET","/reports/payments/monthly?"+new URLSearchParams(p)),
@@ -151,8 +169,8 @@ const API=(()=>{
     getWorkerReport:(p={})=>req("GET","/reports/workers/monthly?"+new URLSearchParams(p)),
     getInspectionReport:(p={})=>req("GET","/reports/inspections?"+new URLSearchParams(p)),
     getMonthlySummaryReport:(p={})=>req("GET","/reports/monthly-summary?"+new URLSearchParams(p)),
-    csvUrl:(path,params={})=>`${BASE}${path}?${new URLSearchParams({...params,format:"csv"})}&token=${getToken()}`,
-    pdfUrl:(path,params={})=>`${BASE}${path}?${new URLSearchParams({...params,format:"pdf"})}&token=${getToken()}`,
-    xlsxUrl:(path,params={})=>`${BASE}${path}?${new URLSearchParams({...params,format:"xlsx"})}&token=${getToken()}`,
+    csvUrl:(path,params={})=>`${BASE}${path}?${new URLSearchParams({...params,format:"csv"})}`,
+    pdfUrl:(path,params={})=>`${BASE}${path}?${new URLSearchParams({...params,format:"pdf"})}`,
+    xlsxUrl:(path,params={})=>`${BASE}${path}?${new URLSearchParams({...params,format:"xlsx"})}`,
   };
 })();

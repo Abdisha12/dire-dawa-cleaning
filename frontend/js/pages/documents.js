@@ -120,7 +120,7 @@ async function renderDocuments() {
                   </div>
                   <div style="margin-bottom:.6rem">Uploaded by <strong>${escapeHtml(d.uploader_name)}</strong> on ${fmtDate(d.created_at)}</div>
                   <div style="display:flex;gap:.4rem">
-                    <a href="${API.documentDownloadUrl(d.id)}" target="_blank" class="btn btn-sm btn-primary" style="flex:1;justify-center">⬇ Download</a>
+                    <button class="btn btn-sm btn-primary" style="flex:1;justify-content:center" onclick="API.downloadFile('${API.documentDownloadUrl(d.id)}','${escapeJsStr(d.file_name)}').catch(e=>toast(e.message,'error'))">⬇ Download</button>
                     ${API.hasRole("admin", "collector") ? `<button class="btn btn-sm btn-danger" onclick="deleteDocSingle(${d.id})">🗑</button>` : ""}
                   </div>
                 </div>
