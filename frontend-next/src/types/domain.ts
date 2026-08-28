@@ -126,6 +126,32 @@ export interface InspectionPhoto {
   uploaded_at: string;
 }
 
+export interface Attendance {
+  id: number;
+  worker_id: number;
+  date: string;
+  present: boolean;
+  bonus: string | null;
+  notes: string | null;
+  recorded_by: number;
+  created_at: string;
+  updated_at: string;
+  worker_name?: string;
+  zone_name?: string;
+  kebele_name?: string;
+}
+
+export interface AttendanceRecord {
+  workerId: number;
+  present: boolean;
+  bonus: number | null;
+}
+
+export interface BulkAttendancePayload {
+  date: string;
+  records: AttendanceRecord[];
+}
+
 // Payment — collections
 export type PaymentMethod = "cash" | "mobile" | "bank" | "other" | "telebirr" | "cbebirr";
 export type PaymentStatus = "paid" | "pending" | "overdue" | "failed";
