@@ -43,7 +43,7 @@ export class ApiError extends Error {
   }
 }
 
-type FetchOptions = {
+export type FetchOptions = {
   isFormData?: boolean;
   signal?: AbortSignal;
   timeoutMs?: number; // default 15000

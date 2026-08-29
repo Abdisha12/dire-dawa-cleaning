@@ -1,5 +1,3 @@
-"use client";
-
 import * as React from "react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -7,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { useAuth } from "@/lib/auth-context";
 import { useKebele } from "@/lib/kebele-context";
 import { api, ApiError } from "@/lib/api";
+import { workersApi, formatETB, multiplyETB, addETB } from "@/features/workers/services/workers-api";
 import type { Worker, SaferZone } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -105,8 +104,8 @@ export default function WorkersPage() {
       if (zoneFilter) params.zoneId = zoneFilter;
 
       const [z, wRes] = await Promise.all([
-        api.getSaferZones().then((r) => r.zones),
-        api.getWorkers(params, { signal: ctrl.signal }),
+        workersApi.getZones(undefined, { signal: ctrl.signal }),
+        workersApi.getAll(params, { signal: ctrl.signal }),
       ]);
       setZones(z);
       // Handle paginated {data,total,page,pages} or array fallback
@@ -137,12 +136,12 @@ export default function WorkersPage() {
       const activeParams = { ...params, status: "active", page: "1", limit: "1" };
       const inactiveParams = { ...params, status: "inactive", page: "1", limit: "1" };
       const [activeRes, inactiveRes] = await Promise.all([
-        api.getWorkers(activeParams, { signal: ctrl.signal }).catch(() => ({ total: 0 } as unknown as Worker[])),
-        api.getWorkers(inactiveParams, { signal: ctrl.signal }).catch(() => ({ total: 0 } as unknown as Worker[])),
+        workersApi.getAll(activeParams, { signal: ctrl.signal }).catch(() => ({ total: 0 } as unknown as Worker[])),
+        workersApi.getAll(inactiveParams, { signal: ctrl.signal }).catch(() => ({ total: 0 } as unknown as Worker[])),
       ]);
       const activeTotal = Array.isArray(activeRes) ? (activeRes as Worker[]).length : (activeRes as { total: number }).total || 0;
       const inactiveTotal = Array.isArray(inactiveRes) ? (inactiveRes as Worker[]).length : (inactiveRes as { total: number }).total || 0;
-      const wage = normalized.filter((w) => w.is_active).reduce((s, w) => s + Number(w.daily_wage), 0);
+      const wage = normalized.filter((w) => w.is_active).reduce((s, w) => addETB(s, Number(w.daily_wage)), 0);
       setSummary({ total: Array.isArray(wRes) ? normalized.length : meta.total, active: activeTotal, inactive: inactiveTotal, totalWage: wage });
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
@@ -162,7 +161,7 @@ export default function WorkersPage() {
   const handleDelete = async (id: number) => {
     if (!confirm("Delete this worker and all records?")) return;
     try {
-      await api.deleteWorker(id);
+      await workersApi.delete(id);
       toast("Worker deleted", "success");
       setWorkers((prev) => prev.filter((w) => w.id !== id));
     } catch (e) {
@@ -429,23 +428,26 @@ function WorkerFormModal({
       form.setError("faydaId", { message: "Must be exactly 12 digits" });
       return;
     }
-    const attrs: Record<string, string> = {};
+const attrs: Record<string, string> = {};
     customRows.forEach((r) => {
       if (r.k.trim()) attrs[r.k.trim()] = r.v.trim();
     });
-    const payload: Record<string, unknown> = {
-      fullName: values.fullName.trim(),
-      contact: values.contact?.trim() || null,
-      faydaId: values.faydaId ? values.faydaId.replace(/[\s-]/g, "") : null,
-      dailyWage: Number(values.dailyWage),
-      saferZoneId: values.saferZoneId ? Number(values.saferZoneId) : null,
-      kebeleId: values.kebeleId ? Number(values.kebeleId) : null,
-      isActive: values.isActive ?? true,
-      customAttributes: Object.keys(attrs).length ? attrs : null,
-    };
+    const payload = (() => {
+      const contact = String(values.contact?.trim() ?? "");
+      return {
+        fullName: values.fullName.trim(),
+        contact,
+        faydaId: values.faydaId ? values.faydaId.replace(/[\s-]/g, "") : null,
+        dailyWage: Number(values.dailyWage),
+        saferZoneId: values.saferZoneId ? String(values.saferZoneId) : null,
+        kebeleId: values.kebeleId ? String(values.kebeleId) : null,
+        isActive: values.isActive ?? true,
+        customAttributes: Object.keys(attrs).length ? attrs : undefined,
+      } as WorkerFormValues;
+    })();
     try {
-      if (worker) await api.updateWorker(worker.id, payload);
-      else await api.createWorker(payload);
+      if (worker) await workersApi.update(worker.id, payload);
+      else await workersApi.create(payload);
       toast(worker ? "Worker updated" : "Worker added", "success");
       onSaved();
     } catch (e) {
@@ -605,7 +607,7 @@ function BulkAttendanceModal({ workers, onClose, onSaved }: { workers: Worker[];
     setError(null);
     try {
       const records = rows.map((r) => ({ workerId: r.workerId, present: r.present, bonus: r.bonus ? Number(r.bonus) : null }));
-      await api.bulkAttendance({ date, records });
+      await workersApi.recordBulk({ date, records });
       onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
@@ -655,7 +657,7 @@ function AttendanceModal({ worker, onClose }: { worker: Worker; onClose: () => v
   React.useEffect(() => {
     const first = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
     const today = new Date().toISOString().slice(0, 10);
-    api.getAttendance(worker.id, { from: first, to: today }).then((res) => {
+    workersApi.getAttendance(worker.id, { from: first, to: today }).then((res) => {
       setData(res as never[]);
       setLoading(false);
     }).catch(() => setLoading(false));
@@ -705,13 +707,13 @@ function SalaryModal({ worker, onClose }: { worker: Worker; onClose: () => void 
   const [saving, setSaving] = React.useState(false);
   const { toast } = useToast();
   React.useEffect(() => {
-    api.getWorkerSalary(worker.id).then((res) => setHistory(res as never[])).catch(() => {});
+    workersApi.getSalaryHistory(worker.id).then((res) => setHistory(res as never[])).catch(() => {});
   }, [worker.id]);
   const handleSave = async () => {
     if (!amount || !paidAt) { toast("Amount and date required", "error"); return; }
     setSaving(true);
     try {
-      await api.paySalary(worker.id, { amount: Number(amount), paidAt, periodFrom: from, periodTo: to, notes });
+      await workersApi.recordPayment(worker.id, { amount: Number(amount), paidAt, periodFrom: from, periodTo: to, notes });
       toast("Salary payment recorded!", "success");
       onClose();
     } catch (e) {
@@ -811,11 +813,11 @@ function WorkerDetailsDrawer({
   React.useEffect(() => {
     const first = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
     const today = new Date().toISOString().slice(0, 10);
-    api.getAttendance(worker.id, { from: first, to: today }).then((res) => {
+    workersApi.getAttendance(worker.id, { from: first, to: today }).then((res) => {
       setAttendance(res as never[]);
       setAttendanceLoading(false);
     }).catch(() => setAttendanceLoading(false));
-    api.getWorkerSalary(worker.id).then((res) => {
+    workersApi.getSalaryHistory(worker.id).then((res) => {
       setSalary(res as never[]);
       setSalaryLoading(false);
     }).catch(() => setSalaryLoading(false));

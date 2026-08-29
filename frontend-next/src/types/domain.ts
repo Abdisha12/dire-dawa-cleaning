@@ -65,6 +65,18 @@ export interface Worker {
   location?: unknown | null;
 }
 
+// Worker form values (for create/edit) — mirrors backend/middleware/schemas.js createWorker/updateWorker
+export type WorkerFormValues = {
+  fullName: string;
+  contact: string | null;
+  faydaId: string | null;
+  dailyWage: number;
+  saferZoneId: string | null;
+  kebeleId: string | null;
+  isActive: boolean | undefined;
+  customAttributes: Record<string, string> | undefined;
+};
+
 // Business — 11 types
 export type BusinessType =
   | "shop"
