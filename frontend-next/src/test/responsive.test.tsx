@@ -61,7 +61,7 @@ describe("Worker form validation (real component)", () => {
     const onSaved = vi.fn();
     const user = userEvent.setup();
     renderModal({ onSaved });
-    await user.click(screen.getByRole("button", { name: /💾 save/i }));
+    await user.click(screen.getByRole("button", { name: /^Save$/i }));
     await waitFor(() => {
       expect(screen.getAllByRole("alert").length).toBeGreaterThan(0);
     });
@@ -78,7 +78,7 @@ describe("Worker form validation (real component)", () => {
     await user.type(screen.getByLabelText(/full name/i), "New Worker");
     await user.clear(screen.getByLabelText(/daily wage/i));
     await user.type(screen.getByLabelText(/daily wage/i), "300");
-    await user.click(screen.getByRole("button", { name: /💾 save/i }));
+    await user.click(screen.getByRole("button", { name: /^Save$/i }));
     await waitFor(() => expect(apiStore.api.createWorker).toHaveBeenCalled());
     expect(onSaved).toHaveBeenCalled();
   });
@@ -91,7 +91,7 @@ describe("Worker form validation (real component)", () => {
     await user.clear(screen.getByLabelText(/daily wage/i));
     await user.type(screen.getByLabelText(/daily wage/i), "200");
     await user.type(screen.getByLabelText(/fayda\/id number/i), "12345");
-    await user.click(screen.getByRole("button", { name: /💾 save/i }));
+    await user.click(screen.getByRole("button", { name: /^Save$/i }));
     await waitFor(() => expect(screen.getByText("Must be exactly 12 digits")).toBeInTheDocument());
     expect(apiStore.api.createWorker).not.toHaveBeenCalled();
   });

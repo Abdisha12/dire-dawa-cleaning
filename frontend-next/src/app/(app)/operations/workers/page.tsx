@@ -7,6 +7,7 @@ import { useKebele } from "@/lib/kebele-context";
 import { workersApi, addETB } from "@/features/workers/services/workers-api";
 import type { Worker, SaferZone } from "@/types";
 import { Button } from "@/components/ui/button";
+import { Icons } from "@/components/ui/icon";
 import { Input, Label } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge, StatusBadge } from "@/components/ui/badge";
@@ -215,7 +216,7 @@ export default function WorkersPage() {
         {canEdit && (
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setShowBulk(true)}>
-              📋 Bulk Attendance
+              <Icons.bulkAttendance size={18} /> Bulk Attendance
             </Button>
             <Button
               onClick={() => {
@@ -326,23 +327,23 @@ export default function WorkersPage() {
             ? (w) => (
                 <div className="flex gap-1">
                   <Button size="sm" variant="outline" onClick={() => setDetailWorker(w)} aria-label={`View ${w.full_name}`}>
-                    👁
+                    <Icons.view size={16} />
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => { setEditing(w); setShowWorkerModal(true); }} aria-label={`Edit ${w.full_name}`}>
-                    ✏️
+                    <Icons.edit size={16} />
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setIdCardWorker(w)} aria-label={`ID card ${w.full_name}`}>
-                    🪪
+                    <Icons.idcard size={16} />
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setAttendWorker(w)} aria-label={`Attendance ${w.full_name}`}>
-                    📅
+                    <Icons.attendance size={16} />
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setSalaryWorker(w)} aria-label={`Salary ${w.full_name}`}>
-                    💰
+                    <Icons.salary size={16} />
                   </Button>
                   {isAdmin && (
                     <Button size="sm" variant="danger" onClick={() => handleDelete(w.id)} aria-label={`Delete ${w.full_name}`}>
-                      🗑
+                      <Icons.trash size={16} />
                     </Button>
                   )}
                 </div>

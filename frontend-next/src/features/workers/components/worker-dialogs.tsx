@@ -13,6 +13,7 @@ import { ApiError } from "@/lib/api";
 import { workersApi } from "@/features/workers/services/workers-api";
 import type { Worker, SaferZone, WorkerFormValues } from "@/types";
 import { Button } from "@/components/ui/button";
+import { Icons } from "@/components/ui/icon";
 import { Input, Label } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -118,7 +119,7 @@ export function WorkerFormModal({
             Cancel
           </Button>
           <Button onClick={form.handleSubmit(onSubmit)} disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? "Saving…" : "💾 Save"}
+            {form.formState.isSubmitting ? "Saving…" : <><Icons.save size={18} /> Save</>}
           </Button>
         </>
       }
@@ -264,7 +265,7 @@ export function BulkAttendanceModal({ workers, onClose, onSaved }: { workers: Wo
   };
 
   return (
-    <Modal open onClose={onClose} title="📋 Record Daily Attendance" size="lg" footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "✅ Save Attendance"}</Button></>}>
+    <Modal open onClose={onClose} title="Record Daily Attendance" size="lg" footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={handleSave} disabled={saving}>{saving ? "Saving…" : <><Icons.bulkAttendance size={18} /> Save Attendance</>}</Button></>}>
       <div className="mb-3 flex items-center gap-3">
         <Label htmlFor="att-date">Date *</Label>
         <Input id="att-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="max-w-[200px]" />
@@ -315,7 +316,7 @@ export function AttendanceModal({ worker, onClose }: { worker: Worker; onClose: 
   const wage = Number(worker.daily_wage);
   const gross = present * wage + bonus;
   return (
-    <Modal open onClose={onClose} title={`📅 Attendance — ${worker.full_name}`} size="lg" footer={<Button variant="outline" onClick={onClose}>Close</Button>}>
+    <Modal open onClose={onClose} title={`Attendance — ${worker.full_name}`} size="lg" footer={<Button variant="outline" onClick={onClose}>Close</Button>}>
       {loading ? <p className="text-sm text-[var(--text-muted)]">Loading…</p> : (
         <>
           <div className="mb-3 grid grid-cols-3 gap-3">
@@ -370,7 +371,7 @@ export function SalaryModal({ worker, onClose }: { worker: Worker; onClose: () =
     }
   };
   return (
-    <Modal open onClose={onClose} title={`💰 Salary — ${worker.full_name}`} size="lg" footer={<Button variant="outline" onClick={onClose}>Close</Button>}>
+    <Modal open onClose={onClose} title={`Salary — ${worker.full_name}`} size="lg" footer={<Button variant="outline" onClick={onClose}>Close</Button>}>
       <div className="mb-4 rounded border border-[var(--border)] p-3">
         <h4 className="mb-2 text-sm font-semibold">Record New Payment</h4>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -407,7 +408,7 @@ export function IdCardModal({ worker, onClose }: { worker: Worker; onClose: () =
   let attrs: Record<string, string> = {};
   if (worker.custom_attributes && typeof worker.custom_attributes === "object") attrs = worker.custom_attributes as Record<string, string>;
   return (
-    <Modal open onClose={onClose} title="🪪 Worker ID Card" footer={<><Button variant="outline" onClick={onClose}>Close</Button><Button onClick={() => window.print()}>🖨️ Print Card</Button></>}>
+    <Modal open onClose={onClose} title="Worker ID Card" footer={<><Button variant="outline" onClick={onClose}>Close</Button><Button onClick={() => window.print()}><Icons.print size={18} /> Print Card</Button></>}>
       <div className="flex justify-center py-4">
         <div className="w-[340px] overflow-hidden rounded-[18px] border border-[#e2e8f0] bg-white shadow-lg">
           <div className="flex h-[6px]"><div className="flex-1 bg-[#009c3a]" /><div className="flex-1 bg-[#f7d117]" /><div className="flex-1 bg-[#da121a]" /></div>
@@ -479,7 +480,7 @@ export function WorkerDetailsDrawer({
     <Drawer
       open
       onClose={onClose}
-      title={`👷 Worker Details — ${worker.full_name}`}
+      title={`Worker Details — ${worker.full_name}`}
     >
       <div className="space-y-6">
         {/* Profile */}

@@ -174,9 +174,9 @@ export default function AttendancePage() {
         </div>
         {canEdit && (
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => { fetchWorkersForBulk(); setShowBulk(true); }}>
-              📋 Bulk Attendance
-            </Button>
+             <Button variant="outline" onClick={() => { fetchWorkersForBulk(); setShowBulk(true); }}>
+               <Icons.attendance size={18} /> Bulk Attendance
+             </Button>
           </div>
         )}
       </div>
@@ -322,7 +322,7 @@ function BulkAttendanceModal({ workers, onClose, onSaved }: { workers: Worker[];
   };
 
   return (
-    <Modal open onClose={onClose} title="📋 Record Daily Attendance" size="lg" footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "✅ Save Attendance"}</Button></>}>
+    <Modal open onClose={onClose} title="Record Daily Attendance" size="lg" footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={handleSave} disabled={saving}>{saving ? "Saving…" : <><Icons.bulkAttendance size={18} /> Save Attendance</>}</Button></>}>
       <div className="mb-3 flex items-center gap-3">
         <Label htmlFor="att-date-bulk">Date *</Label>
         <Input id="att-date-bulk" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="max-w-[200px]" />

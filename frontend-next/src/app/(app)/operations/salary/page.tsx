@@ -305,7 +305,7 @@ export default function SalaryPage() {
         <Modal
           open
           onClose={() => setShowPay(false)}
-          title="💰 Record Salary Payment"
+           title="Record Salary Payment"
           footer={
             <>
               <Button variant="outline" onClick={() => setShowPay(false)}>

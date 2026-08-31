@@ -38,6 +38,14 @@ import {
   UserCircle,
   Cog,
   Banknote,
+  Eye,
+  Pencil,
+  IdCard,
+  Save,
+  Printer,
+  Trash2,
+  ClipboardCheck,
+  UserRound,
 } from "lucide-react";
 import type { LucideProps } from "lucide-react";
 
@@ -77,6 +85,14 @@ export const Icons = {
   myaccount: UserCircle,
   system: Cog,
   salary: Banknote,
+  view: Eye,
+  edit: Pencil,
+  idcard: IdCard,
+  save: Save,
+  print: Printer,
+  trash: Trash2,
+  bulkAttendance: ClipboardCheck,
+  workerDetail: UserRound,
 };
 
 export type IconName = keyof typeof Icons;

@@ -1,5 +1,6 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { Icons } from "@/components/ui/icon";
 
 export function Spinner({ className }: { className?: string }) {
   return (
@@ -26,7 +27,7 @@ export function LoadingState({ message = "Loading…" }: { message?: string }) {
 }
 
 export function EmptyState({
-  icon = "📭",
+  icon = <Icons.empty />,
   title,
   description,
   action,
@@ -57,7 +58,7 @@ export function ErrorState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center px-4 py-8 text-center" role="alert">
-      <p className="text-sm text-[var(--danger)]">⚠️ {message}</p>
+      <p className="text-sm text-[var(--danger)]"><Icons.warning size={20} /> {message}</p>
       {onRetry && (
         <button
           onClick={onRetry}

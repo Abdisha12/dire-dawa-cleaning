@@ -265,4 +265,89 @@ describe("Kebele Admin Worker Management", function () {
       }
     });
   });
+
+  // ════════════════════════════════════════════════════════════════
+  // Test 10 — Pagination / search / status / kebele-zone filters
+  // (Phase 4 item 36: API change on GET /api/workers. Authorization
+  //  must be preserved in every paginated/filtered response.)
+  // ════════════════════════════════════════════════════════════════
+  describe("Test 10 — Pagination/search/filters on worker list", function () {
+    it("returns a paginated envelope when page+limit are provided", async function () {
+      const res = await request(app)
+        .get("/api/workers")
+        .query({ page: 1, limit: 10 })
+        .set("x-session-token", tokens.admin);
+      expect(res.status).to.equal(200);
+      expect(res.body).to.be.an("object");
+      expect(res.body).to.have.property("data").that.is.an("array");
+      expect(res.body.data.length).to.be.at.most(10);
+      expect(res.body.total).to.be.a("number");
+      expect(res.body.page).to.equal(1);
+      expect(res.body.pages).to.be.at.least(1);
+    });
+
+    it("collector pagination stays scoped to the collector's kebele", async function () {
+      const res = await request(app)
+        .get("/api/workers")
+        .query({ page: 1, limit: 100 })
+        .set("x-session-token", tokens.collector);
+      expect(res.status).to.equal(200);
+      expect(res.body).to.have.property("data").that.is.an("array");
+      for (const w of res.body.data) {
+        if (w.safer_zone_id) {
+          const zoneResult = await db.query("SELECT kebele_id FROM safer_zones WHERE id=$1", [w.safer_zone_id]);
+          if (zoneResult.rows.length) {
+            expect(zoneResult.rows[0].kebele_id).to.equal(testKebele1.id);
+          }
+        }
+      }
+    });
+
+    it("search filters by full_name (ILIKE) in the paginated response", async function () {
+      const res = await request(app)
+        .get("/api/workers")
+        .query({ page: 1, limit: 100, search: "Worker in Kebele 1" })
+        .set("x-session-token", tokens.admin);
+      expect(res.status).to.equal(200);
+      expect(res.body.data.length).to.be.at.least(1);
+      for (const w of res.body.data) {
+        expect(w.full_name.toLowerCase()).to.include("worker in kebele 1");
+      }
+    });
+
+    it("status=inactive filters to inactive workers only", async function () {
+      const res = await request(app)
+        .get("/api/workers")
+        .query({ page: 1, limit: 100, status: "inactive" })
+        .set("x-session-token", tokens.admin);
+      expect(res.status).to.equal(200);
+      for (const w of res.body.data) {
+        expect(w.is_active).to.be.false;
+      }
+    });
+
+    it("admin can filter by kebeleId", async function () {
+      const res = await request(app)
+        .get("/api/workers")
+        .query({ page: 1, limit: 100, kebeleId: testKebele1.id })
+        .set("x-session-token", tokens.admin);
+      expect(res.status).to.equal(200);
+      for (const w of res.body.data) {
+        if (w.safer_zone_id) {
+          const zoneResult = await db.query("SELECT kebele_id FROM safer_zones WHERE id=$1", [w.safer_zone_id]);
+          if (zoneResult.rows.length) {
+            expect(zoneResult.rows[0].kebele_id).to.equal(testKebele1.id);
+          }
+        }
+      }
+    });
+
+    it("legacy non-paginated call still returns a plain array", async function () {
+      const res = await request(app)
+        .get("/api/workers")
+        .set("x-session-token", tokens.admin);
+      expect(res.status).to.equal(200);
+      expect(res.body).to.be.an("array");
+    });
+  });
 });

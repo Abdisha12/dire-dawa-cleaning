@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Icons } from "@/components/ui/icon";
 import { formatETB } from "@/features/workers/services/workers-api";
 import { fmtETB, formatFaydaId } from "@/lib/utils";
 import type { Worker } from "@/types";
@@ -61,25 +62,25 @@ export function WorkerCard({
 
       <div className="mt-4 grid grid-cols-3 gap-2">
         <Button variant="outline" onClick={onView} className="min-h-[44px] min-w-[44px]" aria-label={`View ${worker.full_name}`}>
-          👁 View
+          <Icons.view size={18} /> View
         </Button>
         {canEdit && (
           <Button variant="outline" onClick={onEdit} className="min-h-[44px] min-w-[44px]" aria-label={`Edit ${worker.full_name}`}>
-            ✏️ Edit
+            <Icons.edit size={18} /> Edit
           </Button>
         )}
         <Button variant="outline" onClick={onAttendance} className="min-h-[44px] min-w-[44px]" aria-label={`Attendance ${worker.full_name}`}>
-          📅 Att
+          <Icons.attendance size={18} /> Att
         </Button>
         <Button variant="outline" onClick={onIdCard} className="min-h-[44px] min-w-[44px]" aria-label={`ID card ${worker.full_name}`}>
-          🪪 Card
+          <Icons.idcard size={18} /> Card
         </Button>
         <Button variant="outline" onClick={onSalary} className="min-h-[44px] min-w-[44px]" aria-label={`Salary ${worker.full_name}`}>
-          💰 Pay
+          <Icons.salary size={18} /> Pay
         </Button>
         {isAdmin && (
           <Button variant="danger" onClick={onDelete} className="min-h-[44px] min-w-[44px]" aria-label={`Delete ${worker.full_name}`}>
-            🗑 Del
+            <Icons.trash size={18} /> Del
           </Button>
         )}
       </div>

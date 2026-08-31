@@ -187,11 +187,11 @@ Audit `frontend-next/src` for Phase 3: `grep dangerouslySetInnerHTML` 0, no `con
 ## 14. Validation
 
 - **Existing Vanilla** — `ls frontend/` 6 entries, `index.html` hash router, no deletion/rename, `git status` shows no `frontend/` changes.
-- **New frontend** — `npm ci` ok, `npm run lint` 0 errors, `npm run typecheck` 0, `npm test` 19 passed, `npm run build` (Next) ok (when not timed out by CI), `src/app/(public)/login` → `useAuth().login` → `api.login` preserves lockout/bcrypt.
+- **New frontend** — `npm ci` ok, `npm run lint` 0 errors, `npm run typecheck` 0, `npm test` 45 passed, `npm run build` (Next) ok (when not timed out by CI), `src/app/(public)/login` → `useAuth().login` → `api.login` preserves lockout/bcrypt.
 - **Roles** — `viewer` no Users, `leader` scoped, `collector→Kebele Admin` locked selector verified.
 - **9 kebeles** — selector renders 9 from `GET /kebeles`, not hardcoded IDs, `K02` example.
 - **Security** — unauthenticated `AppShell` shows loading then redirect `/login`, unauthorized `NAV` mismatch shows `UnauthorizedState` with backend note.
-- **Backend** — `git diff --stat HEAD` shows no `backend/` or `database/` changes; existing mocha suites unaffected.
+- **Backend** — `git diff --stat HEAD` shows no `backend/` or `database/` changes (prior to item 36's single route extension); existing mocha suites unaffected.
 
 ---
 
@@ -200,4 +200,54 @@ Audit `frontend-next/src` for Phase 3: `grep dangerouslySetInnerHTML` 0, no `con
 - `GET /kebeles` shape assumed `{kebeles: [...]}` vs array — `lib/api.ts` normalizes both but backend contract should be documented.
 - `POSTGIS` GIS lib not loaded yet — intentional per §29.
 - `npm run build` occasionally times out in constrained CI (core dump on 60s timeout) but `typecheck`+`lint` pass; no large lib introduced to fix.
+- Backend Test 10 (item 36) requires a reachable Postgres/PostGIS instance to execute; the sandbox has none, so those cases must run in the CI/dev DB environment.
+
+---
+
+## 16. Phase 4 Completion — Items 36–39
+
+### 16a. Item 36 — Backend: minimal, authorized API change only
+
+`git diff 266c5fb --stat -- backend/` shows exactly **one** backend file changed across all of Phase 4: `backend/routes/workers.js` (+47/−12). No routes rewritten, no business-logic changes, no new routes.
+
+The single change extends **GET `/api/workers`** only, and is **backward-compatible**:
+- **NON-breaking legacy path:** when no `page`/`limit` is supplied it still returns a **plain array** (legacy consumers like the Vanilla `frontend/` and the non-paginated salary summary query are unchanged).
+- **New optional params** (all additive): `page`, `limit` (server pagination → `{ data, total, page, pages }`), `search` (ILIKE over full_name/contact/fayda_id), `status` (`active`/`inactive`), `kebeleId`, `zoneId`.
+- The previous inline zone filter (`?zoneId=`) is preserved and now additionally applies within collector/leader scope.
+- **Authorization preserved in every branch:** `leader` → `sz.leader_id`; `collector` → resolved `k.kebele_id` (with `{data:[],total:0,...}` when paginated / `[]` when not); `admin`/`viewer` may filter. `requireRole` and immutable helper `getCollectorKebeleId` untouched.
+
+**Backend tests added** (backend/test/kebele-admin-workers.test.js, "Test 10"): paginated envelope shape, collector pagination stays scoped to their kebele, search ILIKE filtering, status filter, admin kebeleId filter, and the legacy plain-array response. These require a reachable Postgres/PostGIS instance to execute (`npm test` in `backend/`); they lint clean (0 errors) but the sandbox here has no reachable Postgres so they must run in the CI/dev DB environment.
+
+### 16b. Item 37 — No database / schema / migration changes
+
+`git diff 266c5fb -- database/ backend/config` is empty. No Postgres/PostGIS schema files, and no new/foot migration files were created. The pagination/search/filter logic lives entirely in the query layer (`SELECT ... FROM workers w LEFT JOIN safer_zones sz ...` with bounded `LIMIT/OFFSET`), reusing the existing EAV-style `custom_attributes`/EAV columns — no schema dependency added.
+
+### 16c. Item 38 — Legacy functional parity (old Workers vs new module)
+
+Checklist:
+
+| # | Legacy capability (frontend/js/pages/workers.js) | New capability (frontend-next workers feature) | Verified |
+|---|---|---|---|
+| 1 | Summary stats: Total / Active / Daily Wage Total | `StatCard` grid: Total, Active, Inactive, Daily Wage Total (quarterly filters) | ✅ |
+| 2 | Table: Name, Contact, Fayda/ID, Zone, Daily Wage, Status, Actions | `DataTable` with identical columns + status badge + 5 action buttons (desktop) | ✅ |
+| 3 | Mobile worker action grid | `WorkerCard` mobile card (View/Edit/Attendance/ID/Salary/Delete, 44px targets) | ✅ |
+| 4 | Search (🔍 client table filter) | Server-side ILIKE search (debounced, item 28 refetch) | ✅ (superset) |
+| 5 | Zone filter dropdown | Server-side `zoneId` + kebele filter selects | ✅ |
+| 6 | Add Worker modal (name, contact, fayda, wage, zone, custom attributes) | `WorkerFormModal` — same fields + zod validation + 409-dup handling | ✅ |
+| 7 | Edit Worker modal (+ status Active/Inactive toggle) | `WorkerFormModal` editing mode with `isActive` toggle | ✅ |
+| 8 | Delete worker (confirm) | `handleDelete` confirm + mutation (item 28) | ✅ |
+| 9 | Bulk Attendance modal | `BulkAttendanceModal` (date + present/bonus per worker) | ✅ |
+| 10 | Per-worker Attendance modal (📅 present/absent/gross + history) | `AttendanceModal` | ✅ |
+| 11 | Per-worker Salary modal (💰 record payment + history) | `SalaryModal` | ✅ |
+| 12 | Worker ID Card (🪪 tricolor, fayda barcode, custom attrs) | `IdCardModal` (Lucide-branded, no emoji) | ✅ |
+| 13 | Detail (on row) | `WorkerDetailDrawer` | ✅ (new, supersedes inline) |
+| 14 | Leader role: leader banner + zone scoping | Leader scopes workers/zones to their zone; editor actions | ✅ |
+| 15 | Collector (kebele admin): sees own kebele only | Collector scoped to kebele (backend authority + UI lock) | ✅ |
+
+**Deferred / intentionally replaced (documented, not silently lost):** legacy client-side row filtering is replaced by server-side search (superset — returns fewer rows, matches old behavior for substring). The non-paginated legacy API response is preserved for the old `frontend/` + the salary summary query.
+
+### 16d. Item 39 — Visual quality (Phase 2 redesign, no emoji-heavy UI)
+
+Verified against `frontend-next/src/app/(app)/operations/{workers,attendance,salary}` and the workers feature components: consistent spacing tokens, **Lucide icons** (the legacy emoji buttons ✏️🗑🪪📅💰 have been replaced with `Icons.{view,edit,idcard,attendance,salary,trash,bulkAttendance}` from the centralized `src/components/ui/icon.ts` system, plus `<Icons.empty />` and `<Icons.warning />` in `states.tsx`), professional `StatCard`/`DataTable`/`WorkerCard` surfaces, clear hierarchy (page title → toolbar → stats → table/cards), restrained shadows, and semantic colors via CSS `--*` tokens (green/orange/danger/purple) per the §4 design token set. Empty states ("No workers yet…"), loading states (`animate-pulse` skeletons), and error states (authorization/cross-kebele surfaced with `UnauthorizedState`/`toast`, no raw stack) are present. Item 35's `responsive.test.tsx` asserts touch-target sizing and a11y on the mobile surfaces; item 34 lazy-loads the heavy dialogs so initial paint/emphasis stays on the polished list/cards.
+
 
