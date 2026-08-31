@@ -150,7 +150,18 @@ Tests `src/test/`:
 - `kebele.test.tsx` — Admin sees All + can switch, Kebele Admin locked (disabled, value=2, badge), no hardcoded IDs (K01/K02 from API mock)
 - `login.test.tsx` — branding + labels, required validation, Eye toggle + keyboard, loading calls login, error no stack, Tab order
 
-Run: `npm run lint` (next lint), `npm run typecheck` (tsc), `npm run test` (19 passed). Existing backend tests unchanged (no DB schema/logic change).
+Run: `npm run lint` (next lint), `npm run typecheck` (tsc), `npm run test` (45 passed). Existing backend tests unchanged (no DB schema/logic change).
+
+### 11a. Item 35 — Module test suite (Workers / Attendance / Salary / Responsive)
+
+Runtime tests added in `src/test/` mocking only the network boundary (`@/lib/api`) + auth/kebele contexts, with real TanStack Query providers:
+
+- `helpers.tsx` — shared fixtures (`adminUser`, `collectorUser`, `workerFixture`, `zoneFixture`) + `renderWithQuery` (QueryClientProvider + ToasterProvider).
+- `workers.test.tsx` (13) — render + worker names, summary cards, debounced search refetch, pagination, add/edit/delete (confirm gating), detail drawer, Kebele Admin only-authorized-workers scope, kebele selector hidden for Kebele Admin, zone scoping, unauthorized API handled + no token logged.
+- `attendance-salary.test.tsx` (7) — attendance render, bulk modal save via `api.bulkAttendance`, present/absent toggle payload, unauthorized bulk error surfaced safely; salary render, amount/required validation (recordPayment not called), cross-kebele auth error surfaced safely.
+- `responsive.test.tsx` (6) — real `WorkerFormModal` validation (empty required, valid create→onSaved, invalid Fayda 12-digit), WorkerCard touch-size action buttons, MobileAttendanceRow + `aria-pressed` toggle controls, touch click.
+- Mock boundary is a single real API contract: errors are real `ApiError.status` (403/409) surfaced in UI — token never rendered/logged (asserted).
+
 
 ---
 
