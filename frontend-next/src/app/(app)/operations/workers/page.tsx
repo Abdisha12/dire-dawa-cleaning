@@ -19,6 +19,7 @@ import { Alert } from "@/components/ui/alert";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { useToast } from "@/components/ui/toast";
 import { fmtETB, fmtDate, validateFaydaId, formatFaydaId } from "@/lib/utils";
+import { WorkerCard } from "@/features/workers/components/worker-card";
 
 // Zod schemas mirror backend/middleware/schemas.js createWorker/updateWorker
 const workerSchema = z.object({
@@ -161,7 +162,7 @@ export default function WorkersPage() {
     try {
       await workersApi.delete(id);
       toast("Worker deleted", "success");
-      setWorkers((prev) => prev.filter((w) => w.id !== id));
+      fetchData();
     } catch (e) {
       toast(e instanceof Error ? e.message : "Delete failed", "error");
     }
@@ -300,7 +301,8 @@ export default function WorkersPage() {
         <div className="text-xs text-[var(--text-muted)]">{total} total · page {page}/{pages}</div>
       </div>
 
-      {/* Table — server-side pagination 25/page */}
+      {/* Table — server-side pagination 25/page (hidden on mobile, card list below) */}
+      <div className="hidden sm:block">
       <DataTable
         columns={columns}
         data={workers}
@@ -342,6 +344,37 @@ export default function WorkersPage() {
             : undefined
         }
       />
+      </div>
+
+      {/* Mobile card list — visible below sm: breakpoint */}
+      <div className="space-y-3 sm:hidden">
+        {loading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-32 animate-pulse rounded-xl bg-[var(--gray-100)]" />
+            ))}
+          </div>
+        ) : workers.length === 0 ? (
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center">
+            <p className="text-sm text-[var(--text-muted)]">{canEdit ? "No workers yet. Add your first worker." : "No workers in this scope."}</p>
+          </div>
+        ) : (
+          workers.map((w) => (
+            <WorkerCard
+              key={w.id}
+              worker={w}
+              canEdit={canEdit}
+              isAdmin={isAdmin}
+              onView={() => setDetailWorker(w)}
+              onEdit={() => { setEditing(w); setShowWorkerModal(true); }}
+              onAttendance={() => setAttendWorker(w)}
+              onIdCard={() => setIdCardWorker(w)}
+              onSalary={() => setSalaryWorker(w)}
+              onDelete={() => handleDelete(w.id)}
+            />
+          ))
+        )}
+      </div>
 
       {/* Modals */}
       {showWorkerModal && (
@@ -371,7 +404,7 @@ export default function WorkersPage() {
         <AttendanceModal worker={attendWorker} onClose={() => setAttendWorker(null)} />
       )}
       {salaryWorker && (
-        <SalaryModal worker={salaryWorker} onClose={() => setSalaryWorker(null)} />
+        <SalaryModal worker={salaryWorker} onClose={() => { setSalaryWorker(null); fetchData(); }} />
       )}
       {idCardWorker && (
         <IdCardModal worker={idCardWorker} onClose={() => setIdCardWorker(null)} />

@@ -7,6 +7,7 @@ import { Sidebar, TopBar, BottomNav } from "@/components/layout/nav";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { LoadingState } from "@/components/feedback/states";
 import { NAV } from "@/components/layout/nav";
+import { NetworkStatus } from "@/components/ui/network-status";
 
 function Breadcrumbs() {
   const pathname = usePathname();
@@ -80,6 +81,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-[var(--background)]">
+      <NetworkStatus />
       <Sidebar open={open} onClose={() => setOpen(false)} />
       {/* overlay for mobile */}
       {open && (

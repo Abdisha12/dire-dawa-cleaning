@@ -16,6 +16,7 @@ import { DataTable, type Column } from "@/components/ui/data-table";
 import { useToast } from "@/components/ui/toast";
 import { Icons } from "@/components/ui/icon";
 import { fmtETB, fmtDate, todayISO } from "@/lib/utils";
+import { MobileAttendanceRow } from "@/features/attendance/components/mobile-attendance-row";
 
 export default function AttendancePage() {
   const { user } = useAuth();
@@ -235,7 +236,8 @@ export default function AttendancePage() {
         <StatCard label="Not Recorded" value={summary?.notRecorded ?? 0} accent="orange" />
       </div>
 
-      {/* Attendance Table — server-side pagination */}
+      {/* Attendance Table — server-side pagination (hidden on mobile, cards below) */}
+      <div className="hidden sm:block">
       <DataTable
         columns={columns}
         data={attendance}
@@ -249,6 +251,36 @@ export default function AttendancePage() {
         pages={pages}
         onPage={(p) => setPage(p)}
       />
+      </div>
+
+      {/* Mobile attendance cards — visible below sm: */}
+      <div className="space-y-3 sm:hidden">
+        {loading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-24 animate-pulse rounded-xl bg-[var(--gray-100)]" />
+            ))}
+          </div>
+        ) : attendance.length === 0 ? (
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center">
+            <p className="text-sm text-[var(--text-muted)]">No attendance records for this date.</p>
+          </div>
+        ) : (
+          attendance.map((a) => (
+            <MobileAttendanceRow
+              key={`${a.worker_id}-${a.date}`}
+              workerId={a.worker_id}
+              workerName={a.worker_name}
+              zoneName={a.zone_name}
+              dailyWage={0}
+              present={a.present}
+              bonus={a.bonus ? String(a.bonus) : ""}
+              onPresentChange={() => {}}
+              onBonusChange={() => {}}
+            />
+          ))
+        )}
+      </div>
 
       {/* Bulk Attendance Modal */}
       {showBulk && (
@@ -296,7 +328,59 @@ function BulkAttendanceModal({ workers, onClose, onSaved }: { workers: Worker[];
         <Input id="att-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="max-w-[200px]" />
       </div>
       {error && <Alert variant="danger">{error}</Alert>}
-      <div className="max-h-[50vh] overflow-auto rounded border border-[var(--border)]">
+      {/* Mobile one-handed marking — cards below sm */}
+      <div className="space-y-3 sm:hidden">
+        {rows.map((r) => (
+          <div key={r.workerId} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-2">
+              <p className="font-bold">{r.name}</p>
+              {r.zone ? <Badge variant="purple">{r.zone}</Badge> : null}
+            </div>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">{fmtETB(r.wage)}/day</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                onClick={() => setRows((prev) => prev.map((x) => x.workerId === r.workerId ? { ...x, present: true } : x))}
+                variant={r.present ? "success" : "outline"}
+                className="min-h-[48px] w-full text-sm"
+                aria-pressed={r.present}
+                aria-label={`Mark ${r.name} present`}
+              >
+                PRESENT
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setRows((prev) => prev.map((x) => x.workerId === r.workerId ? { ...x, present: false } : x))}
+                variant={!r.present ? "danger" : "outline"}
+                className="min-h-[48px] w-full text-sm"
+                aria-pressed={!r.present}
+                aria-label={`Mark ${r.name} absent`}
+              >
+                ABSENT
+              </Button>
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <label htmlFor={`mbonus-${r.workerId}`} className="text-sm font-medium">Bonus:</label>
+              <div className="flex-1">
+                <Input
+                  id={`mbonus-${r.workerId}`}
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={r.bonus}
+                  inputMode="decimal"
+                  onChange={(e) => setRows((prev) => prev.map((x) => x.workerId === r.workerId ? { ...x, bonus: e.target.value } : x))}
+                  className="min-h-[44px]"
+                  aria-label={`Bonus for ${r.name}`}
+                />
+              </div>
+              <span className="text-sm text-[var(--text-muted)]">ETB</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      {/* Desktop table — hidden below sm */}
+      <div className="max-h-[50vh] overflow-auto rounded border border-[var(--border)] sm:block hidden">
         <table className="w-full text-sm">
           <thead className="bg-[var(--gray-50)]">
             <tr>
