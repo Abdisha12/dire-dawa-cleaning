@@ -55,8 +55,8 @@ export default function AttendancePage() {
     try {
       const res = await api.getSaferZones();
       setZones(res.zones);
-    } catch (e) {
-      console.error(e);
+    } catch {
+      // ignore: zones load best-effort; table still renders
     }
   }, []);
 
@@ -145,8 +145,8 @@ export default function AttendancePage() {
     try {
       const res = await api.getWorkers(kebeleFilter ? { kebeleId: kebeleFilter } : {});
       setWorkers((Array.isArray(res) ? res : (res as { data: Worker[] }).data).filter((w) => w.is_active));
-    } catch (e) {
-      console.error(e);
+    } catch {
+      // ignore: bulk modal shows subset it already has
     }
   }, [kebeleFilter]);
 
@@ -324,8 +324,8 @@ function BulkAttendanceModal({ workers, onClose, onSaved }: { workers: Worker[];
   return (
     <Modal open onClose={onClose} title="📋 Record Daily Attendance" size="lg" footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "✅ Save Attendance"}</Button></>}>
       <div className="mb-3 flex items-center gap-3">
-        <Label htmlFor="att-date">Date *</Label>
-        <Input id="att-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="max-w-[200px]" />
+        <Label htmlFor="att-date-bulk">Date *</Label>
+        <Input id="att-date-bulk" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="max-w-[200px]" />
       </div>
       {error && <Alert variant="danger">{error}</Alert>}
       {/* Mobile one-handed marking — cards below sm */}
@@ -397,7 +397,7 @@ function BulkAttendanceModal({ workers, onClose, onSaved }: { workers: Worker[];
                 <td className="p-2">{r.name}</td>
                 <td className="p-2">{r.zone || "—"}</td>
                 <td className="p-2">{fmtETB(r.wage)}</td>
-                <td className="p-2"><label className="flex items-center gap-1"><input type="checkbox" checked={r.present} onChange={(e) => setRows((prev) => prev.map((x) => x.workerId === r.workerId ? { ...x, present: e.target.checked } : x))} /> Present</label></td>
+                <td className="p-2"><label className="flex items-center gap-1"><input type="checkbox" aria-label={`Mark ${r.name} as present`} checked={r.present} onChange={(e) => setRows((prev) => prev.map((x) => x.workerId === r.workerId ? { ...x, present: e.target.checked } : x))} /> Present</label></td>
                 <td className="p-2"><Input type="number" min={0} step={0.01} value={r.bonus} onChange={(e) => setRows((prev) => prev.map((x) => x.workerId === r.workerId ? { ...x, bonus: e.target.value } : x))} className="w-[100px]" aria-label={`Bonus for ${r.name}`} /></td>
               </tr>
             ))}

@@ -509,8 +509,8 @@ function WorkerFormModal({
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <Label htmlFor="wf-name">Full Name *</Label>
-            <Input id="wf-name" {...form.register("fullName")} aria-invalid={!!form.formState.errors.fullName} />
-            {form.formState.errors.fullName && <p className="text-xs text-[var(--danger)]">{form.formState.errors.fullName.message}</p>}
+            <Input id="wf-name" {...form.register("fullName")} aria-invalid={!!form.formState.errors.fullName} aria-describedby={form.formState.errors.fullName ? "wf-name-error" : undefined} />
+            {form.formState.errors.fullName && <p id="wf-name-error" role="alert" className="text-xs text-[var(--danger)]">{form.formState.errors.fullName.message}</p>}
           </div>
           <div>
             <Label htmlFor="wf-contact">Contact (Phone)</Label>
@@ -518,13 +518,13 @@ function WorkerFormModal({
           </div>
           <div>
             <Label htmlFor="wf-fayda">Fayda/ID Number</Label>
-            <Input id="wf-fayda" {...form.register("faydaId")} aria-invalid={!!form.formState.errors.faydaId} />
-            {form.formState.errors.faydaId && <p className="text-xs text-[var(--danger)]">{form.formState.errors.faydaId.message}</p>}
+            <Input id="wf-fayda" {...form.register("faydaId")} aria-invalid={!!form.formState.errors.faydaId} aria-describedby={form.formState.errors.faydaId ? "wf-fayda-error" : undefined} />
+            {form.formState.errors.faydaId && <p id="wf-fayda-error" role="alert" className="text-xs text-[var(--danger)]">{form.formState.errors.faydaId.message}</p>}
           </div>
           <div>
             <Label htmlFor="wf-wage">Daily Wage (ETB) *</Label>
-            <Input id="wf-wage" type="number" min={0} step={0.01} {...form.register("dailyWage")} />
-            {form.formState.errors.dailyWage && <p className="text-xs text-[var(--danger)]">{form.formState.errors.dailyWage.message}</p>}
+            <Input id="wf-wage" type="number" min={0} step={0.01} {...form.register("dailyWage")} aria-invalid={!!form.formState.errors.dailyWage} aria-describedby={form.formState.errors.dailyWage ? "wf-wage-error" : undefined} />
+            {form.formState.errors.dailyWage && <p id="wf-wage-error" role="alert" className="text-xs text-[var(--danger)]">{form.formState.errors.dailyWage.message}</p>}
           </div>
           {myZone ? (
             <>
@@ -669,7 +669,7 @@ function BulkAttendanceModal({ workers, onClose, onSaved }: { workers: Worker[];
                 <td className="p-2">{r.name}</td>
                 <td className="p-2">{r.zone || "—"}</td>
                 <td className="p-2">{fmtETB(r.wage)}</td>
-                <td className="p-2"><label className="flex items-center gap-1"><input type="checkbox" checked={r.present} onChange={(e) => setRows((prev) => prev.map((x) => x.workerId === r.workerId ? { ...x, present: e.target.checked } : x))} /> Present</label></td>
+                <td className="p-2"><label className="flex items-center gap-1"><input type="checkbox" aria-label={`Mark ${r.name} as present`} checked={r.present} onChange={(e) => setRows((prev) => prev.map((x) => x.workerId === r.workerId ? { ...x, present: e.target.checked } : x))} /> Present</label></td>
                 <td className="p-2"><Input type="number" min={0} step={0.01} value={r.bonus} onChange={(e) => setRows((prev) => prev.map((x) => x.workerId === r.workerId ? { ...x, bonus: e.target.value } : x))} className="w-[100px]" aria-label={`Bonus for ${r.name}`} /></td>
               </tr>
             ))}

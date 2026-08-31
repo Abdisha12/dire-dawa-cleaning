@@ -3,6 +3,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Icons } from "./icon";
+import { useFocusTrap } from "@/hooks/use-focus-trap";
 
 export function Modal({
   open,
@@ -19,19 +20,7 @@ export function Modal({
   footer?: React.ReactNode;
   size?: "sm" | "md" | "lg";
 }) {
-  const ref = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    // trap focus simplified: focus first element
-    const el = ref.current?.querySelector<HTMLElement>("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])");
-    el?.focus();
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  const ref = useFocusTrap(open, onClose);
 
   if (!open) return null;
 

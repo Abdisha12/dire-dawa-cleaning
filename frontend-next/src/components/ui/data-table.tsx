@@ -19,6 +19,7 @@ export type Column<T> = {
 export type DataTableProps<T> = {
   columns: Column<T>[];
   data: T[];
+  ariaLabel?: string;
   loading?: boolean;
   error?: string | null;
   onRetry?: () => void;
@@ -45,6 +46,7 @@ export type DataTableProps<T> = {
 export function DataTable<T>({
   columns,
   data,
+  ariaLabel,
   loading,
   error,
   onRetry,
@@ -70,7 +72,8 @@ export function DataTable<T>({
   return (
     <div className="overflow-x-auto rounded-[var(--r-md)] border border-[var(--border)] bg-[var(--surface)]">
       {/* desktop table */}
-      <table className="hidden w-full border-collapse text-sm md:table">
+      <table className="hidden w-full border-collapse text-sm md:table" aria-label={ariaLabel}>
+        <caption className="sr-only">{ariaLabel ?? "Data table"}</caption>
         <thead>
           <tr className="bg-[var(--gray-50)]">
             {visible.map((col) => (
@@ -85,6 +88,7 @@ export function DataTable<T>({
                 {col.sortable && onSort ? (
                   <button
                     onClick={() => onSort(col.key)}
+                    aria-label={`Sort by ${col.header}`}
                     className="inline-flex items-center gap-1 hover:text-[var(--text)] focus-visible:outline-none"
                   >
                     {col.header}
@@ -97,7 +101,7 @@ export function DataTable<T>({
                 )}
               </th>
             ))}
-            {rowActions && <th className="px-3 py-2 text-left text-xs">Actions</th>}
+            {rowActions && <th scope="col" className="px-3 py-2 text-left text-xs">Actions</th>}
           </tr>
         </thead>
         <tbody>
