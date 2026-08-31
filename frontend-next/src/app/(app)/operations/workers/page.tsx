@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useKebele } from "@/lib/kebele-context";
 import { api, ApiError } from "@/lib/api";
 import { workersApi, formatETB, multiplyETB, addETB } from "@/features/workers/services/workers-api";
-import type { Worker, SaferZone } from "@/types";
+import type { Worker, SaferZone, WorkerFormValues } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -31,8 +31,6 @@ const workerSchema = z.object({
   isActive: z.boolean().optional(),
   customAttributes: z.record(z.string(), z.string()).optional(),
 });
-
-type WorkerFormValues = z.infer<typeof workerSchema>;
 
 export default function WorkersPage() {
   const { user } = useAuth();
@@ -428,23 +426,21 @@ function WorkerFormModal({
       form.setError("faydaId", { message: "Must be exactly 12 digits" });
       return;
     }
-const attrs: Record<string, string> = {};
+    const attrs: Record<string, string> = {};
     customRows.forEach((r) => {
       if (r.k.trim()) attrs[r.k.trim()] = r.v.trim();
     });
-    const payload = (() => {
-      const contact = String(values.contact?.trim() ?? "");
-      return {
-        fullName: values.fullName.trim(),
-        contact,
-        faydaId: values.faydaId ? values.faydaId.replace(/[\s-]/g, "") : null,
-        dailyWage: Number(values.dailyWage),
-        saferZoneId: values.saferZoneId ? String(values.saferZoneId) : null,
-        kebeleId: values.kebeleId ? String(values.kebeleId) : null,
-        isActive: values.isActive ?? true,
-        customAttributes: Object.keys(attrs).length ? attrs : undefined,
-      } as WorkerFormValues;
-    })();
+    const contactVal: string = String(values.contact?.trim() ?? "");
+    const payload: import("@/types").WorkerFormValues = {
+      fullName: values.fullName.trim(),
+      contact: contactVal || null,
+      faydaId: values.faydaId ? values.faydaId.replace(/[\s-]/g, "") : null,
+      dailyWage: Number(values.dailyWage),
+      saferZoneId: values.saferZoneId ? String(values.saferZoneId) : null,
+      kebeleId: values.kebeleId ? String(values.kebeleId) : null,
+      isActive: values.isActive ?? true,
+      customAttributes: Object.keys(attrs).length ? attrs : undefined,
+    };
     try {
       if (worker) await workersApi.update(worker.id, payload);
       else await workersApi.create(payload);

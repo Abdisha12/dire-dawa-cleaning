@@ -40,6 +40,7 @@ export default function AttendancePage() {
 
   // Summary
   const [summary, setSummary] = React.useState<{ present: number; absent: number; late: number; notRecorded: number } | null>(null);
+  const [showBulk, setShowBulk] = React.useState(false);
 
   // For collector: filter zones to their kebele
   const visibleZones = React.useMemo(() => {
@@ -264,10 +265,7 @@ export default function AttendancePage() {
   );
 }
 
-const [showBulk, setShowBulk] = React.useState(false);
-
 function BulkAttendanceModal({ workers, onClose, onSaved }: { workers: Worker[]; onClose: () => void; onSaved: () => void }) {
-  const { api } = require("@/lib/api");
   const { toast } = useToast();
   const [date, setDate] = React.useState(() => todayISO());
   const [rows, setRows] = React.useState(

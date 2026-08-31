@@ -37,6 +37,7 @@ import {
   TrendingUp,
   UserCircle,
   Cog,
+  Banknote,
 } from "lucide-react";
 import type { LucideProps } from "lucide-react";
 
@@ -75,6 +76,7 @@ export const Icons = {
   performance: TrendingUp,
   myaccount: UserCircle,
   system: Cog,
+  salary: Banknote,
 };
 
 export type IconName = keyof typeof Icons;

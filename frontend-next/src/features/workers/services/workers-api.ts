@@ -11,7 +11,7 @@ export const workersApi = {
 
   getStats: (params?: Record<string, string>, opts?: FetchOptions) =>
     api.getWorkers(params, opts).then((res) => {
-      const data: Worker[] = Array.isArray(res) ? res : res.data || [];
+      const data: Worker[] = Array.isArray(res) ? res : (res as unknown as { workers: Worker[] }).workers || [];
       return data.filter((w: Worker) => w.is_active).reduce((sum: number, w: Worker) => sum + Number(w.daily_wage), 0);
     }),
 

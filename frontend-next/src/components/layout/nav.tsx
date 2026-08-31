@@ -37,6 +37,7 @@ const NAV: NavItem[] = [
   // Businesses & Finance
   { id: "businesses", label: "Businesses", href: "/businesses", icon: "businesses", roles: ["admin", "collector", "leader", "viewer"], group: "Businesses & Finance" },
   { id: "payments", label: "Payments", href: "/businesses/payments", icon: "payments", roles: ["admin", "collector", "leader"], group: "Businesses & Finance" },
+  { id: "salary", label: "Salary", href: "/operations/salary", icon: "salary", roles: ["admin", "collector", "leader"], group: "Businesses & Finance" },
 
   // Community
   { id: "notifications", label: "Notifications", href: "/community/notifications", icon: "notifications", roles: ["admin", "collector", "leader", "viewer"], group: "Community" },
