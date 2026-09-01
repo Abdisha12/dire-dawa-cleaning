@@ -155,7 +155,7 @@ Migrated to `frontend-next/src/app/(app)/businesses/payments/page.tsx`:
 
 ## S. Git
 
-- Final checkpoint: **`bdb8f07`** `feat: Phase 5 — Businesses & Finance migration (1-41)` — 19 files, clean working tree after commit.
+- Final checkpoint: **`fc37a5a`** gap patch (Business Payment History + Transactions + collector enforcement) on top of `bdb8f07` feat — clean working tree.
 
 ---
 
