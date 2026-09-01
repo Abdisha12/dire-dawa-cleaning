@@ -148,14 +148,19 @@ export const api = {
       opts
     ).then((res) => (Array.isArray(res) ? { zones: res } : res) as { zones: import("@/types").SaferZone[] }),
 
-  // Businesses — backend returns array directly for some routes
+  // Businesses — backend returns array or paginated {data,total,page,pages}
   getBusinesses: (params: Record<string, string> = {}, opts?: FetchOptions) =>
-    req<import("@/types").Business[] | { businesses: import("@/types").Business[] }>(
-      "GET",
-      `/businesses?${new URLSearchParams(params).toString()}`,
-      undefined,
-      opts
-    ).then((res) => (Array.isArray(res) ? res : (res as { businesses: import("@/types").Business[] }).businesses)),
+    req<
+      import("@/types").Business[] | { businesses: import("@/types").Business[] } | { data: import("@/types").Business[]; total: number; page: number; pages: number }
+    >("GET", `/businesses?${new URLSearchParams(params).toString()}`, undefined, opts) as Promise<unknown>,
+  getBusiness: (id: number, opts?: FetchOptions) =>
+    req<import("@/types").Business>("GET", `/businesses/${id}`, undefined, opts),
+  createBusiness: (data: Record<string, unknown>, opts?: FetchOptions) =>
+    req<{ id: number }>("POST", "/businesses", data, opts),
+  updateBusiness: (id: number, data: Record<string, unknown>, opts?: FetchOptions) =>
+    req<{ message: string }>("PUT", `/businesses/${id}`, data, opts),
+  deleteBusiness: (id: number, opts?: FetchOptions) =>
+    req<{ message: string }>("DELETE", `/businesses/${id}`, undefined, opts),
   // Workers — backend returns array directly (workers.js: res.json(rows))
   getWorkers: (params: Record<string, string> = {}, opts?: FetchOptions) =>
     req<import("@/types").Worker[] | { workers: import("@/types").Worker[] }>(
@@ -181,12 +186,36 @@ export const api = {
     req<{ id: number }>("POST", `/workers/${workerId}/salary`, data, opts),
   // Payments
   getPayments: (params: Record<string, string> = {}, opts?: FetchOptions) =>
-    req<{ payments: import("@/types").Payment[] } | import("@/types").Payment[]>(
+    req<
+      { payments: import("@/types").Payment[] } | import("@/types").Payment[] | { data: import("@/types").Payment[]; total: number; page: number; pages: number }
+    >("GET", `/payments?${new URLSearchParams(params).toString()}`, undefined, opts) as Promise<unknown>,
+  createPayment: (data: Record<string, unknown>, opts?: FetchOptions) =>
+    req<{ id: number; receiptNumber: string; paidAt: string | null; status: string; paymentUrl: string | null; gatewayName: string | null }>(
+      "POST",
+      "/payments",
+      data,
+      opts
+    ),
+  updatePayment: (id: number, data: Record<string, unknown>, opts?: FetchOptions) =>
+    req<{ message: string }>("PUT", `/payments/${id}`, data, opts),
+  deletePayment: (id: number, opts?: FetchOptions) =>
+    req<{ message: string }>("DELETE", `/payments/${id}`, undefined, opts),
+  verifyPayment: (id: number, opts?: FetchOptions) =>
+    req<{ status: string }>("GET", `/payments/${id}/verify`, undefined, opts),
+  getDashboardSummary: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<{ totals: { total_collected: string; total_pending: string; total_overdue: string }; byKebele: unknown[]; monthly: unknown[] }>(
       "GET",
-      `/payments?${new URLSearchParams(params).toString()}`,
+      `/payments/summary/dashboard?${new URLSearchParams(params).toString()}`,
       undefined,
       opts
-    ).then((res) => (Array.isArray(res) ? { payments: res } : res) as { payments: import("@/types").Payment[] }),
+    ),
+  // Reports — monthly payments CSV/PDF export helper (used by legacy payments CSV button)
+  getPaymentReport: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<unknown[]>("GET", `/reports/payments/monthly?${new URLSearchParams(params).toString()}`, undefined, opts),
+  csvUrl: (path: string, params: Record<string, string> = {}) => {
+    const base = typeof window !== "undefined" ? `${getApiOrigin()}/api` : (process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/api` : "/api");
+    return `${base}${path}?${new URLSearchParams({ ...params, format: "csv" }).toString()}`;
+  },
   getInspections: (params: Record<string, string> = {}, opts?: FetchOptions) =>
     req<{ inspections: import("@/types").Inspection[] } | import("@/types").Inspection[]>(
       "GET",

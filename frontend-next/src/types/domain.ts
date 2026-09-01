@@ -101,7 +101,9 @@ export interface Business {
   monthly_target: number;
   safer_zone_id: number;
   zone_name?: string;
+  safer_zone_name?: string;
   kebele_name?: string;
+  kebele_id?: number;
   kebele_code?: string;
   is_active: boolean;
   notes: string | null;
@@ -173,7 +175,9 @@ export interface Payment {
   business_id: number;
   business_name?: string;
   zone_name?: string;
+  safer_zone_name?: string;
   kebele_name?: string;
+  kebele_id?: number;
   amount: number;
   method: PaymentMethod;
   status: PaymentStatus;
@@ -187,6 +191,7 @@ export interface Payment {
   gateway_name: string | null;
   gateway_ref: string | null;
   payment_url: string | null;
+  monthly_target?: number;
   created_at: string;
   updated_at: string;
 }

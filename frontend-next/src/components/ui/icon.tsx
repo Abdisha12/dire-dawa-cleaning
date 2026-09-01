@@ -93,6 +93,8 @@ export const Icons = {
   trash: Trash2,
   bulkAttendance: ClipboardCheck,
   workerDetail: UserRound,
+  receipt: FileText,
+  pay: CreditCard,
 };
 
 export type IconName = keyof typeof Icons;

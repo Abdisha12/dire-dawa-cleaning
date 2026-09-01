@@ -6,7 +6,7 @@ import * as React from "react";
 import { vi } from "vitest";
 import { render } from "@testing-library/react";
 import { ToasterProvider } from "@/components/ui/toast";
-import type { Worker, SaferZone, User } from "@/types";
+import type { Worker, SaferZone, User, Business, Payment } from "@/types";
 
 // NOTE: `vi.mock` declarations must live in the consuming test file (vitest hoists
 // per-file and mocks don't reliably apply across helper modules for the page graph).
@@ -30,6 +30,17 @@ export function buildApiMocks(overrides: Record<string, unknown> = {}) {
     getAttendance: vi.fn(),
     getWorkerSalary: vi.fn(),
     paySalary: vi.fn(),
+    getBusinesses: vi.fn(),
+    getBusiness: vi.fn(),
+    createBusiness: vi.fn(),
+    updateBusiness: vi.fn(),
+    deleteBusiness: vi.fn(),
+    getPayments: vi.fn(),
+    createPayment: vi.fn(),
+    deletePayment: vi.fn(),
+    verifyPayment: vi.fn(),
+    getDashboardSummary: vi.fn(),
+    getPaymentReport: vi.fn(),
     ...overrides,
   };
 }
@@ -113,5 +124,60 @@ export function workerFixture(overrides: Partial<Worker> = {}): Worker {
 }
 
 export function paginatedWorkers(items: Worker[]) {
+  return { data: items, total: items.length, page: 1, pages: 1 };
+}
+
+export function businessFixture(overrides: Partial<Business> = {}): Business {
+  return {
+    id: 1,
+    name: "ABC Shop",
+    owner_name: "Ahmed Ali",
+    owner_fayda_id: "123456789012",
+    owner_phone: "0911000001",
+    type: "shop",
+    monthly_target: 500,
+    safer_zone_id: 10,
+    safer_zone_name: "Zone 10",
+    kebele_name: "K05",
+    kebele_id: 5,
+    is_active: true,
+    notes: null,
+    created_at: "2024-01-01T00:00:00Z",
+    updated_at: "2024-01-01T00:00:00Z",
+    ...overrides,
+  };
+}
+
+export function paymentFixture(overrides: Partial<Payment> = {}): Payment {
+  return {
+    id: 1,
+    business_id: 1,
+    business_name: "ABC Shop",
+    safer_zone_name: "Zone 10",
+    kebele_name: "K05",
+    amount: 500,
+    method: "cash",
+    status: "paid",
+    month: 9,
+    year: 2026,
+    paid_at: "2026-09-01T10:00:00Z",
+    receipt_number: "RCP-TEST-001",
+    notes: null,
+    collected_by: 1,
+    collector_name: "Admin User",
+    gateway_name: null,
+    gateway_ref: null,
+    payment_url: null,
+    created_at: "2026-09-01T10:00:00Z",
+    updated_at: "2026-09-01T10:00:00Z",
+    ...overrides,
+  };
+}
+
+export function paginatedBusinesses(items: Business[]) {
+  return { data: items, total: items.length, page: 1, pages: 1 };
+}
+
+export function paginatedPayments(items: Payment[]) {
   return { data: items, total: items.length, page: 1, pages: 1 };
 }

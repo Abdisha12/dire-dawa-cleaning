@@ -107,22 +107,46 @@ router.delete("/safer-zones/:id",requireRole("admin"),async(req,res,next)=>{
 // ── Businesses ────────────────────────────────────────────────
 router.get("/businesses",async(req,res,next)=>{
   try{
-    let sql=`SELECT b.*,sz.name AS safer_zone_name,k.name AS kebele_name,k.id AS kebele_id
-             FROM businesses b
-             JOIN safer_zones sz ON sz.id=b.safer_zone_id
-             JOIN kebeles k ON k.id=sz.kebele_id WHERE 1=1`;
-    const params=[];
-    let paramIdx=1;
+    const page = Math.max(1, parseInt(String(req.query.page || "0"), 10) || 0);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "0"), 10) || 0));
+    const hasPagination = page > 0 && limit > 0;
+    const search = (req.query.search || "").trim();
+    const status = (req.query.status || "").trim(); // active | inactive
+    const type = (req.query.type || "").trim();
+
+    let baseSql=` FROM businesses b JOIN safer_zones sz ON sz.id=b.safer_zone_id JOIN kebeles k ON k.id=sz.kebele_id WHERE 1=1`;
+    const whereParams=[];
+    let wIdx=1;
     const {saferZoneId,kebeleId}=req.query;
     if(req.user.role==="leader"){
-      sql+=` AND sz.leader_id=$${paramIdx}`; params.push(req.user.id); paramIdx++;
+      baseSql+=` AND sz.leader_id=$${wIdx}`; whereParams.push(req.user.id); wIdx++;
     } else {
-      if(saferZoneId){sql+=` AND b.safer_zone_id=$${paramIdx}`;params.push(saferZoneId);paramIdx++;}
-      if(kebeleId){sql+=` AND k.id=$${paramIdx}`;params.push(kebeleId);paramIdx++;}
+      if(saferZoneId){baseSql+=` AND b.safer_zone_id=$${wIdx}`;whereParams.push(parseInt(String(saferZoneId),10));wIdx++;}
+      if(kebeleId){baseSql+=` AND k.id=$${wIdx}`;whereParams.push(parseInt(String(kebeleId),10));wIdx++;}
     }
-    sql+=" ORDER BY k.code,sz.name,b.name";
-    const result=await db.query(sql,params);
-    res.json(result.rows);
+    if(search){
+      baseSql+=` AND (b.name ILIKE $${wIdx} OR b.owner_name ILIKE $${wIdx} OR b.owner_fayda_id ILIKE $${wIdx} OR b.owner_phone ILIKE $${wIdx})`;
+      whereParams.push(`%${search}%`);
+      wIdx++;
+    }
+    if(status==="active") baseSql+=` AND b.is_active=TRUE`;
+    else if(status==="inactive") baseSql+=` AND b.is_active=FALSE`;
+    if(type){ baseSql+=` AND b.type=$${wIdx}`; whereParams.push(type); wIdx++; }
+
+    if(!hasPagination){
+      const sql=`SELECT b.*,sz.name AS safer_zone_name,k.name AS kebele_name,k.id AS kebele_id${baseSql} ORDER BY k.code,sz.name,b.name`;
+      const result=await db.query(sql, whereParams);
+      return res.json(result.rows);
+    }
+    const countSql=`SELECT COUNT(*)::int AS total${baseSql}`;
+    const countRes=await db.query(countSql, whereParams);
+    const total = countRes.rows[0]?.total || 0;
+    const pages = Math.max(1, Math.ceil(total / limit));
+    const offset=(page-1)*limit;
+    const dataSql=`SELECT b.*,sz.name AS safer_zone_name,k.name AS kebele_name,k.id AS kebele_id${baseSql} ORDER BY k.code,sz.name,b.name LIMIT $${wIdx} OFFSET $${wIdx+1}`;
+    const dataParams=[...whereParams, limit, offset];
+    const result=await db.query(dataSql, dataParams);
+    res.json({ data: result.rows, total, page, pages });
   }catch(err){next(err);}
 });
 

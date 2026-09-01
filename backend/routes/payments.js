@@ -112,28 +112,47 @@ router.get("/summary/dashboard", validate(schemas.dashboardQuery, "query"), asyn
 
 router.get("/", async (req, res, next) => {
   try {
-    const { businessId, kebeleId, saferZoneId, month, year, status } = req.query;
-    let sql = `SELECT p.*, b.name AS business_name, b.monthly_target,
-                    sz.name AS safer_zone_name, k.name AS kebele_name, k.id AS kebele_id,
-                    u.full_name AS collector_name
-             FROM payments p JOIN businesses b ON b.id=p.business_id
+    const page = Math.max(1, parseInt(String(req.query.page || "0"), 10) || 0);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "0"), 10) || 0));
+    const hasPagination = page > 0 && limit > 0;
+    const search = (req.query.search || "").trim();
+    const { businessId, kebeleId, saferZoneId, month, year, status, method } = req.query;
+    let baseSql = ` FROM payments p JOIN businesses b ON b.id=p.business_id
              JOIN safer_zones sz ON sz.id=b.safer_zone_id
              JOIN kebeles k ON k.id=sz.kebele_id
              JOIN users u ON u.id=p.collected_by WHERE 1=1`;
-    const params = [];
-    let paramIdx = 1;
-    if (req.user.role === "leader") { sql += ` AND sz.leader_id=$${paramIdx}`; params.push(req.user.id); paramIdx++; }
+    const whereParams = [];
+    let wIdx = 1;
+    if (req.user.role === "leader") { baseSql += ` AND sz.leader_id=$${wIdx}`; whereParams.push(req.user.id); wIdx++; }
     else {
-      if (businessId) { sql += ` AND p.business_id=$${paramIdx}`; params.push(businessId); paramIdx++; }
-      if (kebeleId) { sql += ` AND k.id=$${paramIdx}`; params.push(kebeleId); paramIdx++; }
-      if (saferZoneId) { sql += ` AND sz.id=$${paramIdx}`; params.push(saferZoneId); paramIdx++; }
+      if (businessId) { baseSql += ` AND p.business_id=$${wIdx}`; whereParams.push(businessId); wIdx++; }
+      if (kebeleId) { baseSql += ` AND k.id=$${wIdx}`; whereParams.push(kebeleId); wIdx++; }
+      if (saferZoneId) { baseSql += ` AND sz.id=$${wIdx}`; whereParams.push(saferZoneId); wIdx++; }
     }
-    if (month) { sql += ` AND p.month=$${paramIdx}`; params.push(month); paramIdx++; }
-    if (year) { sql += ` AND p.year=$${paramIdx}`; params.push(year); paramIdx++; }
-    if (status) { sql += ` AND p.status=$${paramIdx}`; params.push(status); paramIdx++; }
-    sql += " ORDER BY p.year DESC,p.month DESC,b.name";
-    const result = await db.query(sql, params);
-    res.json(result.rows);
+    if (month) { baseSql += ` AND p.month=$${wIdx}`; whereParams.push(month); wIdx++; }
+    if (year) { baseSql += ` AND p.year=$${wIdx}`; whereParams.push(year); wIdx++; }
+    if (status) { baseSql += ` AND p.status=$${wIdx}`; whereParams.push(status); wIdx++; }
+    if (method) { baseSql += ` AND p.method=$${wIdx}`; whereParams.push(method); wIdx++; }
+    if (search) {
+      baseSql += ` AND (b.name ILIKE $${wIdx} OR p.receipt_number ILIKE $${wIdx} OR p.amount::text ILIKE $${wIdx})`;
+      whereParams.push(`%${search}%`);
+      wIdx++;
+    }
+    const orderSql = " ORDER BY p.year DESC,p.month DESC,b.name";
+    if (!hasPagination) {
+      const sql = `SELECT p.*, b.name AS business_name, b.monthly_target, sz.name AS safer_zone_name, k.name AS kebele_name, k.id AS kebele_id, u.full_name AS collector_name${baseSql}${orderSql}`;
+      const result = await db.query(sql, whereParams);
+      return res.json(result.rows);
+    }
+    const countSql = `SELECT COUNT(*)::int AS total${baseSql}`;
+    const countRes = await db.query(countSql, whereParams);
+    const total = countRes.rows[0]?.total || 0;
+    const pages = Math.max(1, Math.ceil(total / limit));
+    const offset = (page - 1) * limit;
+    const dataSql = `SELECT p.*, b.name AS business_name, b.monthly_target, sz.name AS safer_zone_name, k.name AS kebele_name, k.id AS kebele_id, u.full_name AS collector_name${baseSql}${orderSql} LIMIT $${wIdx} OFFSET $${wIdx+1}`;
+    const dataParams = [...whereParams, limit, offset];
+    const result = await db.query(dataSql, dataParams);
+    res.json({ data: result.rows, total, page, pages });
   } catch (err) { next(err); }
 });
 
