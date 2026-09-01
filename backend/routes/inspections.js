@@ -31,6 +31,17 @@ router.get("/",async(req,res,next)=>{
     const paramsBase=[];
     let idxBase=1;
     if(req.user.role==="leader"){ sqlBase+=` AND sz.leader_id=$${idxBase}`; paramsBase.push(req.user.id); idxBase++; }
+    else if(req.user.role==="collector"){
+      const kebeleRes = await db.query("SELECT id FROM kebeles WHERE collector_id=$1", [req.user.id]);
+      const assignedKebele = kebeleRes.rows[0]?.id || null;
+      if(!assignedKebele){
+        if(!hasPagination) return res.json([]);
+        return res.json({ data: [], total: 0, page: 1, pages: 0 });
+      }
+      sqlBase+=` AND i.kebele_id=$${idxBase}`; paramsBase.push(assignedKebele); idxBase++;
+      if(zoneId){ sqlBase+=` AND i.safer_zone_id=$${idxBase}`; paramsBase.push(zoneId); idxBase++; }
+      // ignore client kebeleId (locked)
+    }
     else{
       if(kebeleId){ sqlBase+=` AND i.kebele_id=$${idxBase}`; paramsBase.push(kebeleId); idxBase++; }
       if(zoneId){ sqlBase+=` AND i.safer_zone_id=$${idxBase}`; paramsBase.push(zoneId); idxBase++; }
@@ -92,6 +103,16 @@ router.post("/",requireRole("admin","collector","leader"),
   try{
     const {kebeleId,saferZoneId,date,status,notes}=req.body;
     if(!kebeleId||!date) return res.status(400).json({error:"kebeleId and date required"});
+    if(req.user.role==="collector"){
+      const kebeleRes = await db.query("SELECT id FROM kebeles WHERE collector_id=$1", [req.user.id]);
+      const assignedKebele = kebeleRes.rows[0]?.id || null;
+      if(!assignedKebele) return res.status(403).json({error:"No kebele assigned"});
+      if(String(kebeleId) !== String(assignedKebele)) return res.status(403).json({error:"Kebele does not match your assigned kebele"});
+      if(saferZoneId){
+        const zc = await db.query("SELECT id FROM safer_zones WHERE id=$1 AND kebele_id=$2", [saferZoneId, assignedKebele]);
+        if(!zc.rows.length) return res.status(403).json({error:"Zone does not belong to your kebele"});
+      }
+    }
     if(req.user.role==="leader"){
       const zr=await db.query("SELECT id FROM safer_zones WHERE id=$1 AND leader_id=$2",[saferZoneId,req.user.id]);
       if(!zr.rows.length) return res.status(403).json({error:"Not your zone"});

@@ -185,7 +185,7 @@ export default function InspectionsPage() {
       </div>
 
       <div className="flex flex-wrap items-end gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
-        {role !== "leader" && (
+        {role === "admin" && (
           <div className="flex flex-col gap-1">
             <Label htmlFor="i-kebele">Kebele</Label>
             <Select id="i-kebele" value={kebeleFilter} onChange={(e) => { setKebeleFilter(e.target.value); setZoneFilter(""); setPage(1); }} className="w-[160px]" aria-label="Filter by kebele">
@@ -194,6 +194,12 @@ export default function InspectionsPage() {
                 <option key={k.id} value={String(k.id)}>{k.name}</option>
               ))}
             </Select>
+          </div>
+        )}
+        {role === "collector" && kebeleId && (
+          <div className="flex flex-col gap-1">
+            <Label>Kebele</Label>
+            <div className="rounded bg-[var(--information-l)] px-3 py-2 text-sm font-medium text-[var(--primary)]">My Kebele — locked</div>
           </div>
         )}
         {role !== "leader" && (
