@@ -16,7 +16,9 @@ import { Modal } from "@/components/ui/modal";
 import { Drawer } from "@/components/ui/drawer";
 import { Alert } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/toast";
-import { fmtETB, validateFaydaId } from "@/lib/utils";
+import { fmtETB, fmtDate, validateFaydaId } from "@/lib/utils";
+import { paymentsApi } from "@/features/businesses/services/payments-api";
+import type { Payment } from "@/types";
 
 const TYPES = ["shop","cafe","hotel","restaurant","pharmacy","market","workshop","office","school","clinic","other"] as const;
 
@@ -202,6 +204,29 @@ export function BusinessFormModal({
 }
 
 export function BusinessDetailsDrawer({ business, onClose }: { business: Business; onClose: () => void }) {
+  const [payments, setPayments] = React.useState<Payment[]>([]);
+  const [loadingPayments, setLoadingPayments] = React.useState(true);
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoadingPayments(true);
+    paymentsApi
+      .getAll({ businessId: String(business.id) })
+      .then((res) => {
+        if (cancelled) return;
+        const arr = Array.isArray(res) ? res : (res as { data: Payment[] }).data || [];
+        setPayments(arr.slice(0, 5));
+      })
+      .catch(() => {
+        if (!cancelled) setPayments([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPayments(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [business.id]);
+
   return (
     <Drawer open onClose={onClose} title={`Business — ${business.name}`}>
       <div className="space-y-6">
@@ -235,6 +260,40 @@ export function BusinessDetailsDrawer({ business, onClose }: { business: Busines
             <p className="text-sm">{business.notes}</p>
           </section>
         )}
+        <section className="space-y-3 border-t border-[var(--border)] pt-4">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">Payment History</h3>
+          {loadingPayments ? (
+            <div className="h-12 animate-pulse rounded bg-[var(--gray-100)]" />
+          ) : payments.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">No payments recorded for this business.</p>
+          ) : (
+            <div className="space-y-2">
+              {payments.map((p) => (
+                <div key={p.id} className="flex items-center justify-between rounded border border-[var(--border)] p-2 text-sm">
+                  <div>
+                    <div className="font-mono text-xs">{p.receipt_number || `PAY-${p.id}`}</div>
+                    <div className="text-xs text-[var(--text-muted)]">
+                      {p.month}/{p.year} · <Badge variant={p.status === "paid" ? "green" : p.status === "pending" ? "orange" : "gray"}>{p.status}</Badge>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-semibold">{fmtETB(p.amount)}</div>
+                    <div className="text-xs text-[var(--text-muted)]">{p.method}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+        <section className="space-y-3 border-t border-[var(--border)] pt-4">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">Activity</h3>
+          <div className="grid gap-2 sm:grid-cols-2 text-sm">
+            <div><span className="text-xs text-[var(--text-muted)]">Created</span><div>{fmtDate(business.created_at)}</div></div>
+            <div><span className="text-xs text-[var(--text-muted)]">Updated</span><div>{fmtDate(business.updated_at)}</div></div>
+            <div><span className="text-xs text-[var(--text-muted)]">Kebele ID</span><div className="font-mono">{(business as unknown as { kebele_id?: number }).kebele_id || "—"}</div></div>
+            <div><span className="text-xs text-[var(--text-muted)]">Zone ID</span><div className="font-mono">{business.safer_zone_id}</div></div>
+          </div>
+        </section>
       </div>
     </Drawer>
   );

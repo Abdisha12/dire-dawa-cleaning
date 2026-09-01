@@ -4,8 +4,8 @@ import * as React from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useKebele } from "@/lib/kebele-context";
 import { paymentsApi } from "@/features/businesses/services/payments-api";
-import { businessesApi } from "@/features/businesses/services/businesses-api";
-import type { Payment, SaferZone } from "@/types";
+import { businessesApi, addETB } from "@/features/businesses/services/businesses-api";
+import type { Business, Payment, SaferZone } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Icons } from "@/components/ui/icon";
 import { Input, Label } from "@/components/ui/input";
@@ -55,6 +55,8 @@ export default function PaymentsPage() {
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
 
   const [kebeleFilter, setKebeleFilter] = React.useState<string>(() => (kebeleId ? String(kebeleId) : ""));
+  const [businessFilter, setBusinessFilter] = React.useState<string>("");
+  const [businesses, setBusinesses] = React.useState<Business[]>([]);
   const [monthFilter, setMonthFilter] = React.useState<string>(String(now.getMonth() + 1));
   const [yearFilter, setYearFilter] = React.useState<string>(String(now.getFullYear()));
   const [statusFilter, setStatusFilter] = React.useState<string>("");
@@ -71,7 +73,7 @@ export default function PaymentsPage() {
   const [gatewayAmount, setGatewayAmount] = React.useState<string | number>("");
   const [receiptPayment, setReceiptPayment] = React.useState<Payment | null>(null);
 
-  const [summary, setSummary] = React.useState<{ collected: number; pending: number; overdue: number } | null>(null);
+  const [summary, setSummary] = React.useState<{ collected: number; pending: number; overdue: number; transactions: number } | null>(null);
 
   React.useEffect(() => {
     const t = setTimeout(() => {
@@ -94,16 +96,20 @@ export default function PaymentsPage() {
       const params: Record<string, string> = { page: String(page), limit: String(limit) };
       if (debouncedSearch) params.search = debouncedSearch;
       if (kebeleFilter) params.kebeleId = kebeleFilter;
+      if (businessFilter) params.businessId = businessFilter;
       if (monthFilter) params.month = monthFilter;
       if (yearFilter) params.year = yearFilter;
       if (statusFilter) params.status = statusFilter;
       if (methodFilter) params.method = methodFilter;
 
-      const [z, pRes] = await Promise.all([
+      const [z, pRes, bRes] = await Promise.all([
         businessesApi.getZones(undefined, { signal: ctrl.signal }),
         paymentsApi.getAll(params, { signal: ctrl.signal }),
+        businessesApi.getAll(undefined, { signal: ctrl.signal }),
       ]);
       setZones(z);
+      const bList = Array.isArray(bRes) ? bRes : (bRes as { data: Business[] }).data || [];
+      setBusinesses(bList);
       const isPaginated = pRes && typeof pRes === "object" && "data" in (pRes as Record<string, unknown>);
       const pData: Payment[] = isPaginated ? (pRes as { data: Payment[] }).data : (pRes as Payment[]) || [];
       const meta = isPaginated ? (pRes as { total: number; pages: number }) : { total: pData.length, pages: 1 };
@@ -116,7 +122,9 @@ export default function PaymentsPage() {
         setPages(1);
       }
       // summary: derive from fetched page if paginated totals not available via dashboard
-      // Try dashboard endpoint for authoritative totals, fallback to page calc
+      // Try dashboard endpoint for authoritative totals, fallback to page calc with safe ETB sums
+      const safeSum = (list: Payment[], status: string) =>
+        list.filter((p) => p.status === status).reduce((s, p) => addETB(s, Number(p.amount)), 0);
       try {
         const dash = await paymentsApi.getDashboard({ month: monthFilter, year: yearFilter }, { signal: ctrl.signal });
         if (dash?.totals) {
@@ -124,18 +132,13 @@ export default function PaymentsPage() {
             collected: Number(dash.totals.total_collected) || 0,
             pending: Number(dash.totals.total_pending) || 0,
             overdue: Number(dash.totals.total_overdue) || 0,
+            transactions: isPaginated ? meta.total : pData.length,
           });
         } else {
-          const collected = pData.filter((p) => p.status === "paid").reduce((s, p) => s + Number(p.amount), 0);
-          const pending = pData.filter((p) => p.status === "pending").reduce((s, p) => s + Number(p.amount), 0);
-          const overdue = pData.filter((p) => p.status === "overdue").reduce((s, p) => s + Number(p.amount), 0);
-          setSummary({ collected, pending, overdue });
+          setSummary({ collected: safeSum(pData, "paid"), pending: safeSum(pData, "pending"), overdue: safeSum(pData, "overdue"), transactions: isPaginated ? meta.total : pData.length });
         }
       } catch {
-        const collected = pData.filter((p) => p.status === "paid").reduce((s, p) => s + Number(p.amount), 0);
-        const pending = pData.filter((p) => p.status === "pending").reduce((s, p) => s + Number(p.amount), 0);
-        const overdue = pData.filter((p) => p.status === "overdue").reduce((s, p) => s + Number(p.amount), 0);
-        setSummary({ collected, pending, overdue });
+        setSummary({ collected: safeSum(pData, "paid"), pending: safeSum(pData, "pending"), overdue: safeSum(pData, "overdue"), transactions: isPaginated ? meta.total : pData.length });
       }
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
@@ -144,16 +147,17 @@ export default function PaymentsPage() {
       setLoading(false);
     }
     return () => ctrl.abort();
-  }, [page, limit, debouncedSearch, kebeleFilter, monthFilter, yearFilter, statusFilter, methodFilter]);
+  }, [page, limit, debouncedSearch, kebeleFilter, businessFilter, monthFilter, yearFilter, statusFilter, methodFilter]);
 
   React.useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   const stats = summary || {
-    collected: payments.filter((p) => p.status === "paid").reduce((s, p) => s + Number(p.amount), 0),
-    pending: payments.filter((p) => p.status === "pending").reduce((s, p) => s + Number(p.amount), 0),
-    overdue: payments.filter((p) => p.status === "overdue").reduce((s, p) => s + Number(p.amount), 0),
+    collected: payments.filter((p) => p.status === "paid").reduce((s, p) => addETB(s, Number(p.amount)), 0),
+    pending: payments.filter((p) => p.status === "pending").reduce((s, p) => addETB(s, Number(p.amount)), 0),
+    overdue: payments.filter((p) => p.status === "overdue").reduce((s, p) => addETB(s, Number(p.amount)), 0),
+    transactions: payments.length,
   };
 
   const handleDelete = async (id: number) => {
@@ -220,10 +224,11 @@ export default function PaymentsPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Collected" value={fmtETB(stats.collected)} sub="Paid" accent="green" />
         <StatCard label="Pending" value={fmtETB(stats.pending)} sub="Awaiting" accent="orange" />
         <StatCard label="Overdue" value={fmtETB(stats.overdue)} sub="Overdue" accent="red" />
+        <StatCard label="Transactions" value={String((stats as { transactions?: number }).transactions ?? total)} sub="Records in period" accent="blue" />
       </div>
 
       <div className="flex flex-wrap items-end gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
@@ -244,6 +249,15 @@ export default function PaymentsPage() {
             <div className="rounded bg-[var(--information-l)] px-3 py-2 text-sm font-medium text-[var(--primary)]">My Kebele — locked</div>
           </div>
         )}
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="p-business">Business</Label>
+          <Select id="p-business" value={businessFilter} onChange={(e) => { setBusinessFilter(e.target.value); setPage(1); }} className="w-[170px]" aria-label="Filter by business">
+            <option value="">All Businesses</option>
+            {businesses.slice(0, 50).map((b) => (
+              <option key={b.id} value={String(b.id)}>{b.name}</option>
+            ))}
+          </Select>
+        </div>
         <div className="flex flex-col gap-1">
           <Label htmlFor="p-month">Month</Label>
           <Select id="p-month" value={monthFilter} onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }} className="w-[110px]" aria-label="Filter by month">

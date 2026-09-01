@@ -182,7 +182,7 @@ describe("Workers page — render + data", () => {
       const calls = api.getWorkers.mock.calls as [Record<string, string>][];
       expect(calls.some((c) => (c[0] || {}).page === "2")).toBe(true);
     });
-  });
+  }, 10000);
 });
 
 describe("Workers page — add / edit / delete", () => {

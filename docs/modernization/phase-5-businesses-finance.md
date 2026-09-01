@@ -30,11 +30,11 @@ Migrated to `frontend-next/src/app/(app)/businesses/page.tsx`:
 - **Server pagination 25/page** — uses new backend `?page&limit` with `?search&type&status&kebeleId&saferZoneId`; legacy array preserved when no page/limit. `DataTable` + `Pagination` + mobile `BusinessCard` list.
 - **Search** — debounced 300ms server-side ILIKE on name/owner_name/owner_fayda_id/owner_phone.
 - **Filters** — Kebele (admin dropdown, collector locked "My Kebele", leader hidden), Safer Zone, Type (11), Status (active/inactive).
-- **Summary** — Total, Active, Inactive, Monthly Target Total (derived via active/inactive counts + addETB).
+- **Summary** — Total, Active, Inactive, Monthly Target Total (derived via active/inactive counts + addETB safe cents).
 - **Table columns** — Business, Type (Badge), Owner (fayda), Kebele, Safer Zone, Monthly Target (ETB), Status, Actions.
 - **Row actions** — View (Drawer), Edit, Pay shortcut (preselected PaymentFormModal), Delete (admin only per backend `requireRole("admin")`).
-- **Kebele→Zone cascade** — form requires kebele then zone filtered; leader fixed zone; collector zone list scoped to assigned kebele; backend validates `zoneBelongsToKebele` for workers but businesses uses `leader` zone check only — UI restricts to valid combos.
-- **Lazy dialogs** — `BusinessFormModal` + `BusinessDetailsDrawer` lazy via `React.lazy` + `Suspense`; payment shortcut reuses `PaymentFormModal` + `GatewayCheckoutModal`.
+- **Kebele→Zone cascade** — form requires kebele then zone filtered; leader fixed zone; collector zone list scoped to assigned kebele; backend now validates collector `saferZoneId` belongs to assigned `kebele` via `SELECT ... FROM safer_zones WHERE kebele_id=$assigned` (POST/PUT).
+- **Lazy dialogs** — `BusinessFormModal` + `BusinessDetailsDrawer` (now with Payment History last-5 + Activity created/updated) lazy via `React.lazy` + `Suspense`; payment shortcut reuses `PaymentFormModal` + `GatewayCheckoutModal`.
 
 ## C. Payments Audit (Existing)
 
@@ -58,8 +58,8 @@ Legacy `frontend/js/pages/payments.js`:
 Migrated to `frontend-next/src/app/(app)/businesses/payments/page.tsx`:
 
 - **Server pagination 25/page** — new backend `?page&limit` + `?search&month&year&status&method&kebeleId&businessId&saferZoneId`; legacy array fallback.
-- **Filters** — Kebele (admin dropdown, collector locked), Month (1-12), Year (number), Status (paid/pending/overdue/failed), Method (cash/mobile/bank/telebirr/cbebirr/other), debounced search (receipt_number/business name/amount).
-- **Summary** — Collected / Pending / Overdue via `GET /payments/summary/dashboard` when available, fallback to page calc with `Number(amount)`.
+- **Filters** — Kebele (admin dropdown, collector locked), **Business** (dropdown 50, `businessId` param), Month (1-12), Year (number), Status (paid/pending/overdue/failed), Method (cash/mobile/bank/telebirr/cbebirr/other), debounced search (receipt_number/business name/amount).
+- **Summary** — Collected / Pending / Overdue / **Transactions** (count) via `GET /payments/summary/dashboard` when available, fallback to page calc with `addETB` safe cents.
 - **Table columns** — Receipt (code), Business, Kebele, Zone, Amount (ETB), Method (Badge), Status (paid/pending/overdue/failed), Period, Paid At, Collector, Actions (Receipt, Delete admin).
 - **CSV export** — `paymentsApi.csvUrl("/reports/payments/monthly", {month,year})` via `window.open`.
 - **Record Payment** — `PaymentFormModal` with RHF+zod: business required, amount positive ≤10M, method, month/year, notes; business select autofills amount from `monthly_target`; server errors surfaced via `ApiError`.
@@ -71,7 +71,7 @@ Migrated to `frontend-next/src/app/(app)/businesses/payments/page.tsx`:
 
 - Uses `useAuth` + `useKebele` contexts; backend is authoritative (middleware `authenticate` + role checks).
 - **Admin** — sees All Kebeles dropdown; can filter any kebele/zone.
-- **Kebele Admin (collector)** — `kebeleId` locked to `selectedId`; UI shows "My Kebele — locked" and hides kebele select; `visibleZones` filtered to `kebele_id === selectedId`; backend `GET /businesses` and `GET /payments` do not enforce kebele scoping for collector (only `GET /workers` does) — frontend scoping is UX, backend `POST /businesses` checks `leader` zone but not collector cross-kebele via zoneBelongsToKebele (minimal — documented limitation; collector could POST business in another kebele via valid zone id — backend should be tightened later, frontend prevents it).
+- **Kebele Admin (collector)** — `kebeleId` locked to `selectedId`; UI shows "My Kebele — locked" and hides kebele select; `visibleZones` filtered to `kebele_id === selectedId`; backend **`GET /businesses`** now enforces `k.id = collectorKebele` (via `SELECT id FROM kebeles WHERE collector_id=$userId`) and ignores client `kebeleId`; `POST/PUT /businesses` validates `saferZoneId` belongs to assigned kebele; `GET /payments` collector scoping remains UX (payments join via business→zone→kebele, not directly filtered — noted as follow-up).
 - **Leader** — `zone` from user object; zones collapsed to single `zone`; kebele filter hidden; businesses/payments scoped via `sz.leader_id` in SQL.
 - Delete: businesses `requireRole("admin")` only; payments `requireRole("admin")` only — UI hides delete for non-admin.
 - All mutations (`createBusiness`, `updateBusiness`, `createPayment`) go through `lib/api.ts` → backend `validate(schemas.*)` + `requireRole`.

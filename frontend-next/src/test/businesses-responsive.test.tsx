@@ -169,6 +169,27 @@ describe("Payment form validation (real component)", () => {
     await waitFor(() => expect(screen.getAllByRole("alert").length).toBeGreaterThan(0));
     expect(apiStore.api.createPayment).not.toHaveBeenCalled();
   });
+
+  it("validates amount: rejects zero/negative amount", async () => {
+    apiStore.api.getBusinesses = vi.fn().mockResolvedValue([businessFixture({ id: 1, name: "ABC Shop" })]);
+    apiStore.api.createPayment = vi.fn();
+    const user = userEvent.setup();
+    renderWithQuery(
+      <ToasterProvider>
+        <PaymentFormModal onClose={() => {}} onSaved={() => {}} />
+      </ToasterProvider>
+    );
+    await waitFor(() => expect(screen.getByLabelText(/business \*/i)).toBeInTheDocument());
+    // select business
+    await user.selectOptions(screen.getByLabelText(/business \*/i), "1");
+    // set amount to 0
+    const amtInput = screen.getByLabelText(/amount \(etb\) \*/i);
+    await user.clear(amtInput);
+    await user.type(amtInput, "0");
+    await user.click(screen.getByRole("button", { name: /record payment/i }));
+    await waitFor(() => expect(screen.getByText(/amount must be positive/i)).toBeInTheDocument());
+    expect(apiStore.api.createPayment).not.toHaveBeenCalled();
+  });
 });
 
 describe("Receipt — renders ETB and print", () => {

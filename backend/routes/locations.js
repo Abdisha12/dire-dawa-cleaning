@@ -120,6 +120,17 @@ router.get("/businesses",async(req,res,next)=>{
     const {saferZoneId,kebeleId}=req.query;
     if(req.user.role==="leader"){
       baseSql+=` AND sz.leader_id=$${wIdx}`; whereParams.push(req.user.id); wIdx++;
+    } else if(req.user.role==="collector"){
+      const kebeleRes = await db.query("SELECT id FROM kebeles WHERE collector_id=$1", [req.user.id]);
+      const assignedKebele = kebeleRes.rows[0]?.id || null;
+      if(!assignedKebele){
+        // no kebele assigned — return empty (preserve legacy array vs paginated shape)
+        if(!hasPagination) return res.json([]);
+        return res.json({ data: [], total: 0, page: 1, pages: 0 });
+      }
+      baseSql+=` AND k.id=$${wIdx}`; whereParams.push(assignedKebele); wIdx++;
+      if(saferZoneId){ baseSql+=` AND b.safer_zone_id=$${wIdx}`; whereParams.push(parseInt(String(saferZoneId),10)); wIdx++; }
+      // ignore client kebeleId param (locked to assigned kebele)
     } else {
       if(saferZoneId){baseSql+=` AND b.safer_zone_id=$${wIdx}`;whereParams.push(parseInt(String(saferZoneId),10));wIdx++;}
       if(kebeleId){baseSql+=` AND k.id=$${wIdx}`;whereParams.push(parseInt(String(kebeleId),10));wIdx++;}
@@ -165,6 +176,13 @@ router.post("/businesses",requireRole("admin","collector","leader"),async(req,re
   try{
     const {name,ownerName,ownerFaydaId,ownerPhone,type,monthlyTarget,saferZoneId,notes}=req.body;
     if(!name||!ownerName||!saferZoneId) return res.status(400).json({error:"name,ownerName,saferZoneId required"});
+    if(req.user.role==="collector"){
+      const kebeleRes = await db.query("SELECT id FROM kebeles WHERE collector_id=$1", [req.user.id]);
+      const assignedKebele = kebeleRes.rows[0]?.id || null;
+      if(!assignedKebele) return res.status(403).json({error:"No kebele assigned to your account"});
+      const zoneCheck = await db.query("SELECT id FROM safer_zones WHERE id=$1 AND kebele_id=$2", [saferZoneId, assignedKebele]);
+      if(!zoneCheck.rows.length) return res.status(403).json({error:"Zone does not belong to your kebele"});
+    }
     if(req.user.role==="leader"){
       const zr=await db.query("SELECT id FROM safer_zones WHERE id=$1 AND leader_id=$2",[saferZoneId,req.user.id]);
       if(!zr.rows.length) return res.status(403).json({error:"Not your zone"});
@@ -179,6 +197,23 @@ router.post("/businesses",requireRole("admin","collector","leader"),async(req,re
 router.put("/businesses/:id",requireRole("admin","collector","leader"),async(req,res,next)=>{
   try{
     const {name,ownerName,ownerFaydaId,ownerPhone,type,monthlyTarget,saferZoneId,isActive,notes}=req.body;
+    if(req.user.role==="collector"){
+      const kebeleRes = await db.query("SELECT id FROM kebeles WHERE collector_id=$1", [req.user.id]);
+      const assignedKebele = kebeleRes.rows[0]?.id || null;
+      if(assignedKebele){
+        // verify business currently belongs to collector kebele
+        const cur = await db.query("SELECT k.id AS kebele_id FROM businesses b JOIN safer_zones sz ON sz.id=b.safer_zone_id JOIN kebeles k ON k.id=sz.kebele_id WHERE b.id=$1", [req.params.id]);
+        if(cur.rows.length && cur.rows[0].kebele_id !== assignedKebele) return res.status(403).json({error:"Business not in your kebele"});
+        if(saferZoneId){
+          const zoneCheck = await db.query("SELECT id FROM safer_zones WHERE id=$1 AND kebele_id=$2", [saferZoneId, assignedKebele]);
+          if(!zoneCheck.rows.length) return res.status(403).json({error:"Cannot move business to another kebele"});
+        }
+      }
+    }
+    if(req.user.role==="leader" && saferZoneId){
+      const zr=await db.query("SELECT id FROM safer_zones WHERE id=$1 AND leader_id=$2",[saferZoneId,req.user.id]);
+      if(!zr.rows.length) return res.status(403).json({error:"Not your zone"});
+    }
     await db.query(
       "UPDATE businesses SET name=$1,owner_name=$2,owner_fayda_id=$3,owner_phone=$4,type=$5,monthly_target=$6,safer_zone_id=$7,is_active=$8,notes=$9 WHERE id=$10",
       [name,ownerName,ownerFaydaId||null,ownerPhone||null,type,monthlyTarget,saferZoneId,isActive,notes||null,req.params.id]);

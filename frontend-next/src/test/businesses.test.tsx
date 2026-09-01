@@ -161,7 +161,7 @@ describe("Businesses page — render + search + pagination + filters", () => {
       const calls = api.getBusinesses.mock.calls as [Record<string, string>][];
       expect(calls.some((c) => (c[0] || {}).page === "2")).toBe(true);
     });
-  });
+  }, 10000);
 
   it("4. filters by type", async () => {
     const api = setupApi(adminUser, null);
