@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useAuth } from "@/lib/auth-context";
+import { useKebele } from "@/lib/kebele-context";
 import { zoneReportsApi } from "@/features/zone-reports/services/zone-reports-api";
 import type { ZoneReport, SaferZone } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ function statusBadge(s: string) {
 
 export default function ZoneReportsPage() {
   const { user } = useAuth();
+  const { selectedId: kebeleId } = useKebele();
   const { toast } = useToast();
   const role = user?.role;
   const zone = user?.zone as SaferZone | null | undefined;
@@ -58,6 +60,12 @@ export default function ZoneReportsPage() {
   const [total, setTotal] = React.useState(0);
   const [pages, setPages] = React.useState(1);
   const limit = 25;
+
+  const visibleZones = React.useMemo(() => {
+    if (role === "leader" && zone) return zones.filter((z) => z.id === zone.id);
+    if (role === "collector" && kebeleId) return zones.filter((z) => z.kebele_id === kebeleId);
+    return zones;
+  }, [zones, role, zone, kebeleId]);
 
   React.useEffect(() => {
     const t = setTimeout(() => {
@@ -225,13 +233,19 @@ export default function ZoneReportsPage() {
             <option value="approved">Approved</option>
           </Select>
         </div>
+        {role === "collector" && kebeleId && (
+          <div className="flex flex-col gap-1">
+            <Label>Kebele</Label>
+            <div className="rounded bg-[var(--information-l)] px-3 py-2 text-sm font-medium text-[var(--primary)]">My Kebele — locked</div>
+          </div>
+        )}
         {!isLeader && (
           <div className="flex flex-col gap-1">
             <Label htmlFor="zr-zone">Zone</Label>
             <Select id="zr-zone" value={zoneFilter} onChange={(e) => { setZoneFilter(e.target.value); setPage(1); }} className="w-[200px]" aria-label="Filter by zone">
               <option value="">All Zones</option>
-              {zones.map((z) => (
-                <option key={z.id} value={String(z.id)}>{z.name}</option>
+              {visibleZones.map((z) => (
+                <option key={z.id} value={String(z.id)}>{z.name} ({z.kebele_name})</option>
               ))}
             </Select>
           </div>

@@ -36,6 +36,16 @@ router.get("/",async(req,res,next)=>{
     const whereParams=[];
     let wIdx=1;
     if(req.user.role==="leader"){ baseSql+=` AND sz.leader_id=$${wIdx}`; whereParams.push(req.user.id); wIdx++; }
+    else if(req.user.role==="collector"){
+      const kebeleRes = await db.query("SELECT id FROM kebeles WHERE collector_id=$1", [req.user.id]);
+      const assignedKebele = kebeleRes.rows[0]?.id || null;
+      if(!assignedKebele){
+        if(!hasPagination) return res.json([]);
+        return res.json({ data: [], total: 0, page: 1, pages: 0 });
+      }
+      baseSql+=` AND k.id=$${wIdx}`; whereParams.push(assignedKebele); wIdx++;
+      if(zoneId){ baseSql+=` AND zr.safer_zone_id=$${wIdx}`; whereParams.push(zoneId); wIdx++; }
+    }
     else if(zoneId){ baseSql+=` AND zr.safer_zone_id=$${wIdx}`; whereParams.push(zoneId); wIdx++; }
     if(month){ baseSql+=` AND zr.report_month=$${wIdx}`; whereParams.push(month); wIdx++; }
     if(year){ baseSql+=` AND zr.report_year=$${wIdx}`; whereParams.push(year); wIdx++; }

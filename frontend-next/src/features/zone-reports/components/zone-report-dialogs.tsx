@@ -180,15 +180,24 @@ export function ReviewModal({
   return (
     <Modal open onClose={onClose} title={`Review Report — ${report.zone_name}`} footer={<><Button variant="outline" onClick={onClose}>Cancel</Button><Button variant="outline" onClick={() => handle("reviewed")} disabled={!!saving}>{saving === "reviewed" ? "Saving…" : "Mark Reviewed"}</Button><Button onClick={() => handle("approved")} disabled={!!saving}>{saving === "approved" ? "Saving…" : "Approve"}</Button></>}>
       <div className="space-y-3">
-        <div className="rounded bg-[var(--gray-50)] p-3 text-sm">
-          <div><strong>Zone:</strong> {report.zone_name} | <strong>Kebele:</strong> {report.kebele_name}</div>
-          <div><strong>Period:</strong> {monthName(report.report_month)} {report.report_year}</div>
-          <div><strong>Collection:</strong> {fmtETB(report.collection_total)}</div>
-          <div><strong>Workers:</strong> ✅{report.workers_present} ❌{report.workers_absent}</div>
-          {report.issues_reported && <div className="mt-2"><strong>Issues:</strong> {report.issues_reported}</div>}
+        <div className="rounded bg-[var(--gray-50)] p-3 text-sm space-y-2">
+          <div><strong>Report:</strong> {report.zone_name} — {monthName(report.report_month)} {report.report_year}</div>
+          <div><strong>Safer Zone:</strong> {report.zone_name} ({report.safer_zone_id}) | <strong>Kebele:</strong> {report.kebele_name}</div>
+          <div><strong>Reporting Period:</strong> {monthName(report.report_month)} {report.report_year} (Date: {fmtDate(report.report_date)})</div>
+          <div><strong>Submitted By:</strong> {report.leader_name || "—"} {report.created_at ? `on ${fmtDate(report.created_at)}` : report.report_date ? `on ${fmtDate(report.report_date)}` : ""}</div>
+          <div><strong>Current Status:</strong> <Badge variant={report.status === "approved" ? "green" : report.status === "reviewed" ? "blue" : report.status === "submitted" ? "orange" : "gray"}>{report.status}</Badge></div>
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[var(--border)]">
+            <div><strong>Workers Present:</strong> {report.workers_present ?? 0}</div>
+            <div><strong>Absent:</strong> {report.workers_absent ?? 0}</div>
+            <div className="col-span-2"><strong>Collection Total:</strong> {fmtETB(report.collection_total)}</div>
+          </div>
+          {report.issues_reported && <div><strong>Issues Reported:</strong> {report.issues_reported}</div>}
+          {report.actions_taken && <div><strong>Actions Taken:</strong> {report.actions_taken}</div>}
+          {report.tools_status && <div><strong>Tools Status:</strong> {report.tools_status}</div>}
+          {report.reviewer_name && <div className="mt-2 rounded bg-[var(--success-l)] p-2"><strong>Reviewed By:</strong> {report.reviewer_name} {report.reviewed_at ? `on ${fmtDate(report.reviewed_at)}` : ""}<br /><strong>Comments:</strong> {report.reviewer_notes || "—"}</div>}
         </div>
         <div>
-          <Label htmlFor="rv-notes">Review Notes</Label>
+          <Label htmlFor="rv-notes">Review Notes / Comments</Label>
           <Textarea id="rv-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Add your feedback…" />
         </div>
         {error && <Alert variant="danger">{error}</Alert>}
