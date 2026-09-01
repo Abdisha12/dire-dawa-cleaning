@@ -155,7 +155,7 @@ Migrated to `frontend-next/src/app/(app)/businesses/payments/page.tsx`:
 
 ## S. Git
 
-- Final checkpoint will be reported after `git status`/`git diff` review.
+- Final checkpoint: **`bdb8f07`** `feat: Phase 5 — Businesses & Finance migration (1-41)` — 19 files, clean working tree after commit.
 
 ---
 
