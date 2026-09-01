@@ -19,6 +19,9 @@ import { InspectionCard } from "@/features/inspections/components/inspection-car
 const InspectionFormModal = React.lazy(() =>
   import("@/features/inspections/components/inspection-dialogs").then((m) => ({ default: m.InspectionFormModal }))
 );
+const InspectionDetailDrawer = React.lazy(() =>
+  import("@/features/inspections/components/inspection-dialogs").then((m) => ({ default: m.InspectionDetailDrawer }))
+);
 const PhotoGalleryModal = React.lazy(() =>
   import("@/features/inspections/components/inspection-dialogs").then((m) => ({ default: m.PhotoGalleryModal }))
 );
@@ -61,6 +64,7 @@ export default function InspectionsPage() {
   const [editing, setEditing] = React.useState<Inspection | null>(null);
   const [showForm, setShowForm] = React.useState(false);
   const [gallery, setGallery] = React.useState<Inspection | null>(null);
+  const [detail, setDetail] = React.useState<Inspection | null>(null);
   const [summary, setSummary] = React.useState<{ total: number; today: number; warning: number; danger: number } | null>(null);
 
   const visibleZones = React.useMemo(() => {
@@ -250,21 +254,18 @@ export default function InspectionsPage() {
           page={page}
           pages={pages}
           onPage={(p) => setPage(p)}
-          rowActions={
-            canEdit
-              ? (r) => (
-                  <div className="flex gap-1">
-                    <Button size="sm" variant="outline" onClick={() => { setEditing(r); setShowForm(true); }} aria-label={`Edit inspection ${r.id}`}><Icons.edit size={16} /></Button>
-                    {r.photos?.length ? (
-                      <Button size="sm" variant="outline" onClick={() => setGallery(r)} aria-label={`Photos ${r.id}`}><Icons.view size={16} /> {r.photos.length}</Button>
-                    ) : null}
-                    {isAdmin && (
-                      <Button size="sm" variant="danger" onClick={() => handleDelete(r.id)} aria-label={`Delete inspection ${r.id}`}><Icons.trash size={16} /></Button>
-                    )}
-                  </div>
-                )
-              : undefined
-          }
+          rowActions={(r) => (
+            <div className="flex gap-1">
+              <Button size="sm" variant="outline" onClick={() => setDetail(r)} aria-label={`View inspection ${r.id}`}><Icons.view size={16} /></Button>
+              {canEdit && <Button size="sm" variant="outline" onClick={() => { setEditing(r); setShowForm(true); }} aria-label={`Edit inspection ${r.id}`}><Icons.edit size={16} /></Button>}
+              {r.photos?.length ? (
+                <Button size="sm" variant="outline" onClick={() => setGallery(r)} aria-label={`Photos ${r.id}`}><Icons.view size={16} /> {r.photos.length}</Button>
+              ) : null}
+              {isAdmin && (
+                <Button size="sm" variant="danger" onClick={() => handleDelete(r.id)} aria-label={`Delete inspection ${r.id}`}><Icons.trash size={16} /></Button>
+              )}
+            </div>
+          )}
         />
       </div>
 
@@ -276,7 +277,7 @@ export default function InspectionsPage() {
             <p className="text-sm text-[var(--text-muted)]">No inspections yet.</p>
           </div>
         ) : (
-          inspections.map((r) => <InspectionCard key={r.id} inspection={r} canEdit={canEdit} isAdmin={isAdmin} onEdit={() => { setEditing(r); setShowForm(true); }} onDelete={() => handleDelete(r.id)} onViewPhotos={() => setGallery(r)} />)
+          inspections.map((r) => <InspectionCard key={r.id} inspection={r} canEdit={canEdit} isAdmin={isAdmin} onEdit={() => { setEditing(r); setShowForm(true); }} onDelete={() => handleDelete(r.id)} onViewPhotos={() => setGallery(r)} onView={() => setDetail(r)} />)
         )}
         {!loading && inspections.length > 0 && (
           <div className="flex justify-center gap-2 pt-2">
@@ -295,6 +296,11 @@ export default function InspectionsPage() {
       {gallery && (
         <React.Suspense fallback={<DialogFallback />}>
           <PhotoGalleryModal inspection={gallery} onClose={() => setGallery(null)} />
+        </React.Suspense>
+      )}
+      {detail && (
+        <React.Suspense fallback={<DialogFallback />}>
+          <InspectionDetailDrawer inspection={detail} onClose={() => setDetail(null)} />
         </React.Suspense>
       )}
     </div>

@@ -52,10 +52,20 @@ export default function ZoneReportsPage() {
   const [yearFilter, setYearFilter] = React.useState<string>(String(now.getFullYear()));
   const [statusFilter, setStatusFilter] = React.useState<string>("");
   const [zoneFilter, setZoneFilter] = React.useState<string>("");
+  const [search, setSearch] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [page, setPage] = React.useState(1);
   const [total, setTotal] = React.useState(0);
   const [pages, setPages] = React.useState(1);
   const limit = 25;
+
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const [showForm, setShowForm] = React.useState(false);
   const [editing, setEditing] = React.useState<ZoneReport | null>(null);
@@ -68,6 +78,7 @@ export default function ZoneReportsPage() {
     const ctrl = new AbortController();
     try {
       const params: Record<string, string> = { page: String(page), limit: String(limit) };
+      if (debouncedSearch) params.search = debouncedSearch;
       if (monthFilter) params.month = monthFilter;
       if (yearFilter) params.year = yearFilter;
       if (statusFilter) params.status = statusFilter;
@@ -107,7 +118,7 @@ export default function ZoneReportsPage() {
       setLoading(false);
     }
     return () => ctrl.abort();
-  }, [page, limit, monthFilter, yearFilter, statusFilter, zoneFilter]);
+  }, [page, limit, debouncedSearch, monthFilter, yearFilter, statusFilter, zoneFilter]);
 
   React.useEffect(() => {
     fetchData();
@@ -168,6 +179,22 @@ export default function ZoneReportsPage() {
         <strong>How Zone Reports Work:</strong> Zone Leaders create and submit reports → Collectors review → Admin approves.
       </div>
 
+      <div className="flex items-center justify-between gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-xs sm:text-sm" role="list" aria-label="Report workflow">
+        {(["draft", "submitted", "reviewed", "approved"] as const).map((s, i) => {
+          const label = s.charAt(0).toUpperCase() + s.slice(1);
+          const isCurrent = statusFilter === s;
+          return (
+            <React.Fragment key={s}>
+              <div role="listitem" className={`flex flex-col items-center gap-1 rounded px-2 py-1 ${isCurrent ? "bg-[var(--primary)] text-white" : "text-[var(--text-muted)]"}`} aria-current={isCurrent ? "step" : undefined}>
+                <span className={`grid h-6 w-6 place-items-center rounded-full text-xs font-bold ${isCurrent ? "bg-white text-[var(--primary)]" : "bg-[var(--gray-100)]"}`}>{i + 1}</span>
+                <span>{label}</span>
+              </div>
+              {i < 3 && <div className="h-0.5 flex-1 bg-[var(--border)]" aria-hidden />}
+            </React.Fragment>
+          );
+        })}
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total" value={stats.total} sub="Reports" accent="blue" />
         <StatCard label="Draft" value={stats.draft} sub="draft" accent="purple" />
@@ -209,6 +236,10 @@ export default function ZoneReportsPage() {
             </Select>
           </div>
         )}
+        <div className="flex flex-1 flex-col gap-1">
+          <Label htmlFor="zr-search">Search</Label>
+          <Input id="zr-search" placeholder="Zone, kebele, leader…" value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-[200px]" aria-label="Search reports" />
+        </div>
         <div className="text-xs text-[var(--text-muted)]">{total} total · page {page}/{pages}</div>
       </div>
 

@@ -19,6 +19,7 @@ export function InspectionCard({
   onEdit,
   onDelete,
   onViewPhotos,
+  onView,
 }: {
   inspection: Inspection;
   canEdit: boolean;
@@ -26,6 +27,7 @@ export function InspectionCard({
   onEdit: () => void;
   onDelete: () => void;
   onViewPhotos: () => void;
+  onView?: () => void;
 }) {
   return (
     <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm">
@@ -48,6 +50,16 @@ export function InspectionCard({
         <div className="mt-2 text-xs text-[var(--text-muted)]">No photos</div>
       )}
       {inspection.notes && <p className="mt-2 line-clamp-2 text-sm text-[var(--text-muted)]">{inspection.notes}</p>}
+      <div className="mt-2 flex gap-2">
+        <Button size="sm" variant="outline" onClick={() => onView?.() ?? onViewPhotos()} aria-label={`View inspection ${inspection.id}`} className="min-h-[44px] flex-1">
+          <Icons.view size={16} /> Details
+        </Button>
+        {inspection.photos?.length ? (
+          <Button size="sm" variant="outline" onClick={onViewPhotos} aria-label={`Photos ${inspection.id}`} className="min-h-[44px]">
+            <Icons.view size={16} /> {inspection.photos.length}
+          </Button>
+        ) : null}
+      </div>
       {canEdit && (
         <div className="mt-3 grid grid-cols-2 gap-2">
           <Button size="sm" variant="outline" onClick={onEdit} aria-label={`Edit inspection ${inspection.id}`} className="min-h-[44px]">

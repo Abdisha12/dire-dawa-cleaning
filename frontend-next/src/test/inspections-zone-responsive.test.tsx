@@ -60,7 +60,7 @@ describe("Inspection form validation (real component)", () => {
     );
     // Try save without kebele
     await user.click(screen.getByRole("button", { name: /^Save$/i }));
-    await waitFor(() => expect(screen.getByText(/kebele and date are required/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/kebele is required/i)).toBeInTheDocument());
     expect(apiStore.api.createInspection).not.toHaveBeenCalled();
   });
 
