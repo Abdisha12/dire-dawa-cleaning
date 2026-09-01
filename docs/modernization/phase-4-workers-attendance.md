@@ -336,9 +336,10 @@ Item 28 introduced TanStack Query (`@tanstack/react-query@5.102.8`) with `QueryC
 
 ### Phase 4 commit
 
-The dedicated Phase 4 commit is: **`05de766`**
+The current Phase 4 tip is: **`8587bc4`** (TanStack Query revert). The last feature commit before the revert was `05de766`.
 
 ```
+8587bc4 revert: Phase 4 — remove TanStack Query server state (item 28 redone)
 05de766 feat: Phase 4 — item 39 visual quality: remove emoji from new module, use centralized Lucide Icons
 bab7565 feat: Phase 4 — test suite for module: workers/attendance/salary + responsive (35)
 ad69268 feat: Phase 4 — performance: lazy-load heavy dialogs & memoization (34)
@@ -352,4 +353,4 @@ bb9a637 feat: Phase 4 — Workers page redesign (6-11) with server pagination & 
 266c5fb feat: Phase 4 — Workers, Attendance & Salary migration to Next.js
 ```
 
-> **Note:** Item 28 (TanStack Query) was committed as `57df772` then reverted — see §19 for rationale. It is excluded from the active commit list.
+> **Note:** Item 28 (TanStack Query) was committed as `57df772` then reverted — see §P for rationale. `8587bc4` removes it.
