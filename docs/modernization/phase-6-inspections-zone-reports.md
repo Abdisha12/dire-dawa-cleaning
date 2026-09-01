@@ -135,4 +135,4 @@ Backend `zoneReports.js` state machine `draft→submitted→reviewed→approved`
 
 ## S. Git
 
-- Final checkpoint to be reported.
+- Final checkpoint: **`0227926`** `feat: Phase 6 — Inspections & Zone Reports migration` — 17 files, clean working tree.
