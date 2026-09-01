@@ -223,6 +223,33 @@ export const api = {
       undefined,
       opts
     ).then((res) => (Array.isArray(res) ? { inspections: res } : res) as { inspections: import("@/types").Inspection[] }),
+  getInspection: (id: number, opts?: FetchOptions) =>
+    req<import("@/types").Inspection>("GET", `/inspections/${id}`, undefined, opts),
+  createInspection: (data: FormData, opts?: FetchOptions) =>
+    req<{ id: number }>("POST", "/inspections", data, { ...opts, isFormData: true }),
+  updateInspection: (id: number, data: FormData, opts?: FetchOptions) =>
+    req<{ message: string }>("PUT", `/inspections/${id}`, data, { ...opts, isFormData: true }),
+  deleteInspection: (id: number, opts?: FetchOptions) =>
+    req<{ message: string }>("DELETE", `/inspections/${id}`, undefined, opts),
+  deleteInspectionPhoto: (photoId: number, opts?: FetchOptions) =>
+    req<{ message: string }>("DELETE", `/inspections/photo/${photoId}`, undefined, opts),
+  getZoneReports: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<{ reports: import("@/types").ZoneReport[] } | import("@/types").ZoneReport[]>(
+      "GET",
+      `/zone-reports?${new URLSearchParams(params).toString()}`,
+      undefined,
+      opts
+    ).then((res) => (Array.isArray(res) ? { reports: res } : res) as { reports: import("@/types").ZoneReport[] }),
+  getZoneReport: (id: number, opts?: FetchOptions) =>
+    req<import("@/types").ZoneReport>("GET", `/zone-reports/${id}`, undefined, opts),
+  createZoneReport: (data: Record<string, unknown>, opts?: FetchOptions) =>
+    req<{ id: number; status: string }>("POST", "/zone-reports", data, opts),
+  updateZoneReport: (id: number, data: Record<string, unknown>, opts?: FetchOptions) =>
+    req<{ message: string; status: string }>("PUT", `/zone-reports/${id}`, data, opts),
+  reviewZoneReport: (id: number, data: Record<string, unknown>, opts?: FetchOptions) =>
+    req<{ message: string }>("PUT", `/zone-reports/${id}/review`, data, opts),
+  deleteZoneReport: (id: number, opts?: FetchOptions) =>
+    req<{ message: string }>("DELETE", `/zone-reports/${id}`, undefined, opts),
 
   // Notifications
   getNotifications: (params: Record<string, string> = {}, opts?: FetchOptions) =>

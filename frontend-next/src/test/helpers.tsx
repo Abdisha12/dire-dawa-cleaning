@@ -6,7 +6,7 @@ import * as React from "react";
 import { vi } from "vitest";
 import { render } from "@testing-library/react";
 import { ToasterProvider } from "@/components/ui/toast";
-import type { Worker, SaferZone, User, Business, Payment } from "@/types";
+import type { Worker, SaferZone, User, Business, Payment, Inspection, ZoneReport } from "@/types";
 
 // NOTE: `vi.mock` declarations must live in the consuming test file (vitest hoists
 // per-file and mocks don't reliably apply across helper modules for the page graph).
@@ -41,6 +41,18 @@ export function buildApiMocks(overrides: Record<string, unknown> = {}) {
     verifyPayment: vi.fn(),
     getDashboardSummary: vi.fn(),
     getPaymentReport: vi.fn(),
+    getInspections: vi.fn(),
+    getInspection: vi.fn(),
+    createInspection: vi.fn(),
+    updateInspection: vi.fn(),
+    deleteInspection: vi.fn(),
+    deleteInspectionPhoto: vi.fn(),
+    getZoneReports: vi.fn(),
+    getZoneReport: vi.fn(),
+    createZoneReport: vi.fn(),
+    updateZoneReport: vi.fn(),
+    reviewZoneReport: vi.fn(),
+    deleteZoneReport: vi.fn(),
     ...overrides,
   };
 }
@@ -179,5 +191,53 @@ export function paginatedBusinesses(items: Business[]) {
 }
 
 export function paginatedPayments(items: Payment[]) {
+  return { data: items, total: items.length, page: 1, pages: 1 };
+}
+
+export function inspectionFixture(overrides: Partial<Inspection> = {}): Inspection {
+  return {
+    id: 1,
+    kebele_id: 5,
+    kebele_name: "K05",
+    kebele_code: "K05",
+    safer_zone_id: 10,
+    zone_name: "Zone 10",
+    date: "2026-09-01",
+    status: "active",
+    notes: "All clear",
+    inspected_by: 1,
+    inspector_name: "Admin User",
+    photos: [],
+    created_at: "2026-09-01T10:00:00Z",
+    updated_at: "2026-09-01T10:00:00Z",
+    ...overrides,
+  };
+}
+
+export function zoneReportFixture(overrides: Partial<ZoneReport> = {}): ZoneReport {
+  return {
+    id: 1,
+    safer_zone_id: 10,
+    zone_name: "Zone 10",
+    kebele_name: "K05",
+    report_date: "2026-09-01",
+    report_month: 9,
+    report_year: 2026,
+    status: "draft",
+    workers_present: 5,
+    workers_absent: 1,
+    collection_total: 1000,
+    issues_reported: null,
+    actions_taken: null,
+    tools_status: null,
+    ...overrides,
+  };
+}
+
+export function paginatedInspections(items: Inspection[]) {
+  return { data: items, total: items.length, page: 1, pages: 1 };
+}
+
+export function paginatedZoneReports(items: ZoneReport[]) {
   return { data: items, total: items.length, page: 1, pages: 1 };
 }

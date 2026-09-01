@@ -20,30 +20,53 @@ const upload=multer({storage,limits:{fileSize:5*1024*1024},fileFilter:createFile
 
 router.get("/",async(req,res,next)=>{
   try{
-    const {kebeleId,zoneId,from,to,status}=req.query;
-    let sql=`SELECT i.*,k.name AS kebele_name,k.code AS kebele_code,
-                    sz.name AS zone_name,u.full_name AS inspector_name
-             FROM inspections i JOIN kebeles k ON k.id=i.kebele_id
-             LEFT JOIN safer_zones sz ON sz.id=i.safer_zone_id
-             JOIN users u ON u.id=i.inspected_by WHERE 1=1`;
-    const params=[];
-    let paramIdx=1;
-    if(req.user.role==="leader"){sql+=` AND sz.leader_id=$${paramIdx}`;params.push(req.user.id);paramIdx++;}
+    const {kebeleId,zoneId,from,to,status,search}=req.query;
+    const page = Math.max(1, parseInt(String(req.query.page || "0"), 10) || 0);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "0"), 10) || 0));
+    const hasPagination = page > 0 && limit > 0;
+    const searchTerm = (search || "").trim();
+    let baseSql=` FROM inspections i JOIN kebeles k ON k.id=i.kebele_id LEFT JOIN safer_zones sz ON sz.id=i.safer_zone_id JOIN users u ON u.id=i.inspected_by WHERE 1=1`;
+    // Build where for count/data
+    let sqlBase = baseSql;
+    const paramsBase=[];
+    let idxBase=1;
+    if(req.user.role==="leader"){ sqlBase+=` AND sz.leader_id=$${idxBase}`; paramsBase.push(req.user.id); idxBase++; }
     else{
-      if(kebeleId){sql+=` AND i.kebele_id=$${paramIdx}`;params.push(kebeleId);paramIdx++;}
-      if(zoneId){sql+=` AND i.safer_zone_id=$${paramIdx}`;params.push(zoneId);paramIdx++;}
+      if(kebeleId){ sqlBase+=` AND i.kebele_id=$${idxBase}`; paramsBase.push(kebeleId); idxBase++; }
+      if(zoneId){ sqlBase+=` AND i.safer_zone_id=$${idxBase}`; paramsBase.push(zoneId); idxBase++; }
     }
-    if(status){sql+=` AND i.status=$${paramIdx}`;params.push(status);paramIdx++;}
-    if(from){sql+=` AND i.date>=$${paramIdx}`;params.push(from);paramIdx++;}
-    if(to){sql+=` AND i.date<=$${paramIdx}`;params.push(to);paramIdx++;}
-    sql+=" ORDER BY i.date DESC,k.code";
-    const rowsResult=await db.query(sql,params);
+    if(status){ sqlBase+=` AND i.status=$${idxBase}`; paramsBase.push(status); idxBase++; }
+    if(from){ sqlBase+=` AND i.date>=$${idxBase}`; paramsBase.push(from); idxBase++; }
+    if(to){ sqlBase+=` AND i.date<=$${idxBase}`; paramsBase.push(to); idxBase++; }
+    if(searchTerm){
+      sqlBase+=` AND (k.name ILIKE $${idxBase} OR sz.name ILIKE $${idxBase} OR u.full_name ILIKE $${idxBase} OR i.notes ILIKE $${idxBase})`;
+      paramsBase.push(`%${searchTerm}%`);
+      idxBase++;
+    }
+    if(!hasPagination){
+      const sql=`SELECT i.*,k.name AS kebele_name,k.code AS kebele_code,sz.name AS zone_name,u.full_name AS inspector_name${sqlBase} ORDER BY i.date DESC,k.code`;
+      const rowsResult=await db.query(sql,paramsBase);
+      const rows=rowsResult.rows;
+      for(const r of rows){
+        const photosResult=await db.query("SELECT * FROM inspection_photos WHERE inspection_id=$1",[r.id]);
+        r.photos=photosResult.rows;
+      }
+      return res.json(rows);
+    }
+    const countSql=`SELECT COUNT(*)::int AS total${sqlBase}`;
+    const countRes=await db.query(countSql, paramsBase);
+    const total = countRes.rows[0]?.total || 0;
+    const pages = Math.max(1, Math.ceil(total / limit));
+    const offset=(page-1)*limit;
+    const dataSql=`SELECT i.*,k.name AS kebele_name,k.code AS kebele_code,sz.name AS zone_name,u.full_name AS inspector_name${sqlBase} ORDER BY i.date DESC,k.code LIMIT $${idxBase} OFFSET $${idxBase+1}`;
+    const dataParams=[...paramsBase, limit, offset];
+    const rowsResult=await db.query(dataSql,dataParams);
     const rows=rowsResult.rows;
     for(const r of rows){
       const photosResult=await db.query("SELECT * FROM inspection_photos WHERE inspection_id=$1",[r.id]);
       r.photos=photosResult.rows;
     }
-    res.json(rows);
+    res.json({ data: rows, total, page, pages });
   }catch(err){next(err);}
 });
 

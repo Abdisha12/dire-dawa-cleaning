@@ -27,25 +27,39 @@ const ROLE_TRANSITIONS = {
 // Leader submits, collector reviews
 router.get("/",async(req,res,next)=>{
   try{
-    const {month,year,status,zoneId}=req.query;
-    let sql=`SELECT zr.*,sz.name AS zone_name,k.name AS kebele_name,
-                    u.full_name AS leader_name,r.full_name AS reviewer_name
-             FROM zone_reports zr
-             JOIN safer_zones sz ON sz.id=zr.safer_zone_id
-             JOIN kebeles k ON k.id=sz.kebele_id
-             JOIN users u ON u.id=zr.submitted_by
-             LEFT JOIN users r ON r.id=zr.reviewed_by
-             WHERE 1=1`;
-    const params=[];
-    let paramIdx=1;
-    if(req.user.role==="leader"){sql+=` AND sz.leader_id=$${paramIdx}`;params.push(req.user.id);paramIdx++;}
-    else if(zoneId){sql+=` AND zr.safer_zone_id=$${paramIdx}`;params.push(zoneId);paramIdx++;}
-    if(month){sql+=` AND zr.report_month=$${paramIdx}`;params.push(month);paramIdx++;}
-    if(year){sql+=` AND zr.report_year=$${paramIdx}`;params.push(year);paramIdx++;}
-    if(status){sql+=` AND zr.status=$${paramIdx}`;params.push(status);paramIdx++;}
-    sql+=" ORDER BY zr.report_date DESC";
-    const result=await db.query(sql,params);
-    res.json(result.rows);
+    const {month,year,status,zoneId,search}=req.query;
+    const page = Math.max(1, parseInt(String(req.query.page || "0"), 10) || 0);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "0"), 10) || 0));
+    const hasPagination = page > 0 && limit > 0;
+    const searchTerm = (search || "").trim();
+    let baseSql=` FROM zone_reports zr JOIN safer_zones sz ON sz.id=zr.safer_zone_id JOIN kebeles k ON k.id=sz.kebele_id JOIN users u ON u.id=zr.submitted_by LEFT JOIN users r ON r.id=zr.reviewed_by WHERE 1=1`;
+    const whereParams=[];
+    let wIdx=1;
+    if(req.user.role==="leader"){ baseSql+=` AND sz.leader_id=$${wIdx}`; whereParams.push(req.user.id); wIdx++; }
+    else if(zoneId){ baseSql+=` AND zr.safer_zone_id=$${wIdx}`; whereParams.push(zoneId); wIdx++; }
+    if(month){ baseSql+=` AND zr.report_month=$${wIdx}`; whereParams.push(month); wIdx++; }
+    if(year){ baseSql+=` AND zr.report_year=$${wIdx}`; whereParams.push(year); wIdx++; }
+    if(status){ baseSql+=` AND zr.status=$${wIdx}`; whereParams.push(status); wIdx++; }
+    if(searchTerm){
+      baseSql+=` AND (sz.name ILIKE $${wIdx} OR k.name ILIKE $${wIdx} OR u.full_name ILIKE $${wIdx})`;
+      whereParams.push(`%${searchTerm}%`);
+      wIdx++;
+    }
+    const orderSql=" ORDER BY zr.report_date DESC";
+    if(!hasPagination){
+      const sql=`SELECT zr.*,sz.name AS zone_name,k.name AS kebele_name,u.full_name AS leader_name,r.full_name AS reviewer_name${baseSql}${orderSql}`;
+      const result=await db.query(sql,whereParams);
+      return res.json(result.rows);
+    }
+    const countSql=`SELECT COUNT(*)::int AS total${baseSql}`;
+    const countRes=await db.query(countSql, whereParams);
+    const total = countRes.rows[0]?.total || 0;
+    const pages = Math.max(1, Math.ceil(total / limit));
+    const offset=(page-1)*limit;
+    const dataSql=`SELECT zr.*,sz.name AS zone_name,k.name AS kebele_name,u.full_name AS leader_name,r.full_name AS reviewer_name${baseSql}${orderSql} LIMIT $${wIdx} OFFSET $${wIdx+1}`;
+    const dataParams=[...whereParams, limit, offset];
+    const result=await db.query(dataSql,dataParams);
+    res.json({ data: result.rows, total, page, pages });
   }catch(err){next(err);}
 });
 

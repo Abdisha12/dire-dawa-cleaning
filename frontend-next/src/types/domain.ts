@@ -237,4 +237,18 @@ export interface ZoneReport {
   report_month: number;
   report_year: number;
   status: "draft" | "submitted" | "reviewed" | "approved";
+  workers_present?: number;
+  workers_absent?: number;
+  collection_total?: number | string;
+  issues_reported?: string | null;
+  actions_taken?: string | null;
+  tools_status?: string | null;
+  submitted_by?: number;
+  leader_name?: string;
+  reviewer_name?: string | null;
+  reviewer_notes?: string | null;
+  reviewed_by?: number | null;
+  reviewed_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
