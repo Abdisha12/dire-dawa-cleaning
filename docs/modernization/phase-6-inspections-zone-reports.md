@@ -135,4 +135,4 @@ Backend `zoneReports.js` state machine `draft→submitted→reviewed→approved`
 
 ## S. Git
 
-- Final checkpoint: **`0227926`** `feat: Phase 6 — Inspections & Zone Reports migration` — 17 files, clean working tree.
+- Final checkpoint: **`7189ccb`** fix 6-9 inspection table + 9-kebele scoping (on `0227926` feat) — clean working tree. Previous tips `0227926` → `4195340` docs.
