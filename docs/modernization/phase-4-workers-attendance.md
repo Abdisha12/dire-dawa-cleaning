@@ -18,7 +18,7 @@ The legacy `frontend/js/pages/workers.js` provided the following capabilities, a
 | 6 | Row actions: View / Edit / Delete / ID Card / Attendance / Salary | Migrated — Lucide icon buttons (replacing emoji) |
 | 7 | Add Worker modal | Migrated — `WorkerFormModal` with zod validation |
 | 8 | Edit Worker modal | Migrated — same form, pre-filled, `isActive` toggle |
-| 9 | Delete Worker (confirm dialog) | Migrated — TanStack Query mutation + refetch |
+| 9 | Delete Worker (confirm dialog) | Migrated — `confirm()` gate → `api.deleteWorker()` → toast success + `refetchWorkers()` |
 | 10 | Bulk Attendance modal | Migrated — `BulkAttendanceModal` (date + present/bonus per worker) |
 | 11 | Per-worker Attendance detail | Migrated — `AttendanceModal` |
 | 12 | Per-worker Salary / record payment | Migrated — `SalaryModal` + `SalaryPage` |
@@ -44,7 +44,7 @@ What was moved to Next.js (`frontend-next/src/app/(app)/operations/`):
 - **Domain types** (`src/types/domain.ts`) — strict TypeScript types for `Worker`, `SaferZone`, `Kebele`, `Attendance`, `Payment`, etc. (no `any`).
 - **Shared UI primitives** — `DataTable`, `StatCard`, `Badge`/`StatusBadge`, `Modal`, `Drawer`, `Alert`, `Button`, `Input`, `Select`, `Textarea`, `WorkerCard`, `MobileAttendanceRow`.
 - **Lazy-loaded dialogs** (`src/features/workers/components/worker-dialogs.tsx`) — `WorkerFormModal`, `BulkAttendanceModal`, `AttendanceModal`, `SalaryModal`, `IdCardModal`, `WorkerDetailsDrawer`.
-- **TanStack Query** (`src/components/providers/index.tsx`) — server-state caching, dedupe, invalidation (item 28).
+- **Server state** — standard `fetch()` + local loading/error state; data refreshed via `refetchWorkers()` after mutations.
 
 ---
 
@@ -74,7 +74,7 @@ Workers Management (h1)
 - **Filter changes** — any filter change resets to page 1.
 - **Add Worker** — opens `WorkerFormModal` (lazily loaded via `React.lazy` + `Suspense`); on save → `refetchWorkers()` invalidates the `["workers"]` query so the table refreshes.
 - **Edit Worker** — same form pre-filled with existing data.
-- **Delete Worker** — `confirm()` gate → `useMutation` → toast success + invalidate workers + invalidate summary.
+- **Delete Worker** — `confirm()` gate → `api.deleteWorker()` → toast success + `refetchWorkers()` + `refetchSummary()`.
 - **View detail** — `WorkerDetailsDrawer` slides in from the right.
 - **ID Card** — `IdCardModal` shows Lucide-branded card.
 - **Attendance** — opens `AttendanceModal` for that worker.
@@ -308,7 +308,31 @@ The two frontends coexist: legacy at port 80 via nginx, new Next.js at port 3000
 
 ---
 
-## P. Git
+## P. Decision — No TanStack Query
+
+Item 28 introduced TanStack Query (`@tanstack/react-query@5.102.8`) with `QueryClientProvider`, `useQuery`, `useMutation`, and `invalidateQueries` for the Workers page. This was committed as `57df772`, then **reverted** in the same phase.
+
+**Rationale for reverting:**
+1. The Workers page already uses `fetch()` + local state + `refetchWorkers()` after mutations — adding a second state-management layer introduced complexity without measurable benefit at current scale.
+2. `QueryClientProvider` required a new `src/components/providers/index.tsx` and a `layout.tsx` wrapper, increasing the surface area of Phase 3's "minimal providers" constraint.
+3. The existing `refetchWorkers()` / `refetchSummary()` pattern (called after every add/edit/delete) already provides fresh data, making cache invalidation redundant.
+4. TanStack Query can be re-introduced in a later phase when server-state complexity justifies it (e.g., cross-page data sharing, optimistic updates, background sync).
+
+**What was removed:**
+- `@tanstack/react-query` from `package.json` / `package-lock.json`
+- `src/components/providers/index.tsx` (QueryClientProvider wrapper)
+- `QueryClientProvider` from `src/components/helpers.tsx`
+- `useQuery` / `useMutation` / `invalidateQueries` calls from `workers/page.tsx`
+- §3a from `phase-3-frontend-foundation.md`
+
+**What was restored:**
+- Workers page uses standard `fetch()` + local loading/error state
+- `refetchWorkers()` / `refetchSummary()` called after mutations for data freshness
+- `layout.tsx` renders `ToasterProvider` directly (no Providers wrapper)
+
+---
+
+## Q. Git
 
 ### Phase 4 commit
 
@@ -317,7 +341,6 @@ The dedicated Phase 4 commit is: **`05de766`**
 ```
 05de766 feat: Phase 4 — item 39 visual quality: remove emoji from new module, use centralized Lucide Icons
 bab7565 feat: Phase 4 — test suite for module: workers/attendance/salary + responsive (35)
-57df772 feat: Phase 4 — TanStack Query server state for Workers module (28)
 ad69268 feat: Phase 4 — performance: lazy-load heavy dialogs & memoization (34)
 8a29f2f feat: Phase 4 — accessibility & security hardening for module (32-33)
 e62ae45 feat: Phase 4 — cache invalidation, responsive worker cards, mobile attendance (29-31)
@@ -329,4 +352,4 @@ bb9a637 feat: Phase 4 — Workers page redesign (6-11) with server pagination & 
 266c5fb feat: Phase 4 — Workers, Attendance & Salary migration to Next.js
 ```
 
-The commit `05de766` is the final Phase 4 commit (item 39 visual quality + item 36 backend tests bundled). All changes are confined to `frontend-next/` (source + tests + docs) and `backend/test/` (backend tests for the pagination/search/filter API change).
+> **Note:** Item 28 (TanStack Query) was committed as `57df772` then reverted — see §19 for rationale. It is excluded from the active commit list.

@@ -51,24 +51,11 @@ Separation: `ui` no business logic; `features` owns domain; `lib/api` sole fetch
 
 ## 3. Dependencies
 
-**Runtime:** `next`, `react`, `lucide-react` (Lucide only, no emoji UI), `zod` + `react-hook-form` for future forms, `@hookform/resolvers`, `@tanstack/react-query` (server state — item 28).  
+**Runtime:** `next`, `react`, `lucide-react` (Lucide only, no emoji UI), `zod` + `react-hook-form` for future forms, `@hookform/resolvers`.
 **No large libs:** no MapLibre/Chart.js globally — deferred to GIS phase.  
 **Dev:** `eslint-config-next`, `tailwind`, `vitest`, `@testing-library/*`, `jsdom`, `@vitejs/plugin-react`.
 
 ---
-
-## 3a. TanStack Query (item 28)
-
-Server state is handled by `@tanstack/react-query` v5 for the Workers module (scope-limited per plan; Attendance/Salary/dialogs keep their existing `api` calls).
-
-- **Provider:** `src/components/providers/index.tsx` exposes `QueryClientProvider` (wrapping `ToasterProvider`) mounted in `src/app/layout.tsx`. Defaults: `staleTime 60s`, `retry 1`, `refetchOnWindowFocus false`, `structuralSharing`.
-- **Workers page** (`operations/workers/page.tsx`):
-  - `["zones"]` — safer-zones singleton, `staleTime 300s` (deduped across renders).
-  - `["workers", params]` — server-paged/list query keyed by `{page, limit, search, status, kebeleId, zoneId}`; `placeholderData: (prev) => prev` keeps prior page visible during navigation.
-  - `["workers-summary", params]` — active/inactive counts + total wage, `enabled` once worker list loads.
-  - Mutations via `useMutation`: delete (invalidates `workers` + `workers-summary`); dialogs refetch the workers list via `queryClient.invalidateQueries({queryKey:["workers"]})` on saved/close.
-- Manual `fetchData`/`AbortController`/local loading-error-state were removed in favor of query state (`isLoading`/`isError`).
-
 
 ## 4. Design Tokens
 
@@ -154,9 +141,9 @@ Run: `npm run lint` (next lint), `npm run typecheck` (tsc), `npm run test` (45 p
 
 ### 11a. Item 35 — Module test suite (Workers / Attendance / Salary / Responsive)
 
-Runtime tests added in `src/test/` mocking only the network boundary (`@/lib/api`) + auth/kebele contexts, with real TanStack Query providers:
+Runtime tests added in `src/test/` mocking only the network boundary (`@/lib/api`) + auth/kebele contexts:
 
-- `helpers.tsx` — shared fixtures (`adminUser`, `collectorUser`, `workerFixture`, `zoneFixture`) + `renderWithQuery` (QueryClientProvider + ToasterProvider).
+- `helpers.tsx` — shared fixtures (`adminUser`, `collectorUser`, `workerFixture`, `zoneFixture`) + `renderWithQuery` (ToasterProvider wrapper; no TanStack Query — selective refetch is used).
 - `workers.test.tsx` (13) — render + worker names, summary cards, debounced search refetch, pagination, add/edit/delete (confirm gating), detail drawer, Kebele Admin only-authorized-workers scope, kebele selector hidden for Kebele Admin, zone scoping, unauthorized API handled + no token logged.
 - `attendance-salary.test.tsx` (7) — attendance render, bulk modal save via `api.bulkAttendance`, present/absent toggle payload, unauthorized bulk error surfaced safely; salary render, amount/required validation (recordPayment not called), cross-kebele auth error surfaced safely.
 - `responsive.test.tsx` (6) — real `WorkerFormModal` validation (empty required, valid create→onSaved, invalid Fayda 12-digit), WorkerCard touch-size action buttons, MobileAttendanceRow + `aria-pressed` toggle controls, touch click.

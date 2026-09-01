@@ -1,11 +1,10 @@
 // test/helpers.tsx — shared test utilities for item 35
 // Boundary: mock the network layer (@/lib/api) and auth/kebele contexts so the
-// real TanStack Query providers + Workers page logic run against controlled data.
+// Workers page logic runs against controlled data.
 
 import * as React from "react";
 import { vi } from "vitest";
 import { render } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ToasterProvider } from "@/components/ui/toast";
 import type { Worker, SaferZone, User } from "@/types";
 
@@ -35,19 +34,12 @@ export function buildApiMocks(overrides: Record<string, unknown> = {}) {
   };
 }
 
-// Render with a real TanStack Query provider
+// Render with a toast provider wrapper (no TanStack Query — selective refetch is used).
 export function renderWithQuery(ui: React.ReactElement) {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, staleTime: 0 },
-    },
-  });
   const wrapper = ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>
-      <ToasterProvider>{children}</ToasterProvider>
-    </QueryClientProvider>
+    <ToasterProvider>{children}</ToasterProvider>
   );
-  return { render: render(ui, { wrapper }), queryClient };
+  return render(ui, { wrapper });
 }
 
 // ---------------------------------------------------------------------------

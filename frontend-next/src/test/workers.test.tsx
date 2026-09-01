@@ -140,7 +140,7 @@ const renderPage = () => renderWithQuery(<WorkersPage />);
 describe("Workers page — render + data", () => {
   it("renders the page heading and worker names", async () => {
     const api = setupApi( adminUser, null);
-    const { render } = renderPage();
+    renderPage();
     expect(screen.getByRole("heading", { name: "Workers Management" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getAllByText("Abebe Bekele").length).toBeGreaterThan(0));
     expect(screen.getAllByText("Chaltu Girma").length).toBeGreaterThan(0);

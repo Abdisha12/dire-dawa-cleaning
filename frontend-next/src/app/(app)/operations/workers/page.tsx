@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
 import { useKebele } from "@/lib/kebele-context";
 import { workersApi, addETB } from "@/features/workers/services/workers-api";
@@ -16,9 +15,6 @@ import { DataTable, type Column } from "@/components/ui/data-table";
 import { useToast } from "@/components/ui/toast";
 import { fmtETB, fmtDate, formatFaydaId } from "@/lib/utils";
 import { WorkerCard } from "@/features/workers/components/worker-card";
-
-// TanStack Query keys (item 28) — server-state caching, dedupe, invalidation
-const zonesKey = ["zones"] as const;
 
 // Lazy-load heavy dialogs (item 34) so their code is only fetched when opened
 const WorkerFormModal = React.lazy(() =>
@@ -51,12 +47,18 @@ export default function WorkersPage() {
   const canEdit = role === "admin" || role === "collector" || role === "leader";
   const isAdmin = role === "admin" || role === "collector";
 
+  const [workers, setWorkers] = React.useState<Worker[]>([]);
+  const [zones, setZones] = React.useState<SaferZone[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState("");
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [zoneFilter, setZoneFilter] = React.useState<string>("");
   const [statusFilter, setStatusFilter] = React.useState<string>(""); // active | inactive | ""
   const [kebeleFilter, setKebeleFilter] = React.useState<string>(() => (kebeleId ? String(kebeleId) : ""));
   const [page, setPage] = React.useState(1);
+  const [total, setTotal] = React.useState(0);
+  const [pages, setPages] = React.useState(1);
   const limit = 25;
 
   // Modals
@@ -68,90 +70,8 @@ export default function WorkersPage() {
   const [idCardWorker, setIdCardWorker] = React.useState<Worker | null>(null);
   const [detailWorker, setDetailWorker] = React.useState<Worker | null>(null);
 
-  const queryClient = useQueryClient();
-
-  // Zones — GET /safer-zones singleton (item 28): cached, deduped, keyed
-  const { data: zones = [] } = useQuery({
-    queryKey: [...zonesKey],
-    queryFn: () => workersApi.getZones(),
-    staleTime: 300_000,
-  });
-
-  // Workers — server page query keyed by every filter + page (item 28)
-  const workerParams = React.useMemo(() => {
-    const params: Record<string, string> = { page: String(page), limit: String(limit) };
-    if (debouncedSearch) params.search = debouncedSearch;
-    if (statusFilter) params.status = statusFilter;
-    if (kebeleFilter) params.kebeleId = kebeleFilter;
-    if (zoneFilter) params.zoneId = zoneFilter;
-    return params;
-  }, [page, limit, debouncedSearch, statusFilter, kebeleFilter, zoneFilter]);
-
-  const workersQuery = useQuery({
-    queryKey: ["workers", workerParams],
-    queryFn: () => workersApi.getAll(workerParams),
-    placeholderData: (prev) => prev,
-  });
-  const workers: Worker[] = (workersQuery.data
-    ? (Array.isArray(workersQuery.data) ? workersQuery.data : (workersQuery.data as { data: Worker[] }).data || [])
-    : []
-  ).map((r) => {
-    if (r.custom_attributes && typeof r.custom_attributes === "string") {
-      try {
-        return { ...r, custom_attributes: JSON.parse(r.custom_attributes as unknown as string) };
-      } catch {
-        return r;
-      }
-    }
-    return r;
-  });
-  const meta = Array.isArray(workersQuery.data)
-    ? { total: workers.length, pages: 1 }
-    : (workersQuery.data as { total: number; pages: number; page: number } | undefined) || { total: workers.length, pages: 1 };
-  const total = meta.total;
-  const pages = meta.pages;
-  const loading = workersQuery.isLoading;
-  const error = workersQuery.isError ? (workersQuery.error instanceof Error ? workersQuery.error.message : "Failed to load") : null;
-
-  // Summary — active/inactive counts + total wage (item 28)
-  const { data: summary = null } = useQuery({
-    queryKey: ["workers-summary", workerParams],
-    queryFn: async () => {
-      const activeParams = { ...workerParams, status: "active", page: "1", limit: "1" };
-      const inactiveParams = { ...workerParams, status: "inactive", page: "1", limit: "1" };
-      const [activeRes, inactiveRes] = await Promise.all([
-        workersApi.getAll(activeParams).catch(() => ({ total: 0 } as unknown as Worker[])),
-        workersApi.getAll(inactiveParams).catch(() => ({ total: 0 } as unknown as Worker[])),
-      ]);
-      const activeTotal = Array.isArray(activeRes) ? (activeRes as Worker[]).length : (activeRes as { total: number }).total || 0;
-      const inactiveTotal = Array.isArray(inactiveRes) ? (inactiveRes as Worker[]).length : (inactiveRes as { total: number }).total || 0;
-      const wage = workers.filter((w) => w.is_active).reduce((s, w) => addETB(s, Number(w.daily_wage)), 0);
-      return { total, active: activeTotal, inactive: inactiveTotal, totalWage: wage };
-    },
-    enabled: !!workersQuery.data,
-  });
-  const stats = summary || { total: workers.length, active: workers.filter((w) => w.is_active).length, inactive: workers.filter((w) => !w.is_active).length, totalWage: workers.filter((w) => w.is_active).reduce((s, w) => s + Number(w.daily_wage), 0) };
-
-  const refetchWorkers = () => queryClient.invalidateQueries({ queryKey: ["workers"] });
-
-  // Mutations (item 28)
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => workersApi.delete(id),
-    onSuccess: () => {
-      toast("Worker deleted", "success");
-      refetchWorkers();
-      queryClient.invalidateQueries({ queryKey: ["workers-summary"] });
-    },
-    onError: (e: Error) => toast(e.message || "Delete failed", "error"),
-  });
-
-  const handleDelete = React.useCallback(
-    (id: number) => {
-      if (!confirm("Delete this worker and all records?")) return;
-      deleteMutation.mutate(id);
-    },
-    [deleteMutation]
-  );
+  // Summary stats state (respecting scope)
+  const [summary, setSummary] = React.useState<{ total: number; active: number; inactive: number; totalWage: number } | null>(null);
 
   // For collector: filter zones to their kebele (client side, backend also enforces)
   const visibleZones = React.useMemo(() => {
@@ -161,7 +81,7 @@ export default function WorkersPage() {
     return zones;
   }, [zones, role, zone, kebeleId, kebeleFilter]);
 
-  // Debounce search 300ms + reset page
+  // Debounce search 300ms + cancel obsolete
   React.useEffect(() => {
     const t = setTimeout(() => {
       setDebouncedSearch(search.trim());
@@ -173,7 +93,85 @@ export default function WorkersPage() {
   // Keep kebeleFilter in sync with context for Admin (All Kebeles), locked for collector
   React.useEffect(() => {
     if (kebeleId) setKebeleFilter(String(kebeleId));
+    else if (role === "admin") setKebeleFilter((prev) => prev); // keep selection
   }, [kebeleId, role]);
+
+  const fetchData = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const ctrl = new AbortController();
+    try {
+      const params: Record<string, string> = { page: String(page), limit: String(limit) };
+      if (debouncedSearch) params.search = debouncedSearch;
+      if (statusFilter) params.status = statusFilter;
+      if (kebeleFilter) params.kebeleId = kebeleFilter;
+      if (zoneFilter) params.zoneId = zoneFilter;
+
+      const [z, wRes] = await Promise.all([
+        workersApi.getZones(undefined, { signal: ctrl.signal }),
+        workersApi.getAll(params, { signal: ctrl.signal }),
+      ]);
+      setZones(z);
+      // Handle paginated {data,total,page,pages} or array fallback
+      const wData: Worker[] = Array.isArray(wRes) ? (wRes as Worker[]) : (wRes as { data: Worker[] }).data || [];
+      const meta = Array.isArray(wRes) ? { total: wData.length, pages: 1 } : (wRes as { total: number; pages: number; page: number });
+      const normalized = wData.map((r) => {
+        if (r.custom_attributes && typeof r.custom_attributes === "string") {
+          try {
+            return { ...r, custom_attributes: JSON.parse(r.custom_attributes as unknown as string) };
+          } catch {
+            return r;
+          }
+        }
+        return r;
+      });
+      setWorkers(normalized);
+      if (!Array.isArray(wRes)) {
+        setTotal(meta.total);
+        setPages(meta.pages);
+      } else {
+        setTotal(normalized.length);
+        setPages(1);
+      }
+
+      // Summary: fetch total/active/inactive via separate counts (or derive)
+      // For scope accuracy, use current filtered total + active count via status filter
+      // We fetch active/inactive counts in parallel with same filters but status constrained
+      const activeParams = { ...params, status: "active", page: "1", limit: "1" };
+      const inactiveParams = { ...params, status: "inactive", page: "1", limit: "1" };
+      const [activeRes, inactiveRes] = await Promise.all([
+        workersApi.getAll(activeParams, { signal: ctrl.signal }).catch(() => ({ total: 0 } as unknown as Worker[])),
+        workersApi.getAll(inactiveParams, { signal: ctrl.signal }).catch(() => ({ total: 0 } as unknown as Worker[])),
+      ]);
+      const activeTotal = Array.isArray(activeRes) ? (activeRes as Worker[]).length : (activeRes as { total: number }).total || 0;
+      const inactiveTotal = Array.isArray(inactiveRes) ? (inactiveRes as Worker[]).length : (inactiveRes as { total: number }).total || 0;
+      const wage = normalized.filter((w) => w.is_active).reduce((s, w) => addETB(s, Number(w.daily_wage)), 0);
+      setSummary({ total: Array.isArray(wRes) ? normalized.length : meta.total, active: activeTotal, inactive: inactiveTotal, totalWage: wage });
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return;
+      setError(e instanceof Error ? e.message : "Failed to load");
+    } finally {
+      setLoading(false);
+    }
+    return () => ctrl.abort();
+  }, [page, limit, debouncedSearch, statusFilter, kebeleFilter, zoneFilter]);
+
+  React.useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const stats = summary || { total: workers.length, active: workers.filter((w) => w.is_active).length, inactive: workers.filter((w) => !w.is_active).length, totalWage: workers.filter((w) => w.is_active).reduce((s, w) => s + Number(w.daily_wage), 0) };
+
+  const handleDelete = React.useCallback(async (id: number) => {
+    if (!confirm("Delete this worker and all records?")) return;
+    try {
+      await workersApi.delete(id);
+      toast("Worker deleted", "success");
+      fetchData();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Delete failed", "error");
+    }
+  }, [fetchData, toast]);
 
   const columns: Column<Worker>[] = [
     {
@@ -315,7 +313,7 @@ export default function WorkersPage() {
         data={workers}
         loading={loading}
         error={error}
-        onRetry={refetchWorkers}
+        onRetry={fetchData}
         emptyTitle="No workers"
         emptyDescription={canEdit ? "Add your first worker to get started." : "No workers in this scope."}
         getRowKey={(w) => String(w.id)}
@@ -394,7 +392,7 @@ export default function WorkersPage() {
             onClose={() => setShowWorkerModal(false)}
             onSaved={() => {
               setShowWorkerModal(false);
-              refetchWorkers();
+              fetchData();
             }}
           />
         </React.Suspense>
@@ -418,7 +416,7 @@ export default function WorkersPage() {
       )}
       {salaryWorker && (
         <React.Suspense fallback={<DialogFallback />}>
-          <SalaryModal worker={salaryWorker} onClose={() => { setSalaryWorker(null); refetchWorkers(); }} />
+          <SalaryModal worker={salaryWorker} onClose={() => { setSalaryWorker(null); fetchData(); }} />
         </React.Suspense>
       )}
       {idCardWorker && (

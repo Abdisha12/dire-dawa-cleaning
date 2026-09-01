@@ -54,7 +54,7 @@ async function req<T>(method: string, path: string, body?: unknown, opts: FetchO
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-  // Merge external signal if provided (e.g., TanStack Query cancellation)
+  // Merge external signal if provided (e.g., abort controller from caller)
   if (opts.signal) {
     opts.signal.addEventListener("abort", () => controller.abort());
   }
