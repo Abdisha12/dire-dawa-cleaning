@@ -149,6 +149,4 @@ No invented metrics.
 
 ## T. Git
 
-- Final checkpoint: `86a3051` feat (Phase 6) + `7189ccb` fix + `d4f0ef0` final docs
-- Phase 8 added: `a193de9` feat Phase 8 + docs
-- Clean working tree
+- Final checkpoint: **`983e669`** `feat: Phase 8 — Reports & Analytics migration` — 8 files, clean working tree.
