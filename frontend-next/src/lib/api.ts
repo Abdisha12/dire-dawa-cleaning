@@ -240,6 +240,38 @@ export const api = {
       undefined,
       opts
     ).then((res) => (Array.isArray(res) ? { reports: res } : res) as { reports: import("@/types").ZoneReport[] }),
+  // GIS — GeoJSON endpoints (lazy-loaded, minimal)
+  getKebelesGeoJSON: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<{ type: "FeatureCollection"; features: unknown[] }>("GET", `/gis/kebeles?${new URLSearchParams(params).toString()}`, undefined, opts),
+  getSaferZonesGeoJSON: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<{ type: "FeatureCollection"; features: unknown[] }>("GET", `/gis/safer-zones?${new URLSearchParams(params).toString()}`, undefined, opts),
+
+  // Reports — existing backend endpoints, no fabrication
+  getPaymentsMonthlyReport: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<unknown[]>("GET", `/reports/payments/monthly?${new URLSearchParams(params).toString()}`, undefined, opts),
+  getPaymentsYearlyReport: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<unknown[]>("GET", `/reports/payments/yearly?${new URLSearchParams(params).toString()}`, undefined, opts),
+  getWorkersMonthlyReport: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<unknown[]>("GET", `/reports/workers/monthly?${new URLSearchParams(params).toString()}`, undefined, opts),
+  getInspectionsReport: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<unknown[]>("GET", `/reports/inspections?${new URLSearchParams(params).toString()}`, undefined, opts),
+  getMonthlySummaryReport: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<unknown[]>("GET", `/reports/monthly-summary?${new URLSearchParams(params).toString()}`, undefined, opts),
+  getAnalyticsAttendance: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<unknown[]>("GET", `/analytics/attendance?${new URLSearchParams(params).toString()}`, undefined, opts),
+  getAnalyticsPayments: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<unknown[]>("GET", `/analytics/payments?${new URLSearchParams(params).toString()}`, undefined, opts),
+  getAnalyticsInspections: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<unknown[]>("GET", `/analytics/inspections?${new URLSearchParams(params).toString()}`, undefined, opts),
+  getAnalyticsZones: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<unknown[]>("GET", `/analytics/zones?${new URLSearchParams(params).toString()}`, undefined, opts),
+  getAnalyticsTrends: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<unknown[]>("GET", `/analytics/trends?${new URLSearchParams(params).toString()}`, undefined, opts),
+  // Direct export URL (CSV via format=csv)
+  csvUrlReports: (path: string, params: Record<string, string> = {}) => {
+    const base = typeof window !== "undefined" ? `${getApiOrigin()}/api` : (process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/api` : "/api");
+    return `${base}${path}?${new URLSearchParams({ ...params, format: "csv" }).toString()}`;
+  },
   getZoneReport: (id: number, opts?: FetchOptions) =>
     req<import("@/types").ZoneReport>("GET", `/zone-reports/${id}`, undefined, opts),
   createZoneReport: (data: Record<string, unknown>, opts?: FetchOptions) =>

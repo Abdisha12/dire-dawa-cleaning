@@ -40,7 +40,7 @@ export type DataTableProps<T> = {
   selectable?: boolean;
   selectedKeys?: Set<string>;
   onToggle?: (key: string) => void;
-  getRowKey: (row: T) => string;
+  getRowKey: (row: T, index: number) => string;
 };
 
 export function DataTable<T>({
@@ -105,8 +105,8 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody>
-          {data.map((row) => (
-            <tr key={getRowKey(row)} className="border-b border-[var(--gray-100)] last:border-0 hover:bg-[var(--gray-50)]">
+          {data.map((row, i) => (
+            <tr key={getRowKey(row, i)} className="border-b border-[var(--gray-100)] last:border-0 hover:bg-[var(--gray-50)]">
               {visible.map((col) => (
                 <td key={col.key} className="px-3 py-2 align-middle">
                   {col.render ? col.render(row) : col.accessor ? col.accessor(row) : String((row as Record<string, unknown>)[col.key] ?? "—")}
@@ -120,8 +120,8 @@ export function DataTable<T>({
 
       {/* mobile cards */}
       <div className="divide-y divide-[var(--border)] md:hidden">
-        {data.map((row) => (
-          <div key={getRowKey(row)} className="p-3">
+        {data.map((row, i) => (
+          <div key={getRowKey(row, i)} className="p-3">
             <div className="grid grid-cols-2 gap-2">
               {visible
                 .filter((c) => (c.priority ?? 1) === 1)
