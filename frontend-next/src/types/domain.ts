@@ -1,6 +1,49 @@
 // types/domain.ts — Frontend domain types (strict, no `any`)
 // Mirrors backend PostgreSQL schema + API responses. Display label “Kebele Admin” = role `collector`.
 
+// Additional types used by admin (Users, Tools, Documents, Notifications, Audit)
+export interface Tool {
+  id: number;
+  name: string;
+  category: string;
+  quantity: number;
+  condition_status: string;
+  safer_zone_id: number;
+  zone_name?: string;
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface DocumentItem {
+  id: number;
+  title: string;
+  description?: string | null;
+  category?: string;
+  file_name?: string;
+  file_path?: string;
+  file_size?: number;
+  mime_type?: string;
+  uploaded_by?: number;
+  uploader_name?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AuditLogEntry {
+  id: number;
+  user_id?: number | null;
+  username?: string;
+  full_name?: string;
+  action: string;
+  entity_type: string;
+  entity_id?: number | null;
+  old_data?: unknown;
+  new_data?: unknown;
+  ip_address?: string;
+  created_at: string;
+}
+
 export type Role = "admin" | "collector" | "leader" | "viewer";
 
 // User returned by /api/auth/me and /api/users
@@ -114,7 +157,6 @@ export interface Business {
 
 // Inspection — status active/warning/danger, optional photos
 export type InspectionStatus = "active" | "warning" | "danger";
-
 export interface Inspection {
   id: number;
   kebele_id: number;

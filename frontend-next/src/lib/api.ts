@@ -283,7 +283,7 @@ export const api = {
   deleteZoneReport: (id: number, opts?: FetchOptions) =>
     req<{ message: string }>("DELETE", `/zone-reports/${id}`, undefined, opts),
 
-  // Notifications
+  // Notifications (shell badge + page)
   getNotifications: (params: Record<string, string> = {}, opts?: FetchOptions) =>
     req<{ notifications: import("@/types").Notification[]; total: number }>(
       "GET",
@@ -292,4 +292,66 @@ export const api = {
       opts
     ),
   getUnreadCount: (opts?: FetchOptions) => req<{ unreadCount: number }>("GET", "/notifications/unread-count", undefined, opts),
+
+  getAuditLogEntry: (id: number, opts?: FetchOptions) =>
+    req<unknown>("GET", `/audit-log/${id}`, undefined, opts),
+  markNotificationRead: (id: number, opts?: FetchOptions) =>
+    req<{ message: string }>("PUT", `/notifications/${id}/read`, undefined, opts),
+  markAllNotificationsRead: (opts?: FetchOptions) =>
+    req<{ message: string }>("PUT", "/notifications/read-all", undefined, opts),
+  deleteNotification: (id: number, opts?: FetchOptions) =>
+    req<{ message: string }>("DELETE", `/notifications/${id}`, undefined, opts),
+
+  // Admin — Users (full CRUD)
+  createUser: (data: Record<string, unknown>, opts?: FetchOptions) =>
+    req<{ id: number }>("POST", "/users", data, opts),
+  updateUser: (id: number, data: Record<string, unknown>, opts?: FetchOptions) =>
+    req<{ message: string }>("PUT", `/users/${id}`, data, opts),
+  changePassword: (id: number, data: Record<string, unknown>, opts?: FetchOptions) =>
+    req<{ message: string }>("PUT", `/users/${id}/password`, data, opts),
+  deleteUser: (id: number, opts?: FetchOptions) =>
+    req<{ message: string }>("DELETE", `/users/${id}`, undefined, opts),
+
+  // Admin — Tools
+  getTools: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<{ tools: import("@/types").Tool[] } | import("@/types").Tool[]>(
+      "GET",
+      `/tools?${new URLSearchParams(params).toString()}`,
+      undefined,
+      opts
+    ),
+  createTool: (data: Record<string, unknown>, opts?: FetchOptions) =>
+    req<{ id: number }>("POST", "/tools", data, opts),
+  updateTool: (id: number, data: Record<string, unknown>, opts?: FetchOptions) =>
+    req<{ message: string }>("PUT", `/tools/${id}`, data, opts),
+  deleteTool: (id: number, opts?: FetchOptions) =>
+    req<{ message: string }>("DELETE", `/tools/${id}`, undefined, opts),
+
+  // Admin — Documents
+  getDocuments: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<{ documents: unknown[] } | unknown[]>(
+      "GET",
+      `/documents?${new URLSearchParams(params).toString()}`,
+      undefined,
+      opts
+    ),
+  uploadDocument: (data: FormData, opts?: FetchOptions) =>
+    req<{ id: number }>("POST", "/documents", data, { ...opts, isFormData: true }),
+  updateDocument: (id: number, data: Record<string, unknown>, opts?: FetchOptions) =>
+    req<{ message: string }>("PUT", `/documents/${id}`, data, opts),
+  deleteDocument: (id: number, opts?: FetchOptions) =>
+    req<{ message: string }>("DELETE", `/documents/${id}`, undefined, opts),
+  documentDownloadUrl: (id: number) => {
+    const base = typeof window !== "undefined" ? `${getApiOrigin()}/api` : (process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/api` : "/api");
+    return `${base}/documents/${id}/download`;
+  },
+
+  // Admin — Audit Logs (admin only per backend)
+  getAuditLog: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<{ logs: unknown[]; total: number }>(
+      "GET",
+      `/audit-log?${new URLSearchParams(params).toString()}`,
+      undefined,
+      opts
+    ),
 };
