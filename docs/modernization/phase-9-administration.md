@@ -174,7 +174,8 @@ Implemented at `app/(app)/administration/audit-logs/page.tsx`:
 
 ## X. Git
 
-- Final checkpoint: `bdb8f07`-style commit on Phase 9 docs + feat
+- Final checkpoint: **`ae026c9`** `feat: Phase 9 — Administration migration` — 9 files (1779 insertions, 22 deletions), clean working tree
+- Previous tips: `d1d2028` (Phase 8 docs) → `983e669` (Phase 8 feat) → `ae026c9` (Phase 9)
 - 19 new tests, 143/143 total
 - `database/` unchanged
 - Legacy preserved
