@@ -142,4 +142,21 @@ interface ApiService {
 
     @GET("businesses")
     suspend fun businesses(@QueryMap filters: Map<String, String> = emptyMap()): BusinessListResponse
+
+    // ── GIS (Phase 12 GeoJSON; backend-scoped, auth via interceptor) ──────
+
+    @GET("gis/kebeles")
+    suspend fun gisKebeles(@QueryMap filters: Map<String, String> = emptyMap()): app.diredawa.cleaning.data.model.GisFeatureCollection
+
+    @GET("gis/safer-zones")
+    suspend fun gisSaferZones(@QueryMap filters: Map<String, String> = emptyMap()): app.diredawa.cleaning.data.model.GisFeatureCollection
+
+    @GET("gis/businesses")
+    suspend fun gisBusinesses(@QueryMap filters: Map<String, String> = emptyMap()): app.diredawa.cleaning.data.model.GisFeatureCollection
+
+    @GET("gis/workers")
+    suspend fun gisWorkers(@QueryMap filters: Map<String, String> = emptyMap()): app.diredawa.cleaning.data.model.GisFeatureCollection
+
+    @GET("gis/inspections")
+    suspend fun gisInspections(@QueryMap filters: Map<String, String> = emptyMap()): app.diredawa.cleaning.data.model.GisFeatureCollection
 }

@@ -24,6 +24,7 @@ import androidx.navigation.compose.rememberNavController
 import app.diredawa.cleaning.AppContainer
 import app.diredawa.cleaning.ui.screens.attendance.AttendanceScreen
 import app.diredawa.cleaning.ui.screens.auth.LoginScreen
+import app.diredawa.cleaning.ui.screens.gis.GisScreen
 import app.diredawa.cleaning.ui.screens.home.HomeScreen
 import app.diredawa.cleaning.ui.screens.inspections.InspectionCreateScreen
 import app.diredawa.cleaning.ui.screens.more.MoreScreen
@@ -44,6 +45,7 @@ object Destinations {
     const val WORKERS = "workers"
     const val WORKER_DETAIL = "workers/{workerId}?name={workerName}&role={workerRole}"
     const val ATTENDANCE = "attendance"
+    const val GIS = "gis"
     const val INSPECTION_CREATE = "inspections/new"
     const val ZONE_REPORTS = "zone-reports"
     const val SYNC = "sync"
@@ -152,6 +154,9 @@ fun AppNavHost(
             }
             composable(Destinations.ATTENDANCE) {
                 AttendanceScreen(viewModelFactory = factory)
+            }
+            composable(Destinations.GIS) {
+                GisScreen(viewModelFactory = factory)
             }
             composable(Destinations.INSPECTION_CREATE) {
                 InspectionCreateScreen(viewModelFactory = factory)

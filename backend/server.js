@@ -76,6 +76,7 @@ const auditLogRoutes=require("./routes/auditLog");
 const notificationRoutes=require("./routes/notifications");
 const analyticsRoutes=require("./routes/analytics");
 const documentRoutes=require("./routes/documents");
+const gisRoutes=require("./routes/gis");
 const notifService=require("./services/notificationService");
 
 const app=express();
@@ -135,6 +136,7 @@ app.use("/api/audit-log",auditLogRoutes);
 app.use("/api/notifications",notificationRoutes);
 app.use("/api/analytics",analyticsRoutes);
 app.use("/api/documents",documentRoutes);
+app.use("/api/gis",gisRoutes);
 app.use("/api",locationRoutes);
 
 app.use((req,res)=>res.status(404).json({error:`Not found: ${req.method} ${req.url}`}));

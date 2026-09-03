@@ -54,6 +54,11 @@ class AppViewModelFactory(private val container: AppContainer) :
                     container.syncQueue,
                     container.appContext,
                 ) as T
+            modelClass.isAssignableFrom(app.diredawa.cleaning.ui.screens.gis.GisViewModel::class.java) ->
+                app.diredawa.cleaning.ui.screens.gis.GisViewModel(
+                    container.gisRepository,
+                    container.networkMonitor,
+                ) as T
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }

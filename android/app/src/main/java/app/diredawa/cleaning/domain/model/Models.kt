@@ -54,6 +54,22 @@ data class SaferZone(
     val kebeleCode: String? = null,
 )
 
+/**
+ * A GIS entity surfaced from a gis FeatureCollection ("/api/gis/...", Phase 12).
+ * Geometry presence is recorded as [hasGeometry]; null geometry surfaces as
+ * "Location unavailable" — never fabricated.
+ */
+data class GisEntityItem(
+    val id: Long,
+    val label: String,
+    val entityType: String,
+    val kebeleName: String? = null,
+    val zoneName: String? = null,
+    val status: String? = null,
+    val hasGeometry: Boolean = false,
+    val locationUnavailable: Boolean = false,
+)
+
 data class Worker(
     val id: Long,
     val fullName: String,

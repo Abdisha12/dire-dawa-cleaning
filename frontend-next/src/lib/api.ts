@@ -245,6 +245,12 @@ export const api = {
     req<{ type: "FeatureCollection"; features: unknown[] }>("GET", `/gis/kebeles?${new URLSearchParams(params).toString()}`, undefined, opts),
   getSaferZonesGeoJSON: (params: Record<string, string> = {}, opts?: FetchOptions) =>
     req<{ type: "FeatureCollection"; features: unknown[] }>("GET", `/gis/safer-zones?${new URLSearchParams(params).toString()}`, undefined, opts),
+  getBusinessesGeoJSON: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<{ type: "FeatureCollection"; features: unknown[] }>("GET", `/gis/businesses?${new URLSearchParams(params).toString()}`, undefined, opts),
+  getWorkersGeoJSON: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<{ type: "FeatureCollection"; features: unknown[] }>("GET", `/gis/workers?${new URLSearchParams(params).toString()}`, undefined, opts),
+  getInspectionsGeoJSON: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<{ type: "FeatureCollection"; features: unknown[] }>("GET", `/gis/inspections?${new URLSearchParams(params).toString()}`, undefined, opts),
 
   // Reports — existing backend endpoints, no fabrication
   getPaymentsMonthlyReport: (params: Record<string, string> = {}, opts?: FetchOptions) =>

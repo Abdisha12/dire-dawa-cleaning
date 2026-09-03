@@ -32,7 +32,7 @@ const NAV: NavItem[] = [
   // Locations
   { id: "kebeles", label: "Kebeles", href: "/locations/kebeles", icon: "kebeles", roles: ["admin", "collector"], group: "Locations" },
   { id: "zones", label: "Safer Zones", href: "/locations/safer-zones", icon: "zones", roles: ["admin", "collector", "leader"], group: "Locations" },
-  { id: "gis", label: "GIS Map", icon: "gis", roles: ["admin", "collector", "leader", "viewer"], group: "Locations", disabled: true, badge: "Soon" },
+  { id: "gis", label: "GIS Map", href: "/locations/map", icon: "gis", roles: ["admin", "collector", "leader", "viewer"], group: "Locations" },
 
   // Businesses & Finance
   { id: "businesses", label: "Businesses", href: "/businesses", icon: "businesses", roles: ["admin", "collector", "leader", "viewer"], group: "Businesses & Finance" },
@@ -62,7 +62,7 @@ const NAV: NavItem[] = [
 const MOBILE_PRIMARY: Array<{ id: string; label: string; href: string; icon: keyof typeof Icons }> = [
   { id: "home", label: "Home", href: "/dashboard", icon: "dashboard" },
   { id: "operations", label: "Operations", href: "/operations/workers", icon: "workers" },
-  { id: "map", label: "Map", href: "/locations/kebeles", icon: "gis" }, // GIS Map future, placeholder to kebeles
+  { id: "map", label: "Map", href: "/locations/map", icon: "gis" },
   { id: "notifications", label: "Notifications", href: "/community/notifications", icon: "notifications" },
 ];
 

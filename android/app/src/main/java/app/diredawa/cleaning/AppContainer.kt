@@ -14,6 +14,7 @@ import app.diredawa.cleaning.data.offline.SyncQueue
 import app.diredawa.cleaning.data.offline.local.FieldDatabase
 import app.diredawa.cleaning.data.repository.AuthRepository
 import app.diredawa.cleaning.data.repository.FieldRepository
+import app.diredawa.cleaning.data.repository.GisRepository
 import app.diredawa.cleaning.data.repository.LocationRepository
 import app.diredawa.cleaning.data.repository.OperationsRepository
 import app.diredawa.cleaning.domain.usecase.ResolveScopeUseCase
@@ -74,6 +75,7 @@ class AppContainer(context: Context) {
             workerCache = fieldDatabase.cachedWorkerDao(),
         )
     }
+    val gisRepository: GisRepository by lazy { GisRepository(apiService) }
 
     // ── Field helpers ───────────────────────────────────────────────────────
     val locationProvider: LocationProvider by lazy { LocationProvider(appContext) }

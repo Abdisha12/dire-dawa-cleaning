@@ -187,6 +187,12 @@ const workerAttendanceQuery = {
 };
 
 // ── Inspections ───────────────────────────────────────────────
+const locationFields = {
+  latitude: z.coerce.number().min(-90).max(90).optional().nullable(),
+  longitude: z.coerce.number().min(-180).max(180).optional().nullable(),
+  accuracy: z.coerce.number().min(0).max(100000).optional().nullable(),
+};
+
 const createInspection = {
   body: z.object({
     kebeleId: id,
@@ -194,6 +200,7 @@ const createInspection = {
     date: dateStr,
     status: z.enum(["active", "warning", "danger"]).optional(),
     notes: z.string().max(5000).trim().optional().nullable(),
+    ...locationFields,
   }),
 };
 
@@ -201,6 +208,7 @@ const updateInspection = {
   body: z.object({
     status: z.enum(["active", "warning", "danger"]),
     notes: z.string().max(5000).trim().optional().nullable(),
+    ...locationFields,
   }),
   params: z.object({ id }),
 };

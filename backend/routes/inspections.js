@@ -101,7 +101,7 @@ router.post("/",requireRole("admin","collector","leader"),
   handleMulterError,
   async(req,res,next)=>{
   try{
-    const {kebeleId,saferZoneId,date,status,notes}=req.body;
+    const {kebeleId,saferZoneId,date,status,notes,latitude,longitude}=req.body;
     if(!kebeleId||!date) return res.status(400).json({error:"kebeleId and date required"});
     if(req.user.role==="collector"){
       const kebeleRes = await db.query("SELECT id FROM kebeles WHERE collector_id=$1", [req.user.id]);
@@ -117,9 +117,14 @@ router.post("/",requireRole("admin","collector","leader"),
       const zr=await db.query("SELECT id FROM safer_zones WHERE id=$1 AND leader_id=$2",[saferZoneId,req.user.id]);
       if(!zr.rows.length) return res.status(403).json({error:"Not your zone"});
     }
-    const r=await db.query(
-      "INSERT INTO inspections (kebele_id,safer_zone_id,date,status,notes,inspected_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id",
-      [kebeleId,saferZoneId||null,date,status||"active",notes||null,req.user.id]);
+    const hasLocation = latitude !== null && latitude !== undefined && longitude !== null && longitude !== undefined;
+    const r = hasLocation
+      ? await db.query(
+          "INSERT INTO inspections (kebele_id,safer_zone_id,date,status,notes,inspected_by,location) VALUES ($1,$2,$3,$4,$5,$6,ST_SetSRID(ST_MakePoint($7,$8),4326)) RETURNING id",
+          [kebeleId,saferZoneId||null,date,status||"active",notes||null,req.user.id, parseFloat(longitude), parseFloat(latitude)])
+      : await db.query(
+          "INSERT INTO inspections (kebele_id,safer_zone_id,date,status,notes,inspected_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id",
+          [kebeleId,saferZoneId||null,date,status||"active",notes||null,req.user.id]);
     const insertedId=r.rows[0].id;
     if(req.files?.length){
       for(const f of req.files)
@@ -141,9 +146,17 @@ router.put("/:id",requireRole("admin","collector","leader"),
   handleMulterError,
   async(req,res,next)=>{
   try{
-    const {status,notes}=req.body;
+    const {status,notes,latitude,longitude}=req.body;
     const oldResult=await db.query("SELECT status,notes FROM inspections WHERE id=$1",[req.params.id]);
-    await db.query("UPDATE inspections SET status=$1,notes=$2 WHERE id=$3",[status,notes||null,req.params.id]);
+    if (!oldResult.rows.length) return res.status(404).json({error:"Not found"});
+    const hasLocation = latitude !== null && latitude !== undefined && longitude !== null && longitude !== undefined;
+    if (hasLocation) {
+      await db.query(
+        "UPDATE inspections SET status=$1,notes=$2,location=ST_SetSRID(ST_MakePoint($3,$4),4326) WHERE id=$5",
+        [status,notes||null, parseFloat(longitude), parseFloat(latitude), req.params.id]);
+    } else {
+      await db.query("UPDATE inspections SET status=$1,notes=$2 WHERE id=$3",[status,notes||null,req.params.id]);
+    }
     audit.log(req,"UPDATE","inspection",parseInt(req.params.id),oldResult.rows[0]||null,{status,notes});
     if(req.files?.length){
       for(const f of req.files)

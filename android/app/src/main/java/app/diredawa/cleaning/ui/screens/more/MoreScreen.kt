@@ -72,6 +72,13 @@ fun MoreScreen(
         }
 
         OutlinedButton(
+            onClick = { navController.navigate(Destinations.GIS) },
+            Modifier.fillMaxWidth(),
+        ) {
+            Text("GIS Map")
+        }
+
+        OutlinedButton(
             onClick = {},
             Modifier.fillMaxWidth(),
         ) {
