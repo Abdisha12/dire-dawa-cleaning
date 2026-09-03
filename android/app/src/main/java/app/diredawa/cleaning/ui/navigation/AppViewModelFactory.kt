@@ -25,10 +25,34 @@ class AppViewModelFactory(private val container: AppContainer) :
                     container.authRepository,
                     container.sessionManager,
                     container.resolveScopeUseCase,
+                    container.operationsRepository,
                 ) as T
             modelClass.isAssignableFrom(app.diredawa.cleaning.ui.screens.notifications.NotificationsViewModel::class.java) ->
                 app.diredawa.cleaning.ui.screens.notifications.NotificationsViewModel(
                     container.operationsRepository,
+                ) as T
+            modelClass.isAssignableFrom(app.diredawa.cleaning.ui.screens.workers.WorkersViewModel::class.java) ->
+                app.diredawa.cleaning.ui.screens.workers.WorkersViewModel(
+                    container.operationsRepository,
+                ) as T
+            modelClass.isAssignableFrom(app.diredawa.cleaning.ui.screens.attendance.AttendanceViewModel::class.java) ->
+                app.diredawa.cleaning.ui.screens.attendance.AttendanceViewModel(
+                    container.fieldRepository,
+                ) as T
+            modelClass.isAssignableFrom(app.diredawa.cleaning.ui.screens.inspections.InspectionCreateViewModel::class.java) ->
+                app.diredawa.cleaning.ui.screens.inspections.InspectionCreateViewModel(
+                    container.fieldRepository,
+                    container.locationRepository,
+                ) as T
+            modelClass.isAssignableFrom(app.diredawa.cleaning.ui.screens.zonereports.ZoneReportsViewModel::class.java) ->
+                app.diredawa.cleaning.ui.screens.zonereports.ZoneReportsViewModel(
+                    container.fieldRepository,
+                ) as T
+            modelClass.isAssignableFrom(app.diredawa.cleaning.ui.screens.sync.SyncStatusViewModel::class.java) ->
+                app.diredawa.cleaning.ui.screens.sync.SyncStatusViewModel(
+                    container.networkMonitor,
+                    container.syncQueue,
+                    container.appContext,
                 ) as T
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }

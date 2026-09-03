@@ -3,6 +3,7 @@ package app.diredawa.cleaning
 import app.diredawa.cleaning.data.api.ApiClient
 import app.diredawa.cleaning.data.api.ApiService
 import app.diredawa.cleaning.data.repository.AuthRepository
+import app.diredawa.cleaning.data.repository.OperationsRepository
 import app.diredawa.cleaning.domain.model.AuthenticatedUser
 import app.diredawa.cleaning.domain.model.Role
 import app.diredawa.cleaning.ui.components.UiState
@@ -59,6 +60,9 @@ class HomeViewModelTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(
             """{"id":1,"username":"l","fullName":"Leader","role":"leader","zone":{"id":7,"name":"Zone A","kebele_id":1,"kebele_name":"K01"}}"""
         ))
+        // Secondary KPIs (worker stats + unread notifications)
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""[]"""))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"unreadCount":0}"""))
         val vm = homeVm()
         val s = awaitState(vm.state) { it is UiState.Content }
         assertTrue(s is UiState.Content)
@@ -94,6 +98,7 @@ class HomeViewModelTest {
             authRepository = AuthRepository(api, storage, session),
             session = session,
             resolveScope = ResolveScopeUseCase(),
+            operationsRepository = OperationsRepository(api),
         )
     }
 }

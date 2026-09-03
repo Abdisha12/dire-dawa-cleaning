@@ -79,3 +79,114 @@ sealed interface OperationalScope {
     data class Kebele(override val user: AuthenticatedUser, val kebele: app.diredawa.cleaning.domain.model.Kebele) : OperationalScope
     data class Zone(override val user: AuthenticatedUser, val zone: app.diredawa.cleaning.domain.model.Zone) : OperationalScope
 }
+
+// ── Phase 11 field-operations domain models ────────────────────────────────
+// Backend remains the authority; these mirror the audited contracts exactly.
+
+/**
+ * Daily attendance for one worker. `present` is boolean — the backend attendance
+ * table uses `BOOLEAN` (§9). No invented Late/Excused/Half Day statuses.
+ */
+data class AttendanceRecord(
+    val workerId: Long,
+    val date: String,
+    val present: Boolean,
+    val bonus: Double? = null,
+    val id: Long? = null,
+)
+
+/** Inspection status — exact backend enum (`inspection_status`). */
+enum class InspectionStatus(val apiValue: String) {
+    ACTIVE("active"),
+    WARNING("warning"),
+    DANGER("danger");
+
+    companion object {
+        fun fromApi(value: String?): InspectionStatus? =
+            entries.firstOrNull { it.apiValue == value }
+    }
+}
+
+data class InspectionPhoto(
+    val id: Long,
+    val filePath: String? = null,
+    val uploadedAt: String? = null,
+)
+
+data class Inspection(
+    val id: Long,
+    val kebeleId: Long,
+    val saferZoneId: Long? = null,
+    val date: String,
+    val status: InspectionStatus,
+    val notes: String? = null,
+    val kebeleName: String? = null,
+    val zoneName: String? = null,
+    val inspectorName: String? = null,
+    val photos: List<InspectionPhoto> = emptyList(),
+)
+
+/** Zone report status — exact backend state machine (`report_status`). */
+enum class ZoneReportStatus(val apiValue: String) {
+    DRAFT("draft"),
+    SUBMITTED("submitted"),
+    REVIEWED("reviewed"),
+    APPROVED("approved");
+
+    companion object {
+        fun fromApi(value: String?): ZoneReportStatus? =
+            entries.firstOrNull { it.apiValue == value }
+    }
+}
+
+data class ZoneReport(
+    val id: Long,
+    val saferZoneId: Long,
+    val reportDate: String,
+    val reportMonth: Int,
+    val reportYear: Int,
+    val status: ZoneReportStatus?,
+    val workersPresent: Int? = null,
+    val workersAbsent: Int? = null,
+    val collectionTotal: Double? = null,
+    val issuesReported: String? = null,
+    val actionsTaken: String? = null,
+    val toolsStatus: String? = null,
+    val reviewedAt: String? = null,
+    val reviewerNotes: String? = null,
+    val zoneName: String? = null,
+    val kebeleName: String? = null,
+)
+
+data class Business(
+    val id: Long,
+    val name: String,
+    val ownerName: String? = null,
+    val type: String? = null,
+    val saferZoneId: Long? = null,
+    val isActive: Boolean = true,
+    val saferZoneName: String? = null,
+    val kebeleName: String? = null,
+    val kebeleId: Long? = null,
+)
+
+data class WorkerSummary(
+    val id: Long,
+    val fullName: String,
+    val dailyWage: Double? = null,
+    val saferZoneId: Long? = null,
+    val isActive: Boolean = true,
+    val zoneName: String? = null,
+    val kebeleName: String? = null,
+    val daysPresent: Int? = null,
+    val daysAbsent: Int? = null,
+    val grossWage: Double? = null,
+)
+
+/** A location captured on-device. Coordinates are real GPS only — never fabricated (§5, §18). */
+data class CapturedLocation(
+    val latitude: Double,
+    val longitude: Double,
+    val accuracy: Float? = null,
+    val capturedAt: Long? = null,
+)

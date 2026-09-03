@@ -58,6 +58,20 @@ fun MoreScreen(
         Spacer(Modifier.height(8.dp))
 
         OutlinedButton(
+            onClick = { navController.navigate(Destinations.WORKERS) },
+            Modifier.fillMaxWidth(),
+        ) {
+            Text("Workers")
+        }
+
+        OutlinedButton(
+            onClick = { navController.navigate(Destinations.SYNC) },
+            Modifier.fillMaxWidth(),
+        ) {
+            Text("Sync status")
+        }
+
+        OutlinedButton(
             onClick = {},
             Modifier.fillMaxWidth(),
         ) {

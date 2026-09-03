@@ -15,7 +15,8 @@ object ErrorMapper {
                 403 -> NetworkError(ErrorKind.FORBIDDEN, 403, "Access denied.")
                 404 -> NetworkError(ErrorKind.NOT_FOUND, 404, "Not found.")
                 409 -> NetworkError(ErrorKind.CONFLICT, 409, "Conflict.")
-                422 -> NetworkError(ErrorKind.VALIDATION, 422, "Invalid input.")
+                // 400 is the backend's validation / bad-request status (errorHandler + inline checks).
+                400, 422 -> NetworkError(ErrorKind.VALIDATION, e.code(), "Invalid input.")
                 429 -> NetworkError(ErrorKind.RATE_LIMITED, 429, "Too many requests. Try again later.")
                 in 500..599 -> NetworkError(ErrorKind.SERVER, e.code(), "Server error. Please try again.")
                 else -> NetworkError(ErrorKind.SERVER, e.code(), "Server error.")

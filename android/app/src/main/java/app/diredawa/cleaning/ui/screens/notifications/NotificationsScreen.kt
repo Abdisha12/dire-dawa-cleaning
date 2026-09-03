@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -33,9 +34,11 @@ import app.diredawa.cleaning.ui.components.UiState
 import app.diredawa.cleaning.ui.navigation.AppViewModelFactory
 
 /**
- * Notifications foundation (§25): lists the authenticated user's real notifications
- * from the backend. Read/unread is surfaced from `is_read`. Backend auth scopes the
- * list; no local fake notifications.
+ * Notifications (§31–§32): lists the authenticated user's real notifications from
+ * the backend; tap to mark read (PUT). Notification `link` values are UI anchors
+ * like `#payments` (`overdue_payment`), `#zonereports` (`pending_report`) or
+ * `#workers` (`absent_worker`) — none carry entity IDs or deep links that could
+ * bypass authorization, so no privileged deep navigation is surfaced (§32).
  */
 @Composable
 fun NotificationsScreen(
@@ -60,10 +63,19 @@ fun NotificationsScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     item {
-                        Text("Notifications", style = MaterialTheme.typography.headlineMedium)
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("Notifications", style = MaterialTheme.typography.headlineMedium)
+                            TextButton(onClick = { viewModel.markAllRead() }) {
+                                Text("Mark all read")
+                            }
+                        }
                     }
                     items(s.data, key = { it.id }) { n ->
-                        NotificationRow(n)
+                        NotificationRow(n, onMarkRead = { viewModel.markRead(n.id) })
                     }
                 }
             }
@@ -72,7 +84,7 @@ fun NotificationsScreen(
 }
 
 @Composable
-private fun NotificationRow(notification: AppNotification) {
+private fun NotificationRow(notification: AppNotification, onMarkRead: () -> Unit) {
     Card {
         Column(
             Modifier
@@ -95,6 +107,11 @@ private fun NotificationRow(notification: AppNotification) {
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
+                if (!notification.isRead) {
+                    TextButton(onClick = onMarkRead) {
+                        Text("Mark read")
+                    }
+                }
             }
             Spacer(Modifier.height(4.dp))
             Text(notification.message, style = MaterialTheme.typography.bodyLarge)

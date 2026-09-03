@@ -6,39 +6,47 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.diredawa.cleaning.AppContainer
+import app.diredawa.cleaning.ui.screens.attendance.AttendanceScreen
 import app.diredawa.cleaning.ui.screens.auth.LoginScreen
 import app.diredawa.cleaning.ui.screens.home.HomeScreen
+import app.diredawa.cleaning.ui.screens.inspections.InspectionCreateScreen
 import app.diredawa.cleaning.ui.screens.more.MoreScreen
 import app.diredawa.cleaning.ui.screens.notifications.NotificationsScreen
 import app.diredawa.cleaning.ui.screens.operations.OperationsScreen
+import app.diredawa.cleaning.ui.screens.sync.SyncScreen
+import app.diredawa.cleaning.ui.screens.workers.WorkerDetailScreen
+import app.diredawa.cleaning.ui.screens.workers.WorkersScreen
+import app.diredawa.cleaning.ui.screens.zonereports.ZoneReportsScreen
 
-/** App destinations (§16). Minimum set for the foundation. */
+/** App destinations (§16). Phase 11 adds field workflow routes. */
 object Destinations {
     const val LOGIN = "login"
     const val HOME = "home"
     const val OPERATIONS = "operations"
     const val NOTIFICATIONS = "notifications"
     const val MORE = "more"
+    const val WORKERS = "workers"
+    const val WORKER_DETAIL = "workers/{workerId}?name={workerName}&role={workerRole}"
+    const val ATTENDANCE = "attendance"
+    const val INSPECTION_CREATE = "inspections/new"
+    const val ZONE_REPORTS = "zone-reports"
+    const val SYNC = "sync"
 }
 
 private data class BottomItem(
@@ -122,6 +130,37 @@ fun AppNavHost(
             }
             composable(Destinations.MORE) {
                 MoreScreen(container = container, navController = navController)
+            }
+            composable(Destinations.WORKERS) {
+                WorkersScreen(
+                    viewModelFactory = factory,
+                    onWorkerClick = { workerId, workerName, workerRole ->
+                        navController.navigate("workers/$workerId?name=${workerName}&role=${workerRole}")
+                    },
+                )
+            }
+            composable(Destinations.WORKER_DETAIL) { backStackEntry ->
+                val workerId = backStackEntry.arguments?.getString("workerId")?.toLongOrNull() ?: -1L
+                val workerName = backStackEntry.arguments?.getString("workerName") ?: "Worker"
+                val workerRole = backStackEntry.arguments?.getString("workerRole")
+                WorkerDetailScreen(
+                    workerId = workerId,
+                    workerName = workerName,
+                    workerRole = workerRole,
+                    container = container,
+                )
+            }
+            composable(Destinations.ATTENDANCE) {
+                AttendanceScreen(viewModelFactory = factory)
+            }
+            composable(Destinations.INSPECTION_CREATE) {
+                InspectionCreateScreen(viewModelFactory = factory)
+            }
+            composable(Destinations.ZONE_REPORTS) {
+                ZoneReportsScreen(viewModelFactory = factory)
+            }
+            composable(Destinations.SYNC) {
+                SyncScreen(viewModelFactory = factory)
             }
         }
     }
