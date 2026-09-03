@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Municipal identity tokens (matches web Tailwind theme, Phase 10 §13) -->
+    <color name="primary">#1d4ed8</color>
+    <color name="primary_dark">#1e40af</color>
+    <color name="success">#16a34a</color>
+    <color name="warning">#ea580c</color>
+    <color name="danger">#dc2626</color>
+    <color name="information">#2563eb</color>
+</resources>

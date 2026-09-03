@@ -40,3 +40,17 @@ coverage/
 # Misc
 *.tgz
 *.tar.gz
+
+# Android (Phase 10)
+android/.gradle/
+android/**/build/
+android/.idea/
+android/local.properties
+android/captures/
+android/.externalNativeBuild/
+android/.cxx/
+android/gradle/wrapper/gradle-wrapper.jar
+*.apk
+*.aab
+*.keystore
+*.jks
