@@ -4,8 +4,17 @@ const { authenticate } = require("../middleware/auth");
 const validate = require("../middleware/validate");
 const schemas = require("../middleware/schemas");
 const PDFDocument = require("pdfkit");
-const { generatePaymentsPDF, generatePayrollPDF, generateInspectionsPDF } = require("../services/pdfService");
-const { generatePaymentsExcel, generatePayrollExcel, generateInspectionsExcel, generateMonthlySummaryExcel } = require("../services/excelService");
+
+async function getCollectorKebeleId(userId) {
+  const result = await db.query("SELECT id FROM kebeles WHERE collector_id=$1", [userId]);
+  return result.rows.length ? result.rows[0].id : null;
+}
+
+async function zoneBelongsToKebele(zoneId, kebeleId) {
+  if (!zoneId) return true;
+  const result = await db.query("SELECT id FROM safer_zones WHERE id=$1 AND kebele_id=$2", [zoneId, kebeleId]);
+  return result.rows.length > 0;
+}
 
 const router = express.Router();
 router.use(authenticate);
@@ -177,38 +186,103 @@ router.get("/inspections", validate(schemas.reportQuery, "query"), async (req, r
 });
 
 // GET /api/reports/monthly-summary — consolidated summary (payments + workers + inspections)
-router.get("/monthly-summary", async (req, res, next) => {
+router.get("/monthly-summary", validate(schemas.reportQuery, "query"), async (req, res, next) => {
   try {
     const y = req.query.year || new Date().getFullYear();
     const m = req.query.month || new Date().getMonth() + 1;
     const first = `${y}-${String(m).padStart(2, "0")}-01`;
     const last = new Date(y, m, 0).toISOString().slice(0, 10);
 
-    const paymentsResult = await db.query(
-      `SELECT p.id, b.name AS business, sz.name AS zone, p.amount, p.method, p.status
-       FROM payments p JOIN businesses b ON b.id=p.business_id
-       JOIN safer_zones sz ON sz.id=b.safer_zone_id WHERE p.month=$1 AND p.year=$2`, [m, y]
-    );
-    const payments = paymentsResult.rows;
+    let paymentsResult, payments, workersResult, workers, inspectionsResult, inspections;
 
-    const workersResult = await db.query(
-      `SELECT w.full_name, sz.name AS zone,
-              COUNT(CASE WHEN a.present=TRUE THEN 1 END) AS days_present,
-              COUNT(CASE WHEN a.present=FALSE THEN 1 END) AS days_absent,
-              (COUNT(CASE WHEN a.present=TRUE THEN 1 END)*w.daily_wage+COALESCE(SUM(a.bonus),0)) AS gross
-       FROM workers w LEFT JOIN safer_zones sz ON sz.id=w.safer_zone_id
-       LEFT JOIN attendance a ON a.worker_id=w.id AND a.date BETWEEN $1 AND $2
-       WHERE w.is_active=TRUE GROUP BY w.id`, [first, last]
-    );
-    const workers = workersResult.rows;
+    if (req.user.role === "leader") {
+      // Leader: scoped to their zones only
+      paymentsResult = await db.query(
+        `SELECT p.id, b.name AS business, sz.name AS zone, p.amount, p.method, p.status
+         FROM payments p JOIN businesses b ON b.id=p.business_id
+         JOIN safer_zones sz ON sz.id=b.safer_zone_id JOIN kebeles k ON k.id=sz.kebele_id
+         WHERE p.month=$1 AND p.year=$2 AND sz.leader_id=$3`, [m, y, req.user.id]
+      );
+      payments = paymentsResult.rows;
 
-    const inspectionsResult = await db.query(
-      `SELECT i.date, k.name AS kebele, sz.name AS zone, i.status, u.full_name AS inspector
-       FROM inspections i JOIN kebeles k ON k.id=i.kebele_id
-       LEFT JOIN safer_zones sz ON sz.id=i.safer_zone_id JOIN users u ON u.id=i.inspected_by
-       WHERE i.date BETWEEN $1 AND $2`, [first, last]
-    );
-    const inspections = inspectionsResult.rows;
+      workersResult = await db.query(
+        `SELECT w.full_name, sz.name AS zone,
+                COUNT(CASE WHEN a.present=TRUE THEN 1 END) AS days_present,
+                COUNT(CASE WHEN a.present=FALSE THEN 1 END) AS days_absent,
+                (COUNT(CASE WHEN a.present=TRUE THEN 1 END)*w.daily_wage+COALESCE(SUM(a.bonus),0)) AS gross
+         FROM workers w LEFT JOIN safer_zones sz ON sz.id=w.safer_zone_id
+         LEFT JOIN attendance a ON a.worker_id=w.id AND a.date BETWEEN $1 AND $2
+         WHERE w.is_active=TRUE AND sz.leader_id=$3`, [first, last, req.user.id]
+      );
+      workers = workersResult.rows;
+
+      inspectionsResult = await db.query(
+        `SELECT i.date, k.name AS kebele, sz.name AS zone, i.status, u.full_name AS inspector
+         FROM inspections i JOIN kebeles k ON k.id=i.kebele_id
+         LEFT JOIN safer_zones sz ON sz.id=i.safer_zone_id JOIN users u ON u.id=i.inspected_by
+         WHERE i.date BETWEEN $1 AND $2 AND sz.leader_id=$3`, [first, last, req.user.id]
+      );
+      inspections = inspectionsResult.rows;
+    } else if (req.user.role === "collector") {
+      // Collector: scoped to their kebele only
+      const kebeleId = await getCollectorKebeleId(req.user.id);
+      if (!kebeleId) {
+        return res.json({ payments: [], workers: [], inspections: [] });
+      }
+
+      paymentsResult = await db.query(
+        `SELECT p.id, b.name AS business, sz.name AS zone, p.amount, p.method, p.status
+         FROM payments p JOIN businesses b ON b.id=p.business_id
+         JOIN safer_zones sz ON sz.id=b.safer_zone_id JOIN kebeles k ON k.id=sz.kebele_id
+         WHERE p.month=$1 AND p.year=$2 AND k.id=$3`, [m, y, kebeleId]
+      );
+      payments = paymentsResult.rows;
+
+      workersResult = await db.query(
+        `SELECT w.full_name, sz.name AS zone,
+                COUNT(CASE WHEN a.present=TRUE THEN 1 END) AS days_present,
+                COUNT(CASE WHEN a.present=FALSE THEN 1 END) AS days_absent,
+                (COUNT(CASE WHEN a.present=TRUE THEN 1 END)*w.daily_wage+COALESCE(SUM(a.bonus),0)) AS gross
+         FROM workers w LEFT JOIN safer_zones sz ON sz.id=w.safer_zone_id
+         LEFT JOIN attendance a ON a.worker_id=w.id AND a.date BETWEEN $1 AND $2
+         WHERE w.is_active=TRUE AND k.id=$3`, [first, last, kebeleId]
+      );
+      workers = workersResult.rows;
+
+      inspectionsResult = await db.query(
+        `SELECT i.date, k.name AS kebele, sz.name AS zone, i.status, u.full_name AS inspector
+         FROM inspections i JOIN kebeles k ON k.id=i.kebele_id
+         LEFT JOIN safer_zones sz ON sz.id=i.safer_zone_id
+         WHERE i.date BETWEEN $1 AND $2 AND k.id=$3`, [first, last, kebeleId]
+      );
+      inspections = inspectionsResult.rows;
+    } else {
+      // Admin / viewer: org-wide (no extra scoping)
+      paymentsResult = await db.query(
+        `SELECT p.id, b.name AS business, sz.name AS zone, p.amount, p.method, p.status
+         FROM payments p JOIN businesses b ON b.id=p.business_id
+         JOIN safer_zones sz ON sz.id=b.safer_zone_id WHERE p.month=$1 AND p.year=$2`, [m, y]
+      );
+      payments = paymentsResult.rows;
+
+      workersResult = await db.query(
+        `SELECT w.full_name, sz.name AS zone,
+                COUNT(CASE WHEN a.present=TRUE THEN 1 END) AS days_present,
+                COUNT(CASE WHEN a.present=FALSE THEN 1 END) AS days_absent,
+                (COUNT(CASE WHEN a.present=TRUE THEN 1 END)*w.daily_wage+COALESCE(SUM(a.bonus),0)) AS gross
+         FROM workers w LEFT JOIN safer_zones sz ON sz.id=w.safer_zone_id
+         LEFT JOIN attendance a ON a.worker_id=w.id AND a.date BETWEEN $1 AND $2
+         WHERE w.is_active=TRUE`, [first, last]
+      );
+      workers = workersResult.rows;
+
+      inspectionsResult = await db.query(
+        `SELECT i.date, k.name AS kebele, sz.name AS zone, i.status, u.full_name AS inspector
+         FROM inspections i JOIN kebeles k ON k.id=i.kebele_id
+         LEFT JOIN safer_zones sz ON sz.id=i.safer_zone_id WHERE i.date BETWEEN $1 AND $2`, [first, last]
+      );
+      inspections = inspectionsResult.rows;
+    }
 
     if (req.query.format === "xlsx") {
       const buffer = await generateMonthlySummaryExcel({ payments, workers, inspections }, m, y);

@@ -235,8 +235,8 @@ router.get("/sandbox-checkout", async (req, res) => {
   res.send(html);
 });
 
-// Endpoint that acts as a secure local simulator agent
-router.post("/sandbox-callback-trigger", async (req, res) => {
+// Endpoint that acts as a secure local simulator agent — admin only
+router.post("/sandbox-callback-trigger", authenticate, requireRole("admin"), async (req, res) => {
   const { gateway, txId, ref, status, amount } = req.body;
   const PORT = process.env.PORT || 5000;
 

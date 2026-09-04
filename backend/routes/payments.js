@@ -110,13 +110,18 @@ router.get("/summary/dashboard", validate(schemas.dashboardQuery, "query"), asyn
   } catch (err) { next(err); }
 });
 
-router.get("/", async (req, res, next) => {
+router.get("/", validate(schemas.paymentsListQuery, "query"), async (req, res, next) => {
   try {
-    const page = Math.max(1, parseInt(String(req.query.page || "0"), 10) || 0);
-    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "0"), 10) || 0));
+    const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "50"), 10) || 50));
     const hasPagination = page > 0 && limit > 0;
     const search = (req.query.search || "").trim();
     const { businessId, kebeleId, saferZoneId, month, year, status, method } = req.query;
+    // Zod coerce.number will convert valid int strings; id primitive ensures int positive
+    const bizId = businessId ? Number(businessId) : null;
+    const kebId = kebeleId ? Number(kebeleId) : null;
+    const szId = saferZoneId ? Number(saferZoneId) : null;
+    const stat = status;
     let baseSql = ` FROM payments p JOIN businesses b ON b.id=p.business_id
              JOIN safer_zones sz ON sz.id=b.safer_zone_id
              JOIN kebeles k ON k.id=sz.kebele_id
@@ -125,9 +130,9 @@ router.get("/", async (req, res, next) => {
     let wIdx = 1;
     if (req.user.role === "leader") { baseSql += ` AND sz.leader_id=$${wIdx}`; whereParams.push(req.user.id); wIdx++; }
     else {
-      if (businessId) { baseSql += ` AND p.business_id=$${wIdx}`; whereParams.push(businessId); wIdx++; }
-      if (kebeleId) { baseSql += ` AND k.id=$${wIdx}`; whereParams.push(kebeleId); wIdx++; }
-      if (saferZoneId) { baseSql += ` AND sz.id=$${wIdx}`; whereParams.push(saferZoneId); wIdx++; }
+      if (bizId) { baseSql += ` AND p.business_id=$${wIdx}`; whereParams.push(bizId); wIdx++; }
+      if (kebId) { baseSql += ` AND k.id=$${wIdx}`; whereParams.push(kebId); wIdx++; }
+      if (szId) { baseSql += ` AND sz.id=$${wIdx}`; whereParams.push(szId); wIdx++; }
     }
     if (month) { baseSql += ` AND p.month=$${wIdx}`; whereParams.push(month); wIdx++; }
     if (year) { baseSql += ` AND p.year=$${wIdx}`; whereParams.push(year); wIdx++; }

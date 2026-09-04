@@ -97,6 +97,19 @@ CREATE TABLE IF NOT EXISTS sessions (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS login_attempts (
+  id          VARCHAR(64) PRIMARY KEY DEFAULT gen_random_uuid()::varchar,
+  username    VARCHAR(120) NOT NULL,
+  ip_address  INET NOT NULL,
+  failed_count INT NOT NULL DEFAULT 0,
+  last_attempt_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  locked_until TIMESTAMP
+);
+
+CREATE INDEX idx_login_attempts_username ON login_attempts(username);
+CREATE INDEX idx_login_attempts_ip ON login_attempts(ip_address);
+CREATE INDEX idx_login_attempts_locked_until ON login_attempts(locked_until);
+
 CREATE TABLE IF NOT EXISTS kebeles (
   id           SERIAL PRIMARY KEY,
   name         VARCHAR(80) NOT NULL UNIQUE,

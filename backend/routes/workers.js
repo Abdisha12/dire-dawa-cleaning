@@ -91,13 +91,13 @@ router.get("/",async(req,res,next)=>{
     const page = Math.max(1, parseInt(String(req.query.page || "0"), 10) || 0);
     const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "0"), 10) || 0));
     const hasPagination = page > 0 && limit > 0;
-    const search = (req.query.search as string || "").trim();
-    const status = (req.query.status as string || "").trim(); // active | inactive
+    const search = (req.query.search || "").trim();
+    const status = (req.query.status || "").trim(); // active | inactive
     const kebeleIdParam = req.query.kebeleId ? String(req.query.kebeleId) : null;
     const zoneIdParam = req.query.zoneId ? String(req.query.zoneId) : null;
 
     let baseSql=` FROM workers w LEFT JOIN safer_zones sz ON sz.id=w.safer_zone_id LEFT JOIN kebeles k ON k.id=sz.kebele_id WHERE 1=1`;
-    const whereParams: unknown[] = [];
+    const whereParams = [];
     let wIdx = 1;
 
     if(req.user.role==="leader"){ baseSql+=` AND sz.leader_id=$${wIdx}`; whereParams.push(req.user.id); wIdx++; }
@@ -229,27 +229,69 @@ router.delete("/:id",requireRole("admin","collector"),async(req,res,next)=>{
   catch(err){next(err);}
 });
 
-router.get("/:id/attendance",validate(schemas.workerAttendanceQuery,"query"),async(req,res,next)=>{
-  try{
-    const {from,to}=req.query;
-    let sql="SELECT a.*,u.full_name AS recorder_name FROM attendance a JOIN users u ON u.id=a.recorded_by WHERE a.worker_id=$1";
-    const params=[req.params.id];
-    let paramIdx=2;
-    if(from){sql+=` AND a.date>=$${paramIdx}`;params.push(from);paramIdx++;}
-    if(to){sql+=` AND a.date<=$${paramIdx}`;params.push(to);paramIdx++;}
-    sql+=" ORDER BY a.date DESC";
-    const result=await db.query(sql,params);
+router.get("/:id/attendance", validate(schemas.workerAttendanceQuery, "query"), async (req, res, next) => {
+  try {
+    const { from, to } = req.query;
+
+    // Scope: collectors see only their kebele's workers; leaders see only their zone's workers
+    let scopeWhere = "";
+    const params = [req.params.id];
+    let pIdx = 1;
+
+    if (req.user.role === "collector") {
+      const kebeleId = await getCollectorKebeleId(req.user.id);
+      if (kebeleId) {
+        const owns = await workerBelongsToKebele(req.params.id, kebeleId);
+        if (!owns) return res.status(403).json({ error: "Worker not in your kebele" });
+      } else {
+        return res.status(403).json({ error: "No kebele assigned to your account" });
+      }
+    } else if (req.user.role === "leader") {
+      // Leader can only view attendance for workers in their own zones
+      scopeWhere = ` AND sz.leader_id = $${++pIdx}`;
+      params.push(req.user.id);
+    }
+
+    let sql = `SELECT a.*, u.full_name AS recorder_name FROM attendance a JOIN users u ON u.id = a.recorded_by WHERE a.worker_id = $${params[0]}`;
+    if (scopeWhere) sql += scopeWhere;
+    const result = await db.query(sql, params);
     res.json(result.rows);
-  }catch(err){next(err);}
+  } catch (err) { next(err); }
 });
 
-router.get("/:id/salary",async(req,res,next)=>{
-  try{
-    const result=await db.query(
-      "SELECT sp.*,u.full_name AS paid_by_name FROM salary_payments sp JOIN users u ON u.id=sp.paid_by WHERE sp.worker_id=$1 ORDER BY sp.paid_at DESC",
-      [req.params.id]);
+router.get("/:id/salary", async (req, res, next) => {
+  try {
+    // Scope: collectors see only their kebele's workers; leaders see only their zone's workers
+    if (req.user.role === "collector") {
+      const kebeleId = await getCollectorKebeleId(req.user.id);
+      if (kebeleId) {
+        const owns = await workerBelongsToKebele(req.params.id, kebeleId);
+        if (!owns) return res.status(403).json({ error: "Worker not in your kebele" });
+      } else {
+        return res.status(403).json({ error: "No kebele assigned to your account" });
+      }
+    } else if (req.user.role === "leader") {
+      // Leader can only view salary for workers in their own zones
+      const zoneResult = await db.query(
+        "SELECT id FROM safer_zones WHERE leader_id=$1",
+        [req.user.id]
+      );
+      const leaderZones = zoneResult.rows.map(r => r.id);
+      const workerZoneResult = await db.query(
+        "SELECT sz.id FROM workers w JOIN safer_zones sz ON sz.id=w.safer_zone_id WHERE w.id=$1",
+        [req.params.id]
+      );
+      if (workerZoneResult.rows.length === 0 || !leaderZones.includes(workerZoneResult.rows[0].id)) {
+        return res.status(403).json({ error: "Worker not in your zone" });
+      }
+    }
+
+    const result = await db.query(
+      "SELECT sp.*, u.full_name AS paid_by_name FROM salary_payments sp JOIN users u ON u.id = sp.paid_by WHERE sp.worker_id=$1 ORDER BY sp.paid_at DESC",
+      [req.params.id]
+    );
     res.json(result.rows);
-  }catch(err){next(err);}
+  } catch (err) { next(err); }
 });
 
 router.post("/:id/salary",requireRole("admin","collector","leader"),validate(schemas.paySalary),async(req,res,next)=>{
@@ -263,6 +305,12 @@ router.post("/:id/salary",requireRole("admin","collector","leader"),validate(sch
         const owns=await workerBelongsToKebele(req.params.id,kebeleId);
         if(!owns) return res.status(403).json({error:"Worker not in your kebele"});
       }
+    } else if(req.user.role==="leader"){
+      // Leader can only pay salary for workers in their own zones
+      const zoneResult=await db.query("SELECT id FROM safer_zones WHERE leader_id=$1",[req.user.id]);
+      const leaderZones=zoneResult.rows.map(r=>r.id);
+      const workerZoneResult=await db.query("SELECT sz.id FROM workers w JOIN safer_zones sz ON sz.id=w.safer_zone_id WHERE w.id=$1",[req.params.id]);
+      if(workerZoneResult.rows.length===0||!leaderZones.includes(workerZoneResult.rows[0].id)) return res.status(403).json({error:"Worker not in your zone"});
     }
 
     const r=await db.query(

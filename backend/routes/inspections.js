@@ -18,11 +18,11 @@ const storage=multer.diskStorage({
 });
 const upload=multer({storage,limits:{fileSize:5*1024*1024},fileFilter:createFileFilter("inspection")});
 
-router.get("/",async(req,res,next)=>{
+router.get("/", validate(schemas.inspectionListQuery, "query"), async (req, res, next) => {
   try{
     const {kebeleId,zoneId,from,to,status,search}=req.query;
-    const page = Math.max(1, parseInt(String(req.query.page || "0"), 10) || 0);
-    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "0"), 10) || 0));
+    const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "50"), 10) || 50));
     const hasPagination = page > 0 && limit > 0;
     const searchTerm = (search || "").trim();
     let baseSql=` FROM inspections i JOIN kebeles k ON k.id=i.kebele_id LEFT JOIN safer_zones sz ON sz.id=i.safer_zone_id JOIN users u ON u.id=i.inspected_by WHERE 1=1`;

@@ -7,7 +7,7 @@ const router=express.Router();
 router.use(authenticate);
 
 // ── Tools ────────────────────────────────────────────────────
-router.get("/",async(req,res,next)=>{
+router.get("/", validate(schemas.toolsListQuery, "query"), async (req, res, next) => {
   try{
     const {zoneId}=req.query;
     let sql=`SELECT t.*,sz.name AS zone_name,k.name AS kebele_name

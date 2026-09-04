@@ -121,6 +121,8 @@ const createPayment = {
 
 const updatePayment = {
   body: z.object({
+    amount: z.coerce.number().positive().max(10000000).optional(),
+    method: z.string().max(30).trim().optional(),
     status: z.enum(["pending", "paid", "overdue"]).optional(),
     notes: z.string().max(1000).trim().optional().nullable(),
   }),
@@ -288,7 +290,36 @@ const updateDocument = {
 const paginationQuery = z.object({
   page: pagination.page,
   limit: pagination.limit,
-}).passthrough();
+});
+
+// ── Documents (list query) ────────────────────────────────────
+const documentListQuery = z.object({
+  page: pagination.page,
+  limit: pagination.limit.optional(),
+  category: z.string().trim().optional(),
+  saferZoneId: id.optional(),
+  kebeleId: id.optional(),
+  search: z.string().trim().optional(),
+});
+
+// ── Inspections (list query) ────────────────────────────────
+const inspectionListQuery = z.object({
+  page: pagination.page,
+  limit: pagination.limit.optional(),
+  kebeleId: id.optional(),
+  zoneId: id.optional(),
+  from: dateStr.optional(),
+  to: dateStr.optional(),
+  status: z.enum(["pending", "passed", "failed"]).optional(),
+  search: z.string().trim().optional(),
+});
+
+// ── Tools (list query) ────────────────────────────────────────
+const toolsListQuery = z.object({
+  page: pagination.page,
+  limit: pagination.limit.optional(),
+  zoneId: id.optional(),
+});
 
 // ── Reports ───────────────────────────────────────────────────
 const reportQuery = z.object({
@@ -307,6 +338,30 @@ const auditLogQuery = z.object({
   entityType: z.string().max(50).optional(),
 }).passthrough();
 
+// ── Payments (list query) ─────────────────────────────────────
+const paymentsListQuery = z.object({
+  page: pagination.page,
+  limit: pagination.limit.optional(),
+  status: z.enum(["pending", "paid", "overdue"]).optional(),
+  month: month.optional(),
+  year: year.optional(),
+});
+
+// ── Zone Reports (list query) ─────────────────────────────────
+const zoneReportListQuery = z.object({
+  page: pagination.page,
+  limit: pagination.limit.optional(),
+  month: month.optional(),
+  year: year.optional(),
+  status: z.enum(["draft", "submitted", "reviewed", "approved"]).optional(),
+  zoneId: id.optional(),
+});
+
+// ── Users (list query) ────────────────────────────────────────
+const usersListQuery = z.object({
+  role: z.enum(["admin", "collector", "leader", "viewer"]).optional(),
+}).passthrough();
+
 module.exports = {
   login,
   createUser, updateUser, changePassword,
@@ -318,5 +373,5 @@ module.exports = {
   createTool, updateTool,
   createZoneReport, updateZoneReport, reviewZoneReport,
   updateDocument,
-  paginationQuery, reportQuery, auditLogQuery,
+  paginationQuery, reportQuery, auditLogQuery, usersListQuery, paymentsListQuery, zoneReportListQuery,
 };

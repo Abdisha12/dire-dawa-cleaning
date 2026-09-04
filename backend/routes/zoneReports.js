@@ -25,7 +25,7 @@ const ROLE_TRANSITIONS = {
 };
 
 // Leader submits, collector reviews
-router.get("/",async(req,res,next)=>{
+router.get("/", validate(schemas.zoneReportListQuery, "query"), async (req, res, next) => {
   try{
     const {month,year,status,zoneId,search}=req.query;
     const page = Math.max(1, parseInt(String(req.query.page || "0"), 10) || 0);

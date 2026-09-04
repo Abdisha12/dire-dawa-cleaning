@@ -34,9 +34,12 @@ const upload = multer({
 router.use(authenticate);
 
 // GET /api/documents — list documents with category, zone, kebele filters & search
-router.get("/", async (req, res, next) => {
+router.get("/", validate(schemas.documentListQuery, "query"), async (req, res, next) => {
   try {
     const { category, saferZoneId, kebeleId, search } = req.query;
+    // Zod coerce.number will convert valid int strings; id primitive ensures int positive
+    const szId = saferZoneId ? Number(saferZoneId) : null;
+    const kbId = kebeleId ? Number(kebeleId) : null;
     let sql = `SELECT d.*, u.full_name AS uploader_name, sz.name AS zone_name, k.name AS kebele_name
                FROM documents d
                JOIN users u ON u.id = d.uploaded_by
@@ -51,8 +54,8 @@ router.get("/", async (req, res, next) => {
       params.push(req.user.id);
       paramIdx++;
     } else {
-      if (saferZoneId) { sql += ` AND d.safer_zone_id = $${paramIdx}`; params.push(saferZoneId); paramIdx++; }
-      if (kebeleId) { sql += ` AND d.kebele_id = $${paramIdx}`; params.push(kebeleId); paramIdx++; }
+      if (szId) { sql += ` AND d.safer_zone_id = $${paramIdx}`; params.push(szId); paramIdx++; }
+      if (kbId) { sql += ` AND d.kebele_id = $${paramIdx}`; params.push(kbId); paramIdx++; }
     }
 
     if (category) { sql += ` AND d.category = $${paramIdx}`; params.push(category); paramIdx++; }

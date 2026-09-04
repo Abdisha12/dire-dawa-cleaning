@@ -118,6 +118,7 @@ app.use("/api/",rateLimit({windowMs:60*1000,max:500,message:{error:"Rate limit e
 app.use(express.json({limit:"10mb"}));
 app.use(express.urlencoded({extended:true,limit:"10mb"}));
 app.use(morgan("combined",{stream:{write:msg=>logger.info(msg.trim())}}));
+app.use(require("./middleware/correlationId"));
 app.use("/uploads",express.static(path.join(__dirname,"uploads")));
 
 app.get("/api/health",(req,res)=>res.json({status:"ok",ts:new Date()}));
@@ -154,4 +155,26 @@ app.listen(PORT,()=>{
     notifService.generateAbsentWorkerAlerts().catch(() => {});
   }, 6 * 60 * 60 * 1000);
 });
+
+// ── Graceful shutdown ─────────────────────────────────────────
+process.on("SIGTERM", async () => {
+  logger.info("SIGTERM received: shutting down gracefully");
+  try {
+    await pool.end();
+  } catch (err) {
+    logger.error("Error closing pool", { error: err.message });
+  }
+  process.exit(0);
+});
+
+process.on("SIGINT", async () => {
+  logger.info("SIGINT received: shutting down gracefully");
+  try {
+    await pool.end();
+  } catch (err) {
+    logger.error("Error closing pool", { error: err.message });
+  }
+  process.exit(0);
+});
+
 module.exports=app;

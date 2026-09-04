@@ -8,7 +8,7 @@ const schemas=require("../middleware/schemas");
 const router=express.Router();
 router.use(authenticate);
 
-router.get("/",requireRole("admin","collector"),async(req,res,next)=>{
+router.get("/", validate(schemas.usersListQuery, "query"), async (req, res, next) => {
   try{
     const {role}=req.query;
     let sql="SELECT id,username,full_name,fayda_id,phone,role,is_active,created_at FROM users WHERE 1=1";
@@ -89,6 +89,8 @@ router.put("/:id/password",validate(schemas.changePassword),async(req,res,next)=
     if(confirmPassword && newPassword!==confirmPassword) return res.status(400).json({error:"Passwords do not match"});
 
     await db.query("UPDATE users SET password_hash=$1 WHERE id=$2",[await bcrypt.hash(newPassword,10),tid]);
+    // Invalidate all existing sessions for this user on password change
+    await db.query("DELETE FROM sessions WHERE user_id=$1", [tid]);
     audit.log(req,"PASSWORD_CHANGE","user",tid,null,{targetUserId:tid,adminReset:!isSelf&&isAdmin});
     res.json({message:"Password updated"});
   }catch(err){next(err);}

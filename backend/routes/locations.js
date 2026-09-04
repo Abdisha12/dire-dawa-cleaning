@@ -172,7 +172,7 @@ router.get("/businesses/:id",async(req,res,next)=>{
   }catch(err){next(err);}
 });
 
-router.post("/businesses",requireRole("admin","collector","leader"),async(req,res,next)=>{
+router.post("/businesses",requireRole("admin","collector","leader"),validate(schemas.createBusiness),async(req,res,next)=>{
   try{
     const {name,ownerName,ownerFaydaId,ownerPhone,type,monthlyTarget,saferZoneId,notes}=req.body;
     if(!name||!ownerName||!saferZoneId) return res.status(400).json({error:"name,ownerName,saferZoneId required"});
@@ -194,7 +194,7 @@ router.post("/businesses",requireRole("admin","collector","leader"),async(req,re
   }catch(err){next(err);}
 });
 
-router.put("/businesses/:id",requireRole("admin","collector","leader"),async(req,res,next)=>{
+router.put("/businesses/:id",requireRole("admin","collector","leader"),validate(schemas.updateBusiness),async(req,res,next)=>{
   try{
     const {name,ownerName,ownerFaydaId,ownerPhone,type,monthlyTarget,saferZoneId,isActive,notes}=req.body;
     if(req.user.role==="collector"){
