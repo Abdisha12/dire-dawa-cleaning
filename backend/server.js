@@ -45,9 +45,11 @@ function corsOriginCallback(origin, cb) {
   // Allow requests with no Origin header (same-origin, curl, server-to-server)
   if (!origin) return cb(null, true);
 
-  // In production behind nginx reverse proxy, the frontend is served on
-  // the same origin — no cross-origin requests should arrive.
-  // If CORS_ORIGINS is empty, reject all cross-origin requests.
+  // Allow localhost origins for frontend development and local testing
+  if (origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:") || origin === "http://localhost" || origin === "http://127.0.0.1") {
+    return cb(null, true);
+  }
+
   if (allowedOrigins.length === 0) {
     logger.warn(`CORS blocked origin: ${origin} (no CORS_ORIGINS configured)`);
     return cb(null, false);

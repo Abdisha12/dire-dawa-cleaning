@@ -51,7 +51,7 @@ services:
       SESSION_EXPIRY_HOURS: ${SESSION_EXPIRY_HOURS:-8}
       PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-}
       MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-5}
-      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:80,http://127.0.0.1:80}
     volumes:
       - uploads_data:/app/uploads
       - logs_data:/app/logs
