@@ -37,6 +37,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    ports:
+      - "5000:5000"
     environment:
       DB_HOST: db
       DB_PORT: 5432
@@ -90,6 +92,24 @@ services:
           memory: 128M
     networks:
       - ddcms_net
+
+  # ── Next.js Frontend ───────────────────────────────────────────
+  frontend-next:
+    build:
+      context: ./frontend-next
+      dockerfile: Dockerfile
+    container_name: ddcms_frontend_next
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:5000/api
+    networks:
+      - ddcms_net
+
 
 volumes:
   db_data:
