@@ -2,8 +2,10 @@
 
 ## 1. Overview
 - **System Name:** Dire Dawa Cleaning Management System (v2)
-- **Deployment Status:** BLOCKED (Live production server host & public DNS unrouted; local simulation verified)
+- **Approved Release Commit:** `b136f915ecce9aa4f664e474aa7dcb357dd92cb0`
+- **Deployment Status:** BLOCKED (External VPS host node, public DNS `diredawa-cleaning.gov.et`, and TLS certificates remain unprovisioned)
 - **Architecture:** Node.js + Express REST API (Backend), Next.js App Router (Frontend), PostgreSQL 16 + PostGIS 3.4 (Database)
+
 - **Municipal Structure:** 9 Kebeles & 108 Safer Zones
 
 ---
