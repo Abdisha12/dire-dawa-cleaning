@@ -2,17 +2,17 @@ module.exports = {
   env: {
     node: true,
     es2021: true,
-    mocha: true,
+    mocha: true
   },
   extends: ["eslint:recommended"],
   parserOptions: {
-    ecmaVersion: "latest",
+    ecmaVersion: "latest"
   },
   rules: {
     // ── Errors ──────────────────────────────────────────────────
     "no-unused-vars": ["warn", { argsIgnorePattern: "^_|^next$", varsIgnorePattern: "^_|^next$" }],
     "no-console": "warn",
-    "eqeqeq": ["error", "always"],
+    eqeqeq: ["error", "always"],
     "no-eval": "error",
     "no-implied-eval": "error",
     "no-new-func": "error",
@@ -29,12 +29,7 @@ module.exports = {
 
     // ── Style (minimal — defer to Prettier for formatting) ──────
     "no-trailing-spaces": "off",
-    "no-multiple-empty-lines": "off",
+    "no-multiple-empty-lines": "off"
   },
-  ignorePatterns: [
-    "node_modules/",
-    "uploads/",
-    "logs/",
-    "coverage/",
-  ],
+  ignorePatterns: ["node_modules/", "uploads/", "logs/", "coverage/"]
 };

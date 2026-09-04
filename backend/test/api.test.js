@@ -23,10 +23,7 @@ describe("API validation and errors", function () {
   // ════════════════════════════════════════════════════════════════
   describe("Validation failures", function () {
     it("user creation rejects missing required fields", async function () {
-      const res = await request(app)
-        .post("/api/users")
-        .set("x-session-token", tokens.admin)
-        .send({});
+      const res = await request(app).post("/api/users").set("x-session-token", tokens.admin).send({});
       expect(res.status).to.equal(400);
       expect(res.body).to.have.property("error");
     });
@@ -56,10 +53,7 @@ describe("API validation and errors", function () {
     });
 
     it("worker creation rejects empty fullName", async function () {
-      const res = await request(app)
-        .post("/api/workers")
-        .set("x-session-token", tokens.admin)
-        .send({ fullName: "" });
+      const res = await request(app).post("/api/workers").set("x-session-token", tokens.admin).send({ fullName: "" });
       expect(res.status).to.equal(400);
     });
 
@@ -99,26 +93,19 @@ describe("API validation and errors", function () {
     });
 
     it("403 error has {error: string}", async function () {
-      const res = await request(app)
-        .get("/api/audit-log")
-        .set("x-session-token", tokens.viewer);
+      const res = await request(app).get("/api/audit-log").set("x-session-token", tokens.viewer);
       expect(res.status).to.equal(403);
       expect(res.body).to.have.property("error").that.is.a("string");
     });
 
     it("404 error has {error: string}", async function () {
-      const res = await request(app)
-        .get("/api/nonexistent-endpoint")
-        .set("x-session-token", tokens.admin);
+      const res = await request(app).get("/api/nonexistent-endpoint").set("x-session-token", tokens.admin);
       expect(res.status).to.equal(404);
       expect(res.body).to.have.property("error").that.is.a("string");
     });
 
     it("400 validation error has {error: string, details: array}", async function () {
-      const res = await request(app)
-        .post("/api/users")
-        .set("x-session-token", tokens.admin)
-        .send({});
+      const res = await request(app).post("/api/users").set("x-session-token", tokens.admin).send({});
       expect(res.status).to.equal(400);
       expect(res.body).to.have.property("error");
     });
@@ -134,9 +121,7 @@ describe("API validation and errors", function () {
     });
 
     it("invalid token returns 401", async function () {
-      const res = await request(app)
-        .get("/api/users")
-        .set("x-session-token", "invalid-token-12345");
+      const res = await request(app).get("/api/users").set("x-session-token", "invalid-token-12345");
       expect(res.status).to.equal(401);
     });
 
@@ -146,23 +131,16 @@ describe("API validation and errors", function () {
       const { v4: uuidv4 } = require("uuid");
       const expiredToken = uuidv4();
       const pastDate = new Date(Date.now() - 86400000); // 1 day ago
-      await db.query(
-        "INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, 1, $2)",
-        [expiredToken, pastDate]
-      );
+      await db.query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, 1, $2)", [expiredToken, pastDate]);
 
-      const res = await request(app)
-        .get("/api/users")
-        .set("x-session-token", expiredToken);
+      const res = await request(app).get("/api/users").set("x-session-token", expiredToken);
       expect(res.status).to.equal(401);
 
       await db.query("DELETE FROM sessions WHERE id=$1", [expiredToken]);
     });
 
     it("Bearer token via Authorization header works", async function () {
-      const res = await request(app)
-        .get("/api/users")
-        .set("Authorization", `Bearer ${tokens.admin}`);
+      const res = await request(app).get("/api/users").set("Authorization", `Bearer ${tokens.admin}`);
       expect(res.status).to.equal(200);
     });
   });
@@ -187,9 +165,7 @@ describe("API validation and errors", function () {
   // ════════════════════════════════════════════════════════════════
   describe("Input sanitization", function () {
     it("trims whitespace from username in validation", async function () {
-      const res = await request(app)
-        .post("/api/auth/login")
-        .send({ username: "  admin  ", password: "wrong" });
+      const res = await request(app).post("/api/auth/login").send({ username: "  admin  ", password: "wrong" });
       // Should not return 400 (validation passes after trim)
       expect(res.status).to.not.equal(400);
     });

@@ -1,6 +1,7 @@
 const express = require("express");
 const paymentService = require("../services/paymentService");
 const logger = require("../config/logger");
+const { authenticate, requireRole } = require("../middleware/auth");
 const router = express.Router();
 
 // Server-side HTML entity escaping for dynamic content

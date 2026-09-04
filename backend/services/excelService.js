@@ -28,16 +28,27 @@ async function generatePaymentsExcel(rows, month, year) {
   titleCell.alignment = { vertical: "middle", horizontal: "left" };
 
   // Headers
-  const headers = ["ID", "Business", "Zone", "Kebele", "Amount (ETB)", "Method", "Status", "Collector", "Paid Date", "Receipt #"];
+  const headers = [
+    "ID",
+    "Business",
+    "Zone",
+    "Kebele",
+    "Amount (ETB)",
+    "Method",
+    "Status",
+    "Collector",
+    "Paid Date",
+    "Receipt #"
+  ];
   const headerRow = sheet.addRow(headers);
   headerRow.font = { bold: true, color: { argb: "FFFFFF" } };
-  headerRow.eachCell(cell => {
+  headerRow.eachCell((cell) => {
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "1E3A8A" } };
     cell.alignment = { vertical: "middle", horizontal: "center" };
   });
 
   // Data rows
-  rows.forEach(r => {
+  rows.forEach((r) => {
     const row = sheet.addRow([
       r.id,
       r.business,
@@ -55,9 +66,9 @@ async function generatePaymentsExcel(rows, month, year) {
   });
 
   // Auto-width columns
-  sheet.columns.forEach(col => {
+  sheet.columns.forEach((col) => {
     let maxLen = 12;
-    col.eachCell({ includeEmpty: true }, cell => {
+    col.eachCell({ includeEmpty: true }, (cell) => {
       const len = cell.value ? String(cell.value).length : 0;
       if (len > maxLen) maxLen = len;
     });
@@ -79,14 +90,23 @@ async function generatePayrollExcel(rows, month, year) {
   titleCell.value = `DIRE DAWA CLEANING CMS — WORKER PAYROLL (${month}/${year})`;
   titleCell.font = { name: "Arial", size: 14, bold: true, color: { argb: "166534" } };
 
-  const headers = ["Worker Name", "Zone", "Kebele", "Daily Wage (ETB)", "Days Present", "Days Absent", "Bonus (ETB)", "Gross Pay (ETB)"];
+  const headers = [
+    "Worker Name",
+    "Zone",
+    "Kebele",
+    "Daily Wage (ETB)",
+    "Days Present",
+    "Days Absent",
+    "Bonus (ETB)",
+    "Gross Pay (ETB)"
+  ];
   const headerRow = sheet.addRow(headers);
   headerRow.font = { bold: true, color: { argb: "FFFFFF" } };
-  headerRow.eachCell(cell => {
+  headerRow.eachCell((cell) => {
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "166534" } };
   });
 
-  rows.forEach(r => {
+  rows.forEach((r) => {
     const row = sheet.addRow([
       r.full_name,
       r.zone || "—",
@@ -102,7 +122,9 @@ async function generatePayrollExcel(rows, month, year) {
     row.getCell(8).numFmt = '#,##0.00 "ETB"';
   });
 
-  sheet.columns.forEach(col => { col.width = 18; });
+  sheet.columns.forEach((col) => {
+    col.width = 18;
+  });
   return await workbook.xlsx.writeBuffer();
 }
 
@@ -121,11 +143,11 @@ async function generateInspectionsExcel(rows, from, to) {
   const headers = ["Date", "Kebele", "Zone", "Status", "Inspector", "Photo Count", "Notes"];
   const headerRow = sheet.addRow(headers);
   headerRow.font = { bold: true, color: { argb: "FFFFFF" } };
-  headerRow.eachCell(cell => {
+  headerRow.eachCell((cell) => {
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "9A3412" } };
   });
 
-  rows.forEach(r => {
+  rows.forEach((r) => {
     sheet.addRow([
       fmtDate(r.date),
       r.kebele,
@@ -137,7 +159,9 @@ async function generateInspectionsExcel(rows, from, to) {
     ]);
   });
 
-  sheet.columns.forEach(col => { col.width = 18; });
+  sheet.columns.forEach((col) => {
+    col.width = 18;
+  });
   return await workbook.xlsx.writeBuffer();
 }
 
@@ -150,17 +174,17 @@ async function generateMonthlySummaryExcel({ payments, workers, inspections }, m
   // Sheet 1: Payments
   const pSheet = workbook.addWorksheet("Revenue Payments");
   pSheet.addRow(["Business", "Zone", "Amount (ETB)", "Method", "Status"]).font = { bold: true };
-  payments.forEach(p => pSheet.addRow([p.business, p.zone, parseFloat(p.amount), p.method, p.status]));
+  payments.forEach((p) => pSheet.addRow([p.business, p.zone, parseFloat(p.amount), p.method, p.status]));
 
   // Sheet 2: Worker Payroll
   const wSheet = workbook.addWorksheet("Worker Payroll");
   wSheet.addRow(["Worker", "Zone", "Present Days", "Absent Days", "Gross Pay (ETB)"]).font = { bold: true };
-  workers.forEach(w => wSheet.addRow([w.full_name, w.zone, w.days_present, w.days_absent, parseFloat(w.gross)]));
+  workers.forEach((w) => wSheet.addRow([w.full_name, w.zone, w.days_present, w.days_absent, parseFloat(w.gross)]));
 
   // Sheet 3: Inspections
   const iSheet = workbook.addWorksheet("Inspections");
   iSheet.addRow(["Date", "Kebele", "Zone", "Status", "Inspector"]).font = { bold: true };
-  inspections.forEach(i => iSheet.addRow([fmtDate(i.date), i.kebele, i.zone, i.status, i.inspector]));
+  inspections.forEach((i) => iSheet.addRow([fmtDate(i.date), i.kebele, i.zone, i.status, i.inspector]));
 
   return await workbook.xlsx.writeBuffer();
 }

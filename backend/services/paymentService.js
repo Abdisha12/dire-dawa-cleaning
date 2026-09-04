@@ -63,7 +63,7 @@ class PaymentService {
   // --- Mock/Sandbox Helper to Trigger Webhook Callbacks locally ---
   async simulateWebhookCallback(gateway, txId, gatewayRef, status, amount) {
     const notifyUrl = `http://localhost:5000/api/payments/callback/${gateway}`;
-    
+
     // Construct mock gateway signature payload
     const payload = {
       tradeNo: gatewayRef,
@@ -75,10 +75,7 @@ class PaymentService {
 
     // Sign using dedicated payment webhook secret (falls back to session secret for sandbox)
     const secret = process.env.PAYMENT_WEBHOOK_SECRET || process.env.SESSION_SECRET || "mock_secret";
-    payload.signature = crypto
-      .createHmac("sha256", secret)
-      .update(JSON.stringify(payload))
-      .digest("hex");
+    payload.signature = crypto.createHmac("sha256", secret).update(JSON.stringify(payload)).digest("hex");
 
     return payload;
   }

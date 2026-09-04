@@ -4,6 +4,13 @@ const { authenticate } = require("../middleware/auth");
 const validate = require("../middleware/validate");
 const schemas = require("../middleware/schemas");
 const PDFDocument = require("pdfkit");
+const { generatePaymentsPDF, generatePayrollPDF, generateInspectionsPDF } = require("../services/pdfService");
+const {
+  generatePaymentsExcel,
+  generatePayrollExcel,
+  generateInspectionsExcel,
+  generateMonthlySummaryExcel
+} = require("../services/excelService");
 
 async function getCollectorKebeleId(userId) {
   const result = await db.query("SELECT id FROM kebeles WHERE collector_id=$1", [userId]);
@@ -33,13 +40,15 @@ function sanitizeCSVValue(v) {
 function toCSV(rows) {
   if (!rows.length) return "";
   const h = Object.keys(rows[0]).join(",");
-  const lines = rows.map(r => Object.values(r).map(v => {
-    const val = sanitizeCSVValue(v);
-    if (!val) return "";
-    return val.includes(",") || val.includes('"') || val.includes("\n")
-      ? `"${val.replace(/"/g, '""')}"`
-      : val;
-  }).join(","));
+  const lines = rows.map((r) =>
+    Object.values(r)
+      .map((v) => {
+        const val = sanitizeCSVValue(v);
+        if (!val) return "";
+        return val.includes(",") || val.includes('"') || val.includes("\n") ? `"${val.replace(/"/g, '""')}"` : val;
+      })
+      .join(",")
+  );
   return [h, ...lines].join("\r\n");
 }
 
@@ -55,7 +64,11 @@ router.get("/payments/monthly", validate(schemas.reportQuery, "query"), async (r
              JOIN users u ON u.id=p.collected_by WHERE p.month=$1 AND p.year=$2`;
     const params = [m, y];
     let paramIdx = 3;
-    if (req.user.role === "leader") { sql += ` AND sz.leader_id=$${paramIdx}`; params.push(req.user.id); paramIdx++; }
+    if (req.user.role === "leader") {
+      sql += ` AND sz.leader_id=$${paramIdx}`;
+      params.push(req.user.id);
+      paramIdx++;
+    }
     sql += " ORDER BY k.code,sz.name,b.name";
     const rowsResult = await db.query(sql, params);
     const rows = rowsResult.rows;
@@ -81,7 +94,9 @@ router.get("/payments/monthly", validate(schemas.reportQuery, "query"), async (r
       return res.send(buffer);
     }
     res.json(rows);
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
 router.get("/payments/yearly", validate(schemas.reportQuery, "query"), async (req, res, next) => {
@@ -92,9 +107,13 @@ router.get("/payments/yearly", validate(schemas.reportQuery, "query"), async (re
               SUM(CASE WHEN p.status='paid' THEN p.amount END) AS collected,
               SUM(CASE WHEN p.status='pending' THEN p.amount END) AS pending,
               SUM(CASE WHEN p.status='overdue' THEN p.amount END) AS overdue
-       FROM payments p WHERE p.year=$1 GROUP BY p.month ORDER BY p.month`, [y]);
+       FROM payments p WHERE p.year=$1 GROUP BY p.month ORDER BY p.month`,
+      [y]
+    );
     res.json(rowsResult.rows);
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
 router.get("/workers/monthly", validate(schemas.reportQuery, "query"), async (req, res, next) => {
@@ -114,7 +133,11 @@ router.get("/workers/monthly", validate(schemas.reportQuery, "query"), async (re
              WHERE w.is_active=TRUE`;
     const params = [first, last];
     let paramIdx = 3;
-    if (req.user.role === "leader") { sql += ` AND sz.leader_id=$${paramIdx}`; params.push(req.user.id); paramIdx++; }
+    if (req.user.role === "leader") {
+      sql += ` AND sz.leader_id=$${paramIdx}`;
+      params.push(req.user.id);
+      paramIdx++;
+    }
     sql += " GROUP BY w.id ORDER BY sz.name,w.full_name";
     const rowsResult = await db.query(sql, params);
     const rows = rowsResult.rows;
@@ -140,7 +163,9 @@ router.get("/workers/monthly", validate(schemas.reportQuery, "query"), async (re
       return res.send(buffer);
     }
     res.json(rows);
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
 router.get("/inspections", validate(schemas.reportQuery, "query"), async (req, res, next) => {
@@ -154,9 +179,21 @@ router.get("/inspections", validate(schemas.reportQuery, "query"), async (req, r
              LEFT JOIN inspection_photos ip ON ip.inspection_id=i.id WHERE 1=1`;
     const params = [];
     let paramIdx = 1;
-    if (req.user.role === "leader") { sql += ` AND sz.leader_id=$${paramIdx}`; params.push(req.user.id); paramIdx++; }
-    if (from) { sql += ` AND i.date>=$${paramIdx}`; params.push(from); paramIdx++; }
-    if (to) { sql += ` AND i.date<=$${paramIdx}`; params.push(to); paramIdx++; }
+    if (req.user.role === "leader") {
+      sql += ` AND sz.leader_id=$${paramIdx}`;
+      params.push(req.user.id);
+      paramIdx++;
+    }
+    if (from) {
+      sql += ` AND i.date>=$${paramIdx}`;
+      params.push(from);
+      paramIdx++;
+    }
+    if (to) {
+      sql += ` AND i.date<=$${paramIdx}`;
+      params.push(to);
+      paramIdx++;
+    }
     sql += " GROUP BY i.id ORDER BY i.date DESC,k.code";
     const rowsResult = await db.query(sql, params);
     const rows = rowsResult.rows;
@@ -182,7 +219,9 @@ router.get("/inspections", validate(schemas.reportQuery, "query"), async (req, r
       return res.send(buffer);
     }
     res.json(rows);
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
 // GET /api/reports/monthly-summary — consolidated summary (payments + workers + inspections)
@@ -201,7 +240,8 @@ router.get("/monthly-summary", validate(schemas.reportQuery, "query"), async (re
         `SELECT p.id, b.name AS business, sz.name AS zone, p.amount, p.method, p.status
          FROM payments p JOIN businesses b ON b.id=p.business_id
          JOIN safer_zones sz ON sz.id=b.safer_zone_id JOIN kebeles k ON k.id=sz.kebele_id
-         WHERE p.month=$1 AND p.year=$2 AND sz.leader_id=$3`, [m, y, req.user.id]
+         WHERE p.month=$1 AND p.year=$2 AND sz.leader_id=$3`,
+        [m, y, req.user.id]
       );
       payments = paymentsResult.rows;
 
@@ -212,7 +252,8 @@ router.get("/monthly-summary", validate(schemas.reportQuery, "query"), async (re
                 (COUNT(CASE WHEN a.present=TRUE THEN 1 END)*w.daily_wage+COALESCE(SUM(a.bonus),0)) AS gross
          FROM workers w LEFT JOIN safer_zones sz ON sz.id=w.safer_zone_id
          LEFT JOIN attendance a ON a.worker_id=w.id AND a.date BETWEEN $1 AND $2
-         WHERE w.is_active=TRUE AND sz.leader_id=$3`, [first, last, req.user.id]
+         WHERE w.is_active=TRUE AND sz.leader_id=$3`,
+        [first, last, req.user.id]
       );
       workers = workersResult.rows;
 
@@ -220,7 +261,8 @@ router.get("/monthly-summary", validate(schemas.reportQuery, "query"), async (re
         `SELECT i.date, k.name AS kebele, sz.name AS zone, i.status, u.full_name AS inspector
          FROM inspections i JOIN kebeles k ON k.id=i.kebele_id
          LEFT JOIN safer_zones sz ON sz.id=i.safer_zone_id JOIN users u ON u.id=i.inspected_by
-         WHERE i.date BETWEEN $1 AND $2 AND sz.leader_id=$3`, [first, last, req.user.id]
+         WHERE i.date BETWEEN $1 AND $2 AND sz.leader_id=$3`,
+        [first, last, req.user.id]
       );
       inspections = inspectionsResult.rows;
     } else if (req.user.role === "collector") {
@@ -234,7 +276,8 @@ router.get("/monthly-summary", validate(schemas.reportQuery, "query"), async (re
         `SELECT p.id, b.name AS business, sz.name AS zone, p.amount, p.method, p.status
          FROM payments p JOIN businesses b ON b.id=p.business_id
          JOIN safer_zones sz ON sz.id=b.safer_zone_id JOIN kebeles k ON k.id=sz.kebele_id
-         WHERE p.month=$1 AND p.year=$2 AND k.id=$3`, [m, y, kebeleId]
+         WHERE p.month=$1 AND p.year=$2 AND k.id=$3`,
+        [m, y, kebeleId]
       );
       payments = paymentsResult.rows;
 
@@ -245,7 +288,8 @@ router.get("/monthly-summary", validate(schemas.reportQuery, "query"), async (re
                 (COUNT(CASE WHEN a.present=TRUE THEN 1 END)*w.daily_wage+COALESCE(SUM(a.bonus),0)) AS gross
          FROM workers w LEFT JOIN safer_zones sz ON sz.id=w.safer_zone_id
          LEFT JOIN attendance a ON a.worker_id=w.id AND a.date BETWEEN $1 AND $2
-         WHERE w.is_active=TRUE AND k.id=$3`, [first, last, kebeleId]
+         WHERE w.is_active=TRUE AND k.id=$3`,
+        [first, last, kebeleId]
       );
       workers = workersResult.rows;
 
@@ -253,7 +297,8 @@ router.get("/monthly-summary", validate(schemas.reportQuery, "query"), async (re
         `SELECT i.date, k.name AS kebele, sz.name AS zone, i.status, u.full_name AS inspector
          FROM inspections i JOIN kebeles k ON k.id=i.kebele_id
          LEFT JOIN safer_zones sz ON sz.id=i.safer_zone_id
-         WHERE i.date BETWEEN $1 AND $2 AND k.id=$3`, [first, last, kebeleId]
+         WHERE i.date BETWEEN $1 AND $2 AND k.id=$3`,
+        [first, last, kebeleId]
       );
       inspections = inspectionsResult.rows;
     } else {
@@ -261,7 +306,8 @@ router.get("/monthly-summary", validate(schemas.reportQuery, "query"), async (re
       paymentsResult = await db.query(
         `SELECT p.id, b.name AS business, sz.name AS zone, p.amount, p.method, p.status
          FROM payments p JOIN businesses b ON b.id=p.business_id
-         JOIN safer_zones sz ON sz.id=b.safer_zone_id WHERE p.month=$1 AND p.year=$2`, [m, y]
+         JOIN safer_zones sz ON sz.id=b.safer_zone_id WHERE p.month=$1 AND p.year=$2`,
+        [m, y]
       );
       payments = paymentsResult.rows;
 
@@ -272,14 +318,16 @@ router.get("/monthly-summary", validate(schemas.reportQuery, "query"), async (re
                 (COUNT(CASE WHEN a.present=TRUE THEN 1 END)*w.daily_wage+COALESCE(SUM(a.bonus),0)) AS gross
          FROM workers w LEFT JOIN safer_zones sz ON sz.id=w.safer_zone_id
          LEFT JOIN attendance a ON a.worker_id=w.id AND a.date BETWEEN $1 AND $2
-         WHERE w.is_active=TRUE`, [first, last]
+         WHERE w.is_active=TRUE`,
+        [first, last]
       );
       workers = workersResult.rows;
 
       inspectionsResult = await db.query(
         `SELECT i.date, k.name AS kebele, sz.name AS zone, i.status, u.full_name AS inspector
          FROM inspections i JOIN kebeles k ON k.id=i.kebele_id
-         LEFT JOIN safer_zones sz ON sz.id=i.safer_zone_id WHERE i.date BETWEEN $1 AND $2`, [first, last]
+         LEFT JOIN safer_zones sz ON sz.id=i.safer_zone_id WHERE i.date BETWEEN $1 AND $2`,
+        [first, last]
       );
       inspections = inspectionsResult.rows;
     }
@@ -292,7 +340,9 @@ router.get("/monthly-summary", validate(schemas.reportQuery, "query"), async (re
     }
 
     res.json({ payments, workers, inspections });
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
 module.exports = router;

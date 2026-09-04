@@ -10,10 +10,10 @@ function errorHandler(err, req, res, _next) {
   if (err instanceof ZodError) {
     return res.status(400).json({
       error: "Validation failed",
-      details: err.issues.map(i => ({
+      details: err.issues.map((i) => ({
         path: i.path.join("."),
-        message: i.message,
-      })),
+        message: i.message
+      }))
     });
   }
 
@@ -21,7 +21,7 @@ function errorHandler(err, req, res, _next) {
   if (err.validationErrors) {
     return res.status(400).json({
       error: err.message || "Validation failed",
-      details: err.validationErrors,
+      details: err.validationErrors
     });
   }
 
@@ -82,7 +82,7 @@ function errorHandler(err, req, res, _next) {
     message: err.message,
     stack: err.stack,
     url: req.url,
-    method: req.method,
+    method: req.method
   });
 
   if (IS_PROD) {
@@ -92,7 +92,7 @@ function errorHandler(err, req, res, _next) {
   // In development, include the error message (but never the full stack)
   return res.status(500).json({
     error: err.message || "Internal server error",
-    ...(err.code && { code: err.code }),
+    ...(err.code && { code: err.code })
   });
 }
 

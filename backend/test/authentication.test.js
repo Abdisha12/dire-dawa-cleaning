@@ -47,9 +47,7 @@ describe("Authentication", function () {
       const loginRes = await request(app)
         .post("/api/auth/login")
         .send({ username: TEST_USERS.collector.username, password: TEST_USERS.collector.password });
-      const res = await request(app)
-        .get("/api/auth/me")
-        .set("x-session-token", loginRes.body.token);
+      const res = await request(app).get("/api/auth/me").set("x-session-token", loginRes.body.token);
       expect(res.status).to.equal(200);
       expect(res.body).to.have.property("username", TEST_USERS.collector.username);
     });
@@ -78,9 +76,7 @@ describe("Authentication", function () {
       const res1 = await request(app)
         .post("/api/auth/login")
         .send({ username: TEST_USERS.admin.username, password: "wrong" });
-      const res2 = await request(app)
-        .post("/api/auth/login")
-        .send({ username: "nonexistent_xyz", password: "wrong" });
+      const res2 = await request(app).post("/api/auth/login").send({ username: "nonexistent_xyz", password: "wrong" });
       expect(res1.body.error).to.equal(res2.body.error);
     });
   });
@@ -90,19 +86,11 @@ describe("Authentication", function () {
   // ════════════════════════════════════════════════════════════════
   describe("Rate limiting", function () {
     it("rejects requests beyond rate limit", async function () {
-      // Hit the general API rate limit (500/min for /api/)
-      // The login endpoint has its own limit (10/15min)
-      const promises = [];
-      for (let i = 0; i < 15; i++) {
-        promises.push(
-          request(app)
-            .post("/api/auth/login")
-            .send({ username: "rate_limit_test", password: "x" })
-        );
+      const statuses = [];
+      for (let i = 0; i < 10; i++) {
+        const res = await request(app).post("/api/auth/login").send({ username: "rate_limit_test", password: "x" });
+        statuses.push(res.status);
       }
-      const results = await Promise.all(promises);
-      const statuses = results.map(r => r.status);
-      // Some should be 401 (invalid creds) and some should be 429 (rate limited)
       expect(statuses).to.include(429);
     });
   });
@@ -123,15 +111,11 @@ describe("Authentication", function () {
 
       // Make 5 failed attempts
       for (let i = 0; i < 5; i++) {
-        await request(app)
-          .post("/api/auth/login")
-          .send({ username, password: "WrongPass1!" });
+        await request(app).post("/api/auth/login").send({ username, password: "WrongPass1!" });
       }
 
       // 6th attempt should be locked out (429)
-      const res = await request(app)
-        .post("/api/auth/login")
-        .send({ username, password: "WrongPass1!" });
+      const res = await request(app).post("/api/auth/login").send({ username, password: "WrongPass1!" });
       expect(res.status).to.equal(429);
       expect(res.body.error).to.match(/locked/i);
 
@@ -152,21 +136,15 @@ describe("Authentication", function () {
       const token = loginRes.body.token;
 
       // Verify token works
-      const meRes = await request(app)
-        .get("/api/auth/me")
-        .set("x-session-token", token);
+      const meRes = await request(app).get("/api/auth/me").set("x-session-token", token);
       expect(meRes.status).to.equal(200);
 
       // Logout
-      const logoutRes = await request(app)
-        .post("/api/auth/logout")
-        .set("x-session-token", token);
+      const logoutRes = await request(app).post("/api/auth/logout").set("x-session-token", token);
       expect(logoutRes.status).to.equal(200);
 
       // Verify token no longer works
-      const meRes2 = await request(app)
-        .get("/api/auth/me")
-        .set("x-session-token", token);
+      const meRes2 = await request(app).get("/api/auth/me").set("x-session-token", token);
       expect(meRes2.status).to.equal(401);
     });
 
@@ -183,15 +161,11 @@ describe("Authentication", function () {
       const token2 = login2.body.token;
 
       // First token should be invalidated
-      const me1 = await request(app)
-        .get("/api/auth/me")
-        .set("x-session-token", token1);
+      const me1 = await request(app).get("/api/auth/me").set("x-session-token", token1);
       expect(me1.status).to.equal(401);
 
       // Second token should work
-      const me2 = await request(app)
-        .get("/api/auth/me")
-        .set("x-session-token", token2);
+      const me2 = await request(app).get("/api/auth/me").set("x-session-token", token2);
       expect(me2.status).to.equal(200);
     });
   });
@@ -201,23 +175,17 @@ describe("Authentication", function () {
   // ════════════════════════════════════════════════════════════════
   describe("Missing fields", function () {
     it("returns 400 when username is missing", async function () {
-      const res = await request(app)
-        .post("/api/auth/login")
-        .send({ password: "test" });
+      const res = await request(app).post("/api/auth/login").send({ password: "test" });
       expect(res.status).to.equal(400);
     });
 
     it("returns 400 when password is missing", async function () {
-      const res = await request(app)
-        .post("/api/auth/login")
-        .send({ username: "test" });
+      const res = await request(app).post("/api/auth/login").send({ username: "test" });
       expect(res.status).to.equal(400);
     });
 
     it("returns 400 when body is empty", async function () {
-      const res = await request(app)
-        .post("/api/auth/login")
-        .send({});
+      const res = await request(app).post("/api/auth/login").send({});
       expect(res.status).to.equal(400);
     });
   });

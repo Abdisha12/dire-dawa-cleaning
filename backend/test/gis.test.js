@@ -20,7 +20,13 @@ describe("GIS GeoJSON", function () {
   });
 
   describe("authentication", function () {
-    for (const path of ["/api/gis/kebeles", "/api/gis/safer-zones", "/api/gis/businesses", "/api/gis/workers", "/api/gis/inspections"]) {
+    for (const path of [
+      "/api/gis/kebeles",
+      "/api/gis/safer-zones",
+      "/api/gis/businesses",
+      "/api/gis/workers",
+      "/api/gis/inspections"
+    ]) {
       it(`GET ${path} returns 401 without token`, async function () {
         const res = await request(app).get(path);
         expect(res.status).to.equal(401);
@@ -77,7 +83,10 @@ describe("GIS GeoJSON", function () {
     it("accepts latitude/longitude on inspection create when authorized", async function () {
       // Resolve an authorized kebele/zone for admin from real data.
       const zones = await db.query("SELECT sz.id AS zone_id, sz.kebele_id FROM safer_zones sz ORDER BY sz.id LIMIT 1");
-      if (!zones.rows.length) { this.skip(); return; }
+      if (!zones.rows.length) {
+        this.skip();
+        return;
+      }
       const { zone_id, kebele_id } = zones.rows[0];
       const res = await request(app)
         .post("/api/inspections")

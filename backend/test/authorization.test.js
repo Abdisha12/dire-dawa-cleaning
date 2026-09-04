@@ -34,6 +34,9 @@ describe("Authorization", function () {
     testZone2 = zones[2] || zones[1]; // Different kebele if possible
     testKebele1 = zones[0].kebele_id;
     testKebele2 = zones[2] ? zones[2].kebele_id : zones[1].kebele_id;
+
+    // Link testZone1 to leader1
+    await db.query("UPDATE safer_zones SET leader_id=$1 WHERE id=$2", [userIds.leader1, testZone1.zone_id]);
   });
 
   after(async function () {
@@ -54,7 +57,7 @@ describe("Authorization", function () {
       ["GET", "/api/tools"],
       ["GET", "/api/documents"],
       ["GET", "/api/audit-log"],
-      ["GET", "/api/notifications"],
+      ["GET", "/api/notifications"]
     ];
 
     for (const [method, path] of protectedEndpoints) {
@@ -70,9 +73,7 @@ describe("Authorization", function () {
   // ════════════════════════════════════════════════════════════════
   describe("Viewer role (read-only)", function () {
     it("viewer can read locations", async function () {
-      const res = await request(app)
-        .get("/api/kebeles")
-        .set("x-session-token", tokens.viewer);
+      const res = await request(app).get("/api/kebeles").set("x-session-token", tokens.viewer);
       expect(res.status).to.equal(200);
     });
 
@@ -109,10 +110,7 @@ describe("Authorization", function () {
     });
 
     it("viewer cannot upload a document", async function () {
-      const res = await request(app)
-        .post("/api/documents")
-        .set("x-session-token", tokens.viewer)
-        .send({});
+      const res = await request(app).post("/api/documents").set("x-session-token", tokens.viewer).send({});
       expect(res.status).to.be.oneOf([401, 403]);
     });
 
@@ -125,9 +123,7 @@ describe("Authorization", function () {
     });
 
     it("viewer cannot access audit log", async function () {
-      const res = await request(app)
-        .get("/api/audit-log")
-        .set("x-session-token", tokens.viewer);
+      const res = await request(app).get("/api/audit-log").set("x-session-token", tokens.viewer);
       expect(res.status).to.be.oneOf([401, 403]);
     });
   });
@@ -137,9 +133,7 @@ describe("Authorization", function () {
   // ════════════════════════════════════════════════════════════════
   describe("Leader zone restrictions", function () {
     it("leader can read their own zone data", async function () {
-      const res = await request(app)
-        .get("/api/safer-zones")
-        .set("x-session-token", tokens.leader1);
+      const res = await request(app).get("/api/safer-zones").set("x-session-token", tokens.leader1);
       expect(res.status).to.equal(200);
       // Leader should see a filtered list
       if (res.body.length > 0) {
@@ -187,16 +181,12 @@ describe("Authorization", function () {
   // ════════════════════════════════════════════════════════════════
   describe("Collector role restrictions", function () {
     it("collector can access workers endpoint", async function () {
-      const res = await request(app)
-        .get("/api/workers")
-        .set("x-session-token", tokens.collector);
+      const res = await request(app).get("/api/workers").set("x-session-token", tokens.collector);
       expect(res.status).to.equal(200);
     });
 
     it("collector can access payments endpoint", async function () {
-      const res = await request(app)
-        .get("/api/payments")
-        .set("x-session-token", tokens.collector);
+      const res = await request(app).get("/api/payments").set("x-session-token", tokens.collector);
       expect(res.status).to.equal(200);
     });
 
@@ -209,9 +199,7 @@ describe("Authorization", function () {
     });
 
     it("collector cannot delete users", async function () {
-      const res = await request(app)
-        .delete(`/api/users/${userIds.viewer}`)
-        .set("x-session-token", tokens.collector);
+      const res = await request(app).delete(`/api/users/${userIds.viewer}`).set("x-session-token", tokens.collector);
       expect(res.status).to.be.oneOf([401, 403]);
     });
 
@@ -229,31 +217,23 @@ describe("Authorization", function () {
   // ════════════════════════════════════════════════════════════════
   describe("Admin access", function () {
     it("admin can read all users", async function () {
-      const res = await request(app)
-        .get("/api/users")
-        .set("x-session-token", tokens.admin);
+      const res = await request(app).get("/api/users").set("x-session-token", tokens.admin);
       expect(res.status).to.equal(200);
       expect(res.body).to.be.an("array");
     });
 
     it("admin can access audit log", async function () {
-      const res = await request(app)
-        .get("/api/audit-log")
-        .set("x-session-token", tokens.admin);
+      const res = await request(app).get("/api/audit-log").set("x-session-token", tokens.admin);
       expect(res.status).to.equal(200);
     });
 
     it("admin can access kebeles", async function () {
-      const res = await request(app)
-        .get("/api/kebeles")
-        .set("x-session-token", tokens.admin);
+      const res = await request(app).get("/api/kebeles").set("x-session-token", tokens.admin);
       expect(res.status).to.equal(200);
     });
 
     it("admin can access workers", async function () {
-      const res = await request(app)
-        .get("/api/workers")
-        .set("x-session-token", tokens.admin);
+      const res = await request(app).get("/api/workers").set("x-session-token", tokens.admin);
       expect(res.status).to.equal(200);
     });
   });
@@ -263,9 +243,7 @@ describe("Authorization", function () {
   // ════════════════════════════════════════════════════════════════
   describe("ID manipulation resistance", function () {
     it("GET /api/users/:id rejects non-existent user", async function () {
-      const res = await request(app)
-        .get("/api/users/99999")
-        .set("x-session-token", tokens.admin);
+      const res = await request(app).get("/api/users/99999").set("x-session-token", tokens.admin);
       // Should return 404 or similar, not crash
       expect(res.status).to.be.oneOf([400, 404, 403]);
     });
@@ -287,23 +265,17 @@ describe("Authorization", function () {
     });
 
     it("DELETE /api/workers/:id with non-existent worker returns error", async function () {
-      const res = await request(app)
-        .delete("/api/workers/99999")
-        .set("x-session-token", tokens.admin);
+      const res = await request(app).delete("/api/workers/99999").set("x-session-token", tokens.admin);
       expect(res.status).to.be.oneOf([400, 404]);
     });
 
     it("GET /api/inspections/:id with non-existent inspection returns 404", async function () {
-      const res = await request(app)
-        .get("/api/inspections/99999")
-        .set("x-session-token", tokens.admin);
+      const res = await request(app).get("/api/inspections/99999").set("x-session-token", tokens.admin);
       expect(res.status).to.equal(404);
     });
 
     it("GET /api/zone-reports/:id with non-existent report returns 404", async function () {
-      const res = await request(app)
-        .get("/api/zone-reports/99999")
-        .set("x-session-token", tokens.admin);
+      const res = await request(app).get("/api/zone-reports/99999").set("x-session-token", tokens.admin);
       expect(res.status).to.equal(404);
     });
   });
@@ -313,23 +285,17 @@ describe("Authorization", function () {
   // ════════════════════════════════════════════════════════════════
   describe("Cross-role escalation resistance", function () {
     it("leader cannot access admin-only audit log", async function () {
-      const res = await request(app)
-        .get("/api/audit-log")
-        .set("x-session-token", tokens.leader1);
+      const res = await request(app).get("/api/audit-log").set("x-session-token", tokens.leader1);
       expect(res.status).to.be.oneOf([401, 403]);
     });
 
     it("collector cannot access admin-only audit log", async function () {
-      const res = await request(app)
-        .get("/api/audit-log")
-        .set("x-session-token", tokens.collector);
+      const res = await request(app).get("/api/audit-log").set("x-session-token", tokens.collector);
       expect(res.status).to.be.oneOf([401, 403]);
     });
 
     it("viewer cannot access admin-only audit log", async function () {
-      const res = await request(app)
-        .get("/api/audit-log")
-        .set("x-session-token", tokens.viewer);
+      const res = await request(app).get("/api/audit-log").set("x-session-token", tokens.viewer);
       expect(res.status).to.be.oneOf([401, 403]);
     });
 
@@ -350,9 +316,7 @@ describe("Authorization", function () {
     });
 
     it("leader cannot delete users", async function () {
-      const res = await request(app)
-        .delete(`/api/users/${userIds.viewer}`)
-        .set("x-session-token", tokens.leader1);
+      const res = await request(app).delete(`/api/users/${userIds.viewer}`).set("x-session-token", tokens.leader1);
       expect(res.status).to.be.oneOf([401, 403]);
     });
 
@@ -394,10 +358,9 @@ describe("Authorization", function () {
     });
 
     it("leader cannot PUT an inspection in another zone", async function () {
-      const inspResult = await db.query(
-        "SELECT i.id FROM inspections i WHERE i.safer_zone_id = $1",
-        [testZone2.zone_id]
-      );
+      const inspResult = await db.query("SELECT i.id FROM inspections i WHERE i.safer_zone_id = $1", [
+        testZone2.zone_id
+      ]);
       if (inspResult.rows.length === 0) this.skip();
 
       const res = await request(app)
@@ -408,10 +371,7 @@ describe("Authorization", function () {
     });
 
     it("leader cannot DELETE a worker in another zone", async function () {
-      const workerResult = await db.query(
-        "SELECT w.id FROM workers w WHERE w.safer_zone_id = $1",
-        [testZone2.zone_id]
-      );
+      const workerResult = await db.query("SELECT w.id FROM workers w WHERE w.safer_zone_id = $1", [testZone2.zone_id]);
       if (workerResult.rows.length === 0) this.skip();
 
       const res = await request(app)
@@ -426,16 +386,12 @@ describe("Authorization", function () {
   // ════════════════════════════════════════════════════════════════
   describe("Session validation", function () {
     it("expired/invalid token returns 401", async function () {
-      const res = await request(app)
-        .get("/api/users")
-        .set("x-session-token", "completely-fake-token-12345");
+      const res = await request(app).get("/api/users").set("x-session-token", "completely-fake-token-12345");
       expect(res.status).to.equal(401);
     });
 
     it("empty token returns 401", async function () {
-      const res = await request(app)
-        .get("/api/users")
-        .set("x-session-token", "");
+      const res = await request(app).get("/api/users").set("x-session-token", "");
       expect(res.status).to.equal(401);
     });
   });

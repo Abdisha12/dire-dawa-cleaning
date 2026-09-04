@@ -8,7 +8,7 @@ services:
     environment:
       POSTGRES_DB: dire_dawa_cleaning
       POSTGRES_USER: ddcms
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?ERROR: Set DB_PASSWORD in .env file}
+      POSTGRES_PASSWORD: "${DB_PASSWORD:?ERROR: Set DB_PASSWORD in .env file}"
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./database/postgresql/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
@@ -18,6 +18,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    ports:
+      - "5432:5432"
     deploy:
       resources:
         limits:
@@ -39,11 +41,11 @@ services:
       DB_HOST: db
       DB_PORT: 5432
       DB_USER: ddcms
-      DB_PASSWORD: ${DB_PASSWORD:?ERROR: Set DB_PASSWORD in .env file}
+      DB_PASSWORD: "${DB_PASSWORD:?ERROR: Set DB_PASSWORD in .env file}"
       DB_NAME: dire_dawa_cleaning
       PORT: 5000
       NODE_ENV: production
-      SESSION_SECRET: ${SESSION_SECRET:?ERROR: Set SESSION_SECRET in .env file (min 32 chars)}
+      SESSION_SECRET: "${SESSION_SECRET:?ERROR: Set SESSION_SECRET in .env file (min 32 chars)}"
       SESSION_EXPIRY_HOURS: ${SESSION_EXPIRY_HOURS:-8}
       PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-}
       MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-5}

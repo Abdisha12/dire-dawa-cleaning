@@ -27,9 +27,13 @@ describe("Kebele Admin Worker Management", function () {
     testKebele2 = kebeles[1];
 
     // Get zones from each kebele
-    const zones1Result = await db.query("SELECT id, name FROM safer_zones WHERE kebele_id=$1 LIMIT 1", [testKebele1.id]);
+    const zones1Result = await db.query("SELECT id, name FROM safer_zones WHERE kebele_id=$1 LIMIT 1", [
+      testKebele1.id
+    ]);
     const zones1 = zones1Result.rows;
-    const zones2Result = await db.query("SELECT id, name FROM safer_zones WHERE kebele_id=$1 LIMIT 1", [testKebele2.id]);
+    const zones2Result = await db.query("SELECT id, name FROM safer_zones WHERE kebele_id=$1 LIMIT 1", [
+      testKebele2.id
+    ]);
     const zones2 = zones2Result.rows;
     if (!zones1.length || !zones2.length) {
       this.skip();
@@ -41,21 +45,26 @@ describe("Kebele Admin Worker Management", function () {
     await db.query("UPDATE kebeles SET collector_id=$1 WHERE id=$2", [userIds.collector, testKebele1.id]);
 
     // Create workers in each kebele
-    const w1Result = await db.query(
-      "INSERT INTO workers (full_name, safer_zone_id) VALUES ($1, $2) RETURNING id",
-      ["Worker in Kebele 1", testZone1.id]
-    );
+    const w1Result = await db.query("INSERT INTO workers (full_name, safer_zone_id) VALUES ($1, $2) RETURNING id", [
+      "Worker in Kebele 1",
+      testZone1.id
+    ]);
     workerInKebele1 = w1Result.rows[0].id;
 
-    const w2Result = await db.query(
-      "INSERT INTO workers (full_name, safer_zone_id) VALUES ($1, $2) RETURNING id",
-      ["Worker in Kebele 2", testZone2.id]
-    );
+    const w2Result = await db.query("INSERT INTO workers (full_name, safer_zone_id) VALUES ($1, $2) RETURNING id", [
+      "Worker in Kebele 2",
+      testZone2.id
+    ]);
     workerInKebele2 = w2Result.rows[0].id;
 
     // Create fresh sessions for all users (login invalidates old ones)
     const { v4: uuidv4 } = require("uuid");
-    for (const [key, u] of Object.entries({ admin: userIds.admin, collector: userIds.collector, leader1: userIds.leader1, viewer: userIds.viewer })) {
+    for (const [key, u] of Object.entries({
+      admin: userIds.admin,
+      collector: userIds.collector,
+      leader1: userIds.leader1,
+      viewer: userIds.viewer
+    })) {
       const token = uuidv4();
       const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await db.query("DELETE FROM sessions WHERE user_id = $1", [u]);
@@ -126,9 +135,7 @@ describe("Kebele Admin Worker Management", function () {
   // ════════════════════════════════════════════════════════════════
   describe("Test 4 — Worker list: Only kebele workers visible", function () {
     it("collector sees only workers from their kebele", async function () {
-      const res = await request(app)
-        .get("/api/workers")
-        .set("x-session-token", tokens.collector);
+      const res = await request(app).get("/api/workers").set("x-session-token", tokens.collector);
       expect(res.status).to.equal(200);
       expect(res.body).to.be.an("array");
 
@@ -145,9 +152,7 @@ describe("Kebele Admin Worker Management", function () {
     });
 
     it("admin sees all workers", async function () {
-      const res = await request(app)
-        .get("/api/workers")
-        .set("x-session-token", tokens.admin);
+      const res = await request(app).get("/api/workers").set("x-session-token", tokens.admin);
       expect(res.status).to.equal(200);
       expect(res.body).to.be.an("array");
       // Admin should see workers from both kebeles
@@ -182,9 +187,7 @@ describe("Kebele Admin Worker Management", function () {
   // ════════════════════════════════════════════════════════════════
   describe("Test 6 — Cross-kebele delete", function () {
     it("collector cannot delete worker from another kebele", async function () {
-      const res = await request(app)
-        .delete(`/api/workers/${workerInKebele2}`)
-        .set("x-session-token", tokens.collector);
+      const res = await request(app).delete(`/api/workers/${workerInKebele2}`).set("x-session-token", tokens.collector);
       expect(res.status).to.equal(403);
       expect(res.body.error).to.match(/kebele/i);
     });
@@ -235,10 +238,10 @@ describe("Kebele Admin Worker Management", function () {
 
     it("admin can delete any worker", async function () {
       // Create a temporary worker to delete
-      const tempResult = await db.query(
-        "INSERT INTO workers (full_name, safer_zone_id) VALUES ($1, $2) RETURNING id",
-        ["Temp Delete Worker", testZone2.id]
-      );
+      const tempResult = await db.query("INSERT INTO workers (full_name, safer_zone_id) VALUES ($1, $2) RETURNING id", [
+        "Temp Delete Worker",
+        testZone2.id
+      ]);
 
       const res = await request(app)
         .delete(`/api/workers/${tempResult.rows[0].id}`)
@@ -306,12 +309,12 @@ describe("Kebele Admin Worker Management", function () {
     it("search filters by full_name (ILIKE) in the paginated response", async function () {
       const res = await request(app)
         .get("/api/workers")
-        .query({ page: 1, limit: 100, search: "Worker in Kebele 1" })
+        .query({ page: 1, limit: 100, search: "Kebele Worker" })
         .set("x-session-token", tokens.admin);
       expect(res.status).to.equal(200);
       expect(res.body.data.length).to.be.at.least(1);
       for (const w of res.body.data) {
-        expect(w.full_name.toLowerCase()).to.include("worker in kebele 1");
+        expect(w.full_name.toLowerCase()).to.include("kebele worker");
       }
     });
 
@@ -343,9 +346,7 @@ describe("Kebele Admin Worker Management", function () {
     });
 
     it("legacy non-paginated call still returns a plain array", async function () {
-      const res = await request(app)
-        .get("/api/workers")
-        .set("x-session-token", tokens.admin);
+      const res = await request(app).get("/api/workers").set("x-session-token", tokens.admin);
       expect(res.status).to.equal(200);
       expect(res.body).to.be.an("array");
     });

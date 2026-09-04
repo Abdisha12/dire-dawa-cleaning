@@ -4,15 +4,17 @@ const expect = chai.expect;
 const request = require("supertest");
 const app = require("../server");
 const db = require("../config/db");
-const { seedTestData, cleanupTestData, getTestToken } = require("./helpers/setup");
+const { seedTestData, cleanupTestData, getTestToken, getTestUserId } = require("./helpers/setup");
 
 describe("Security", function () {
   this.timeout(20000);
   let tokens;
+  let userIds;
 
   before(async function () {
     const data = await seedTestData();
     tokens = data.tokens;
+    userIds = data.userIds;
   });
 
   after(async function () {
@@ -27,9 +29,9 @@ describe("Security", function () {
       '<script>alert("xss")</script>',
       '"><img src=x onerror=alert(1)>',
       "javascript:alert(1)",
-      '<svg onload=alert(1)>',
+      "<svg onload=alert(1)>",
       "{{7*7}}",
-      "${7*7}",
+      "${7*7}"
     ];
 
     for (const payload of xssPayloads) {
@@ -52,14 +54,11 @@ describe("Security", function () {
     }
 
     it("XSS payload in zone report is sanitized", async function () {
-      const res = await request(app)
-        .post("/api/zone-reports")
-        .set("x-session-token", tokens.admin)
-        .send({
-          saferZoneId: 1,
-          reportDate: "2026-01-15",
-          issuesReported: '<script>alert("xss")</script>',
-        });
+      const res = await request(app).post("/api/zone-reports").set("x-session-token", tokens.admin).send({
+        saferZoneId: 1,
+        reportDate: "2026-01-15",
+        issuesReported: '<script>alert("xss")</script>'
+      });
       if (res.status === 201) {
         const rowsResult = await db.query("SELECT issues_reported FROM zone_reports WHERE id=$1", [res.body.id]);
         if (rowsResult.rows.length && rowsResult.rows[0].issues_reported) {
@@ -78,14 +77,12 @@ describe("Security", function () {
       "'; DROP TABLE users; --",
       "' UNION SELECT * FROM users --",
       "1' AND (SELECT COUNT(*) FROM users) > 0 --",
-      "admin'--",
+      "admin'--"
     ];
 
     for (const payload of sqlPayloads) {
       it(`rejects SQL injection in login: ${payload.substring(0, 30)}`, async function () {
-        const res = await request(app)
-          .post("/api/auth/login")
-          .send({ username: payload, password: "anything" });
+        const res = await request(app).post("/api/auth/login").send({ username: payload, password: "anything" });
         expect(res.status).to.be.oneOf([400, 401]);
       });
     }
@@ -107,15 +104,12 @@ describe("Security", function () {
   // ════════════════════════════════════════════════════════════════
   describe("Token-in-URL rejection", function () {
     it("does not accept token as query parameter", async function () {
-      const res = await request(app)
-        .get(`/api/users?token=${tokens.admin}`);
+      const res = await request(app).get(`/api/users?token=${tokens.admin}`);
       expect(res.status).to.equal(401);
     });
 
     it("does not accept token in URL path", async function () {
-      const res = await request(app)
-        .get("/api/users")
-        .query({ token: tokens.admin });
+      const res = await request(app).get("/api/users").query({ token: tokens.admin });
       expect(res.status).to.equal(401);
     });
   });
@@ -126,7 +120,7 @@ describe("Security", function () {
   describe("Password change security", function () {
     it("rejects password change without current password", async function () {
       const res = await request(app)
-        .put(`/api/users/1/password`)
+        .put(`/api/users/${userIds.admin}/password`)
         .set("x-session-token", tokens.admin)
         .send({ newPassword: "Hacked123!" });
       // Should fail — current password required for self-change
@@ -135,7 +129,7 @@ describe("Security", function () {
 
     it("rejects password change with wrong current password", async function () {
       const res = await request(app)
-        .put(`/api/users/1/password`)
+        .put(`/api/users/${userIds.admin}/password`)
         .set("x-session-token", tokens.admin)
         .send({ currentPassword: "WrongPassword123!", newPassword: "NewPass123!" });
       expect(res.status).to.not.equal(200);
@@ -240,5 +234,7 @@ describe("Security", function () {
 function getTestUserId_safe(roleKey) {
   try {
     return require("./helpers/setup").getTestUserId(roleKey);
-  } catch { return 1; }
+  } catch {
+    return 1;
+  }
 }

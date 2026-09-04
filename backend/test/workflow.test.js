@@ -27,16 +27,13 @@ describe("Business workflows", function () {
     let reportId;
 
     it("creates a zone report in draft status", async function () {
-      const res = await request(app)
-        .post("/api/zone-reports")
-        .set("x-session-token", tokens.admin)
-        .send({
-          saferZoneId: 1,
-          reportDate: "2026-03-15",
-          workersPresent: 10,
-          workersAbsent: 2,
-          collectionTotal: 5000,
-        });
+      const res = await request(app).post("/api/zone-reports").set("x-session-token", tokens.admin).send({
+        saferZoneId: 1,
+        reportDate: "2026-03-15",
+        workersPresent: 10,
+        workersAbsent: 2,
+        collectionTotal: 5000
+      });
       expect(res.status).to.equal(201);
       expect(res.body).to.have.property("status", "draft");
       reportId = res.body.id;
@@ -166,7 +163,7 @@ describe("Business workflows", function () {
         .set("x-session-token", tokens.admin)
         .send({
           date: "not-a-date",
-          records: [{ workerId: 1, present: true }],
+          records: [{ workerId: 1, present: true }]
         });
       expect(res.status).to.equal(400);
     });

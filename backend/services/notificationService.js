@@ -7,10 +7,13 @@ const logger = require("../config/logger");
  */
 async function notify(userId, type, title, message, link = null) {
   try {
-    await db.query(
-      `INSERT INTO notifications (user_id, type, title, message, link) VALUES ($1, $2, $3, $4, $5)`,
-      [userId, type, title, message, link]
-    );
+    await db.query(`INSERT INTO notifications (user_id, type, title, message, link) VALUES ($1, $2, $3, $4, $5)`, [
+      userId,
+      type,
+      title,
+      message,
+      link
+    ]);
   } catch (err) {
     logger.error("Failed to create notification", { err: err.message, userId, type });
   }
@@ -53,7 +56,7 @@ async function generateOverdueAlerts() {
     let count = 0;
     for (const item of result.rows) {
       const msg = `Overdue payment of ETB ${parseFloat(item.amount).toLocaleString()} for ${item.business_name} (${item.zone_name}, Month ${item.month}/${item.year}).`;
-      
+
       // Notify collector assigned to kebele
       if (item.collector_id) {
         await notify(item.collector_id, "overdue_payment", "⚠️ Overdue Payment Alert", msg, "#payments");

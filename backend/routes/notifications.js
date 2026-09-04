@@ -33,7 +33,9 @@ router.get("/", async (req, res, next) => {
 
     const result = await db.query(sql, params);
     res.json({ rows: result.rows, total, page, pages: Math.ceil(total / limit) });
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
 // GET /api/notifications/unread-count — number of unread notifications for badge
@@ -44,40 +46,42 @@ router.get("/unread-count", async (req, res, next) => {
       [req.user.id]
     );
     res.json({ unreadCount: result.rows[0].count });
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
 // PUT /api/notifications/:id/read — mark single as read
 router.put("/:id/read", async (req, res, next) => {
   try {
-    await db.query(
-      "UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2",
-      [req.params.id, req.user.id]
-    );
+    await db.query("UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2", [
+      req.params.id,
+      req.user.id
+    ]);
     res.json({ message: "Marked as read" });
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
 // PUT /api/notifications/read-all — mark all current user's notifications as read
 router.put("/read-all", async (req, res, next) => {
   try {
-    await db.query(
-      "UPDATE notifications SET is_read = TRUE WHERE user_id = $1",
-      [req.user.id]
-    );
+    await db.query("UPDATE notifications SET is_read = TRUE WHERE user_id = $1", [req.user.id]);
     res.json({ message: "All marked as read" });
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
 // DELETE /api/notifications/:id — delete notification
 router.delete("/:id", async (req, res, next) => {
   try {
-    await db.query(
-      "DELETE FROM notifications WHERE id = $1 AND user_id = $2",
-      [req.params.id, req.user.id]
-    );
+    await db.query("DELETE FROM notifications WHERE id = $1 AND user_id = $2", [req.params.id, req.user.id]);
     res.json({ message: "Deleted" });
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
 // POST /api/notifications/generate — trigger alert generation (admin/collector)
@@ -87,7 +91,9 @@ router.post("/generate", requireRole("admin", "collector"), async (req, res, nex
     const reportCount = await notifService.generatePendingReportAlerts();
     const workerCount = await notifService.generateAbsentWorkerAlerts();
     res.json({ message: "Alert generation complete", overdueCount, reportCount, workerCount });
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
 module.exports = router;

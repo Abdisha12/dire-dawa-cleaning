@@ -10,7 +10,7 @@ const pool = new Pool({
   database: process.env.DB_NAME || "dire_dawa_cleaning",
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  connectionTimeoutMillis: 5000
 });
 
 // Test connection on startup

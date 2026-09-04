@@ -72,7 +72,9 @@ router.get("/attendance", async (req, res, next) => {
       },
       byZone
     });
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
 // GET /api/analytics/payments — payment method breakdown & target vs collected
@@ -107,13 +109,16 @@ router.get("/payments", async (req, res, next) => {
     const byStatus = byStatusResult.rows;
 
     res.json({ byMethod, byStatus });
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
 // GET /api/analytics/inspections — cleanliness & inspection metrics
 router.get("/inspections", async (req, res, next) => {
   try {
-    const from = req.query.from || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+    const from =
+      req.query.from || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
     const to = req.query.to || new Date().toISOString().slice(0, 10);
     const { clause: filter, params: filterParams } = filterClause(req, 2);
 
@@ -142,7 +147,9 @@ router.get("/inspections", async (req, res, next) => {
     const byZone = byZoneResult.rows;
 
     res.json({ statusDist, byZone });
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
 // GET /api/analytics/zones — Zone performance composite leaderboard
@@ -194,15 +201,19 @@ router.get("/zones", async (req, res, next) => {
     const rows = rowsResult.rows;
 
     // Calculate composite score for ranking
-    const leaderboard = rows.map(r => {
-      const colScore = Math.min(parseFloat(r.collection_rate) || 0, 100);
-      const attScore = parseFloat(r.attendance_rate) || 0;
-      const compositeScore = Math.round(colScore * 0.6 + attScore * 0.4);
-      return { ...r, compositeScore };
-    }).sort((a, b) => b.compositeScore - a.compositeScore);
+    const leaderboard = rows
+      .map((r) => {
+        const colScore = Math.min(parseFloat(r.collection_rate) || 0, 100);
+        const attScore = parseFloat(r.attendance_rate) || 0;
+        const compositeScore = Math.round(colScore * 0.6 + attScore * 0.4);
+        return { ...r, compositeScore };
+      })
+      .sort((a, b) => b.compositeScore - a.compositeScore);
 
     res.json(leaderboard);
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
 // GET /api/analytics/trends — 6-month comparative trend
@@ -237,7 +248,9 @@ router.get("/trends", async (req, res, next) => {
     const monthlyAttendance = monthlyAttendanceResult.rows;
 
     res.json({ monthlyCollections, monthlyAttendance });
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
 module.exports = router;

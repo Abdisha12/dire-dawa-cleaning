@@ -49,7 +49,7 @@ echo "$EXT_RESULT"
 echo ""
 echo "--- Spatial Index Verification ---"
 for idx in idx_kebele_boundary idx_zone_boundary idx_business_location idx_inspection_location idx_worker_location; do
-  COUNT=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM pg_index WHERE index_name = '$idx';" 2>/dev/null | xargs)
+  COUNT=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM pg_class WHERE relname = '$idx';" 2>/dev/null | xargs)
   if [ "$COUNT" = "1" ]; then
     echo "✓ Spatial index ${idx} exists"
   else
@@ -61,7 +61,7 @@ done
 echo ""
 echo "--- Critical Table Indexes ---"
 for idx in idx_kebele_collector idx_sz_kebele idx_payments_year_month_status idx_attendance_worker_date; do
-  COUNT=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM pg_index WHERE index_name = '$idx';" 2>/dev/null | xargs)
+  COUNT=$(docker exec "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM pg_class WHERE relname = '$idx';" 2>/dev/null | xargs)
   if [ "$COUNT" = "1" ]; then
     echo "✓ Index ${idx} exists"
   else

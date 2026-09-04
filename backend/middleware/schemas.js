@@ -8,15 +8,15 @@ const year = z.coerce.number().int().min(2020).max(2100);
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
 const pagination = {
   page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
+  limit: z.coerce.number().int().min(1).max(100).default(50)
 };
 
 // ── Auth ──────────────────────────────────────────────────────
 const login = {
   body: z.object({
     username: z.string().min(1).max(60).trim(),
-    password: z.string().min(1).max(200),
-  }),
+    password: z.string().min(1).max(200)
+  })
 };
 
 // ── Users ─────────────────────────────────────────────────────
@@ -27,8 +27,8 @@ const createUser = {
     fullName: z.string().min(1).max(120).trim(),
     faydaId: z.string().max(50).trim().optional().nullable(),
     phone: z.string().max(30).trim().optional().nullable(),
-    role: z.enum(["admin", "collector", "leader", "viewer"]),
-  }),
+    role: z.enum(["admin", "collector", "leader", "viewer"])
+  })
 };
 
 const updateUser = {
@@ -37,46 +37,48 @@ const updateUser = {
     faydaId: z.string().max(50).trim().optional().nullable(),
     phone: z.string().max(30).trim().optional().nullable(),
     role: z.enum(["admin", "collector", "leader", "viewer"]),
-    isActive: z.boolean(),
+    isActive: z.boolean()
   }),
-  params: z.object({ id }),
+  params: z.object({ id })
 };
 
 const changePassword = {
-  body: z.object({
-    currentPassword: z.string().max(200).optional(),
-    newPassword: z.string().min(8).max(200),
-    confirmPassword: z.string().max(200).optional(),
-  }).refine(data => !data.confirmPassword || data.newPassword === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  }),
-  params: z.object({ id }),
+  body: z
+    .object({
+      currentPassword: z.string().max(200).optional(),
+      newPassword: z.string().min(8).max(200),
+      confirmPassword: z.string().max(200).optional()
+    })
+    .refine((data) => !data.confirmPassword || data.newPassword === data.confirmPassword, {
+      message: "Passwords do not match",
+      path: ["confirmPassword"]
+    }),
+  params: z.object({ id })
 };
 
 // ── Locations ─────────────────────────────────────────────────
 const updateKebele = {
   body: z.object({
     name: z.string().min(1).max(80).trim(),
-    collectorId: z.coerce.number().int().positive().optional().nullable(),
+    collectorId: z.coerce.number().int().positive().optional().nullable()
   }),
-  params: z.object({ id }),
+  params: z.object({ id })
 };
 
 const createZone = {
   body: z.object({
     name: z.string().min(1).max(80).trim(),
     kebeleId: id,
-    leaderId: z.coerce.number().int().positive().optional().nullable(),
-  }),
+    leaderId: z.coerce.number().int().positive().optional().nullable()
+  })
 };
 
 const updateZone = {
   body: z.object({
     name: z.string().min(1).max(80).trim(),
-    leaderId: z.coerce.number().int().positive().optional().nullable(),
+    leaderId: z.coerce.number().int().positive().optional().nullable()
   }),
-  params: z.object({ id }),
+  params: z.object({ id })
 };
 
 // ── Businesses ────────────────────────────────────────────────
@@ -89,8 +91,8 @@ const createBusiness = {
     monthlyTarget: z.coerce.number().min(0).optional(),
     saferZoneId: id,
     kebeleId: id.optional(),
-    notes: z.string().max(2000).trim().optional().nullable(),
-  }),
+    notes: z.string().max(2000).trim().optional().nullable()
+  })
 };
 
 const updateBusiness = {
@@ -101,9 +103,9 @@ const updateBusiness = {
     type: z.string().max(40).trim().optional().nullable(),
     monthlyTarget: z.coerce.number().min(0).optional(),
     saferZoneId: id.optional(),
-    notes: z.string().max(2000).trim().optional().nullable(),
+    notes: z.string().max(2000).trim().optional().nullable()
   }),
-  params: z.object({ id }),
+  params: z.object({ id })
 };
 
 // ── Payments ──────────────────────────────────────────────────
@@ -115,8 +117,8 @@ const createPayment = {
     month,
     year,
     notes: z.string().max(1000).trim().optional().nullable(),
-    gateway: z.enum(["telebirr", "cbebirr"]).optional(),
-  }),
+    gateway: z.enum(["telebirr", "cbebirr"]).optional()
+  })
 };
 
 const updatePayment = {
@@ -124,15 +126,17 @@ const updatePayment = {
     amount: z.coerce.number().positive().max(10000000).optional(),
     method: z.string().max(30).trim().optional(),
     status: z.enum(["pending", "paid", "overdue"]).optional(),
-    notes: z.string().max(1000).trim().optional().nullable(),
+    notes: z.string().max(1000).trim().optional().nullable()
   }),
-  params: z.object({ id }),
+  params: z.object({ id })
 };
 
-const dashboardQuery = z.object({
-  month: month.optional(),
-  year: year.optional(),
-}).passthrough();
+const dashboardQuery = z
+  .object({
+    month: month.optional(),
+    year: year.optional()
+  })
+  .passthrough();
 
 // ── Workers ───────────────────────────────────────────────────
 const createWorker = {
@@ -142,8 +146,8 @@ const createWorker = {
     faydaId: z.string().max(50).trim().optional().nullable(),
     dailyWage: z.coerce.number().min(0).max(10000).optional(),
     saferZoneId: id.optional().nullable(),
-    customAttributes: z.record(z.string(), z.string()).optional(),
-  }),
+    customAttributes: z.record(z.string(), z.string()).optional()
+  })
 };
 
 const updateWorker = {
@@ -154,20 +158,25 @@ const updateWorker = {
     dailyWage: z.coerce.number().min(0).max(10000),
     saferZoneId: id.optional().nullable(),
     isActive: z.boolean(),
-    customAttributes: z.record(z.string(), z.string()).optional(),
+    customAttributes: z.record(z.string(), z.string()).optional()
   }),
-  params: z.object({ id }),
+  params: z.object({ id })
 };
 
 const bulkAttendance = {
   body: z.object({
     date: dateStr,
-    records: z.array(z.object({
-      workerId: id,
-      present: z.boolean(),
-      bonus: z.coerce.number().min(0).max(10000).optional().nullable(),
-    })).min(1).max(200),
-  }),
+    records: z
+      .array(
+        z.object({
+          workerId: id,
+          present: z.boolean(),
+          bonus: z.coerce.number().min(0).max(10000).optional().nullable()
+        })
+      )
+      .min(1)
+      .max(200)
+  })
 };
 
 const paySalary = {
@@ -176,23 +185,25 @@ const paySalary = {
     paidAt: dateStr,
     periodFrom: dateStr,
     periodTo: dateStr,
-    notes: z.string().max(1000).trim().optional().nullable(),
+    notes: z.string().max(1000).trim().optional().nullable()
   }),
-  params: z.object({ id }),
+  params: z.object({ id })
 };
 
 const workerAttendanceQuery = {
-  query: z.object({
-    from: dateStr.optional(),
-    to: dateStr.optional(),
-  }).passthrough(),
+  query: z
+    .object({
+      from: dateStr.optional(),
+      to: dateStr.optional()
+    })
+    .passthrough()
 };
 
 // ── Inspections ───────────────────────────────────────────────
 const locationFields = {
   latitude: z.coerce.number().min(-90).max(90).optional().nullable(),
   longitude: z.coerce.number().min(-180).max(180).optional().nullable(),
-  accuracy: z.coerce.number().min(0).max(100000).optional().nullable(),
+  accuracy: z.coerce.number().min(0).max(100000).optional().nullable()
 };
 
 const createInspection = {
@@ -202,17 +213,17 @@ const createInspection = {
     date: dateStr,
     status: z.enum(["active", "warning", "danger"]).optional(),
     notes: z.string().max(5000).trim().optional().nullable(),
-    ...locationFields,
-  }),
+    ...locationFields
+  })
 };
 
 const updateInspection = {
   body: z.object({
     status: z.enum(["active", "warning", "danger"]),
     notes: z.string().max(5000).trim().optional().nullable(),
-    ...locationFields,
+    ...locationFields
   }),
-  params: z.object({ id }),
+  params: z.object({ id })
 };
 
 // ── Tools ─────────────────────────────────────────────────────
@@ -223,8 +234,8 @@ const createTool = {
     quantity: z.coerce.number().int().min(0).max(10000).optional(),
     conditionStatus: z.enum(["good", "fair", "poor", "broken"]).optional(),
     saferZoneId: id.optional().nullable(),
-    notes: z.string().max(2000).trim().optional().nullable(),
-  }),
+    notes: z.string().max(2000).trim().optional().nullable()
+  })
 };
 
 const updateTool = {
@@ -234,9 +245,9 @@ const updateTool = {
     quantity: z.coerce.number().int().min(0).max(10000),
     conditionStatus: z.enum(["good", "fair", "poor", "broken"]),
     saferZoneId: id.optional().nullable(),
-    notes: z.string().max(2000).trim().optional().nullable(),
+    notes: z.string().max(2000).trim().optional().nullable()
   }),
-  params: z.object({ id }),
+  params: z.object({ id })
 };
 
 // ── Zone Reports ──────────────────────────────────────────────
@@ -251,29 +262,29 @@ const createZoneReport = {
     collectionTotal: z.coerce.number().min(0).max(100000000).optional(),
     issuesReported: z.string().max(5000).trim().optional().nullable(),
     actionsTaken: z.string().max(5000).trim().optional().nullable(),
-    toolsStatus: z.string().max(2000).trim().optional().nullable(),
-  }),
+    toolsStatus: z.string().max(2000).trim().optional().nullable()
+  })
 };
 
 const updateZoneReport = {
   body: z.object({
-    workersPresent: z.coerce.number().int().min(0).max(10000),
-    workersAbsent: z.coerce.number().int().min(0).max(10000),
-    collectionTotal: z.coerce.number().min(0).max(100000000),
+    workersPresent: z.coerce.number().int().min(0).max(10000).optional(),
+    workersAbsent: z.coerce.number().int().min(0).max(10000).optional(),
+    collectionTotal: z.coerce.number().min(0).max(100000000).optional(),
     issuesReported: z.string().max(5000).trim().optional().nullable(),
     actionsTaken: z.string().max(5000).trim().optional().nullable(),
     toolsStatus: z.string().max(2000).trim().optional().nullable(),
-    status: z.enum(["draft", "submitted", "reviewed", "approved"]).optional(),
+    status: z.enum(["draft", "submitted", "reviewed", "approved"]).optional()
   }),
-  params: z.object({ id }),
+  params: z.object({ id })
 };
 
 const reviewZoneReport = {
   body: z.object({
     status: z.enum(["reviewed", "approved"]),
-    reviewerNotes: z.string().max(5000).trim().optional().nullable(),
+    reviewerNotes: z.string().max(5000).trim().optional().nullable()
   }),
-  params: z.object({ id }),
+  params: z.object({ id })
 };
 
 // ── Documents ─────────────────────────────────────────────────
@@ -281,15 +292,15 @@ const updateDocument = {
   body: z.object({
     title: z.string().min(1).max(200).trim(),
     description: z.string().max(5000).trim().optional().nullable(),
-    category: z.string().max(60).trim().optional(),
+    category: z.string().max(60).trim().optional()
   }),
-  params: z.object({ id }),
+  params: z.object({ id })
 };
 
 // ── Notifications ─────────────────────────────────────────────
 const paginationQuery = z.object({
   page: pagination.page,
-  limit: pagination.limit,
+  limit: pagination.limit
 });
 
 // ── Documents (list query) ────────────────────────────────────
@@ -299,7 +310,7 @@ const documentListQuery = z.object({
   category: z.string().trim().optional(),
   saferZoneId: id.optional(),
   kebeleId: id.optional(),
-  search: z.string().trim().optional(),
+  search: z.string().trim().optional()
 });
 
 // ── Inspections (list query) ────────────────────────────────
@@ -311,40 +322,44 @@ const inspectionListQuery = z.object({
   from: dateStr.optional(),
   to: dateStr.optional(),
   status: z.enum(["pending", "passed", "failed"]).optional(),
-  search: z.string().trim().optional(),
+  search: z.string().trim().optional()
 });
 
 // ── Tools (list query) ────────────────────────────────────────
 const toolsListQuery = z.object({
   page: pagination.page,
   limit: pagination.limit.optional(),
-  zoneId: id.optional(),
+  zoneId: id.optional()
 });
 
 // ── Reports ───────────────────────────────────────────────────
-const reportQuery = z.object({
-  month: month.optional(),
-  year: year.optional(),
-  from: dateStr.optional(),
-  to: dateStr.optional(),
-  format: z.enum(["csv", "pdf", "xlsx"]).optional(),
-}).passthrough();
+const reportQuery = z
+  .object({
+    month: month.optional(),
+    year: year.optional(),
+    from: dateStr.optional(),
+    to: dateStr.optional(),
+    format: z.enum(["csv", "pdf", "xlsx"]).optional()
+  })
+  .passthrough();
 
 // ── Audit Log ─────────────────────────────────────────────────
-const auditLogQuery = z.object({
-  page: pagination.page,
-  limit: pagination.limit,
-  userId: id.optional(),
-  entityType: z.string().max(50).optional(),
-}).passthrough();
+const auditLogQuery = z
+  .object({
+    page: pagination.page,
+    limit: pagination.limit,
+    userId: id.optional(),
+    entityType: z.string().max(50).optional()
+  })
+  .passthrough();
 
 // ── Payments (list query) ─────────────────────────────────────
 const paymentsListQuery = z.object({
-  page: pagination.page,
-  limit: pagination.limit.optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
   status: z.enum(["pending", "paid", "overdue"]).optional(),
   month: month.optional(),
-  year: year.optional(),
+  year: year.optional()
 });
 
 // ── Zone Reports (list query) ─────────────────────────────────
@@ -354,24 +369,46 @@ const zoneReportListQuery = z.object({
   month: month.optional(),
   year: year.optional(),
   status: z.enum(["draft", "submitted", "reviewed", "approved"]).optional(),
-  zoneId: id.optional(),
+  zoneId: id.optional()
 });
 
 // ── Users (list query) ────────────────────────────────────────
-const usersListQuery = z.object({
-  role: z.enum(["admin", "collector", "leader", "viewer"]).optional(),
-}).passthrough();
+const usersListQuery = z
+  .object({
+    role: z.enum(["admin", "collector", "leader", "viewer"]).optional()
+  })
+  .passthrough();
 
 module.exports = {
   login,
-  createUser, updateUser, changePassword,
-  updateKebele, createZone, updateZone,
-  createBusiness, updateBusiness,
-  createPayment, updatePayment, dashboardQuery,
-  createWorker, updateWorker, bulkAttendance, paySalary, workerAttendanceQuery,
-  createInspection, updateInspection,
-  createTool, updateTool,
-  createZoneReport, updateZoneReport, reviewZoneReport,
+  createUser,
+  updateUser,
+  changePassword,
+  updateKebele,
+  createZone,
+  updateZone,
+  createBusiness,
+  updateBusiness,
+  createPayment,
+  updatePayment,
+  dashboardQuery,
+  createWorker,
+  updateWorker,
+  bulkAttendance,
+  paySalary,
+  workerAttendanceQuery,
+  createInspection,
+  updateInspection,
+  createTool,
+  updateTool,
+  createZoneReport,
+  updateZoneReport,
+  reviewZoneReport,
   updateDocument,
-  paginationQuery, reportQuery, auditLogQuery, usersListQuery, paymentsListQuery, zoneReportListQuery,
+  paginationQuery,
+  reportQuery,
+  auditLogQuery,
+  usersListQuery,
+  paymentsListQuery,
+  zoneReportListQuery
 };

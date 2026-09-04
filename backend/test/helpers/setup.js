@@ -1,20 +1,22 @@
+process.env.NODE_ENV = "test";
 // backend/test/helpers/setup.js — Test database helpers (PostgreSQL)
 // Creates test users and cleans up after tests.
 const bcrypt = require("bcryptjs");
 const db = require("../../config/db");
 
 const TEST_USERS = {
-  admin:    { username: "test_admin",    password: "TestPass123!", role: "admin",    full_name: "Test Admin" },
-  collector:{ username: "test_collector", password: "TestPass123!", role: "collector", full_name: "Test Collector" },
-  leader1:  { username: "test_leader1",  password: "TestPass123!", role: "leader",   full_name: "Test Leader 1" },
-  leader2:  { username: "test_leader2",  password: "TestPass123!", role: "leader",   full_name: "Test Leader 2" },
-  viewer:   { username: "test_viewer",   password: "TestPass123!", role: "viewer",   full_name: "Test Viewer" },
+  admin: { username: "test_admin", password: "TestPass123!", role: "admin", full_name: "Test Admin" },
+  collector: { username: "test_collector", password: "TestPass123!", role: "collector", full_name: "Test Collector" },
+  leader1: { username: "test_leader1", password: "TestPass123!", role: "leader", full_name: "Test Leader 1" },
+  leader2: { username: "test_leader2", password: "TestPass123!", role: "leader", full_name: "Test Leader 2" },
+  viewer: { username: "test_viewer", password: "TestPass123!", role: "viewer", full_name: "Test Viewer" }
 };
 
 let testUserIds = {};
 let testSessions = {};
 
 async function seedTestData() {
+  await db.query("TRUNCATE login_attempts CASCADE;").catch(() => {});
   // Create test users
   for (const [key, u] of Object.entries(TEST_USERS)) {
     const hash = await bcrypt.hash(u.password, 10);
@@ -37,7 +39,11 @@ async function seedTestData() {
     const token = uuidv4();
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await db.query("DELETE FROM sessions WHERE user_id = $1", [testUserIds[key]]);
-    await db.query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)", [token, testUserIds[key], expires]);
+    await db.query("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)", [
+      token,
+      testUserIds[key],
+      expires
+    ]);
     testSessions[key] = token;
   }
 
@@ -45,11 +51,14 @@ async function seedTestData() {
 }
 
 async function cleanupTestData() {
-  // Delete test sessions
   for (const id of Object.values(testUserIds)) {
     await db.query("DELETE FROM sessions WHERE user_id = $1", [id]);
+    await db.query("DELETE FROM payments WHERE collected_by = $1", [id]);
+    await db.query("DELETE FROM inspections WHERE inspected_by = $1", [id]);
+    await db.query("DELETE FROM zone_reports WHERE submitted_by = $1 OR reviewed_by = $1", [id]);
+    await db.query("DELETE FROM audit_log WHERE user_id = $1", [id]);
+    await db.query("DELETE FROM notifications WHERE user_id = $1", [id]);
   }
-  // Delete test users
   for (const u of Object.values(TEST_USERS)) {
     await db.query("DELETE FROM users WHERE username = $1", [u.username]);
   }

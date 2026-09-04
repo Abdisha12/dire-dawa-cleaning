@@ -54,3 +54,7 @@ android/gradle/wrapper/gradle-wrapper.jar
 *.aab
 *.keystore
 *.jks
+
+# Backups
+backups/
+

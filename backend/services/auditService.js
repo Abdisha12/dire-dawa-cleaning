@@ -28,7 +28,7 @@ async function log(req, action, entityType, entityId = null, oldValues = null, n
         oldValues ? JSON.stringify(oldValues) : null,
         newValues ? JSON.stringify(newValues) : null,
         ip,
-        ua,
+        ua
       ]
     );
   } catch (err) {
@@ -48,12 +48,30 @@ async function getEntries({ entityType, entityId, userId, action, from, to, page
   const params = [];
   let p = 1;
 
-  if (entityType) { sql += ` AND al.entity_type = $${p++}`; params.push(entityType); }
-  if (entityId) { sql += ` AND al.entity_id = $${p++}`; params.push(entityId); }
-  if (userId) { sql += ` AND al.user_id = $${p++}`; params.push(userId); }
-  if (action) { sql += ` AND al.action = $${p++}`; params.push(action); }
-  if (from) { sql += ` AND al.created_at >= $${p++}`; params.push(from); }
-  if (to) { sql += ` AND al.created_at <= $${p++}`; params.push(to + " 23:59:59"); }
+  if (entityType) {
+    sql += ` AND al.entity_type = $${p++}`;
+    params.push(entityType);
+  }
+  if (entityId) {
+    sql += ` AND al.entity_id = $${p++}`;
+    params.push(entityId);
+  }
+  if (userId) {
+    sql += ` AND al.user_id = $${p++}`;
+    params.push(userId);
+  }
+  if (action) {
+    sql += ` AND al.action = $${p++}`;
+    params.push(action);
+  }
+  if (from) {
+    sql += ` AND al.created_at >= $${p++}`;
+    params.push(from);
+  }
+  if (to) {
+    sql += ` AND al.created_at <= $${p++}`;
+    params.push(to + " 23:59:59");
+  }
 
   // Count
   const countSql = sql.replace(/SELECT al\.\*.*FROM/, "SELECT COUNT(*) AS total FROM");
