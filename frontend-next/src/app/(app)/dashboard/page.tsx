@@ -61,10 +61,6 @@ export default function DashboardPage() {
             <div key={i} className="rounded-lg border border-[var(--border)] p-3">
               <div className="text-sm font-semibold">Kebele {String(i + 1).padStart(2, "0")} — K{String(i + 1).padStart(2, "0")}</div>
               <div className="mt-1 text-xs text-[var(--text-muted)]">12 zones · collector —</div>
-              <div className="mt-2 h-2 rounded-full bg-[var(--gray-100)]">
-                <div className="h-2 rounded-full bg-[var(--primary)]" style={{ width: `${20 + i * 7}%` }} />
-              </div>
-            </div>
           ))}
         </div>
         <p className="mt-3 text-xs text-[var(--text-muted)]">Phase 2 §6: compare worker counts, inspection %, payment achievement.</p>
