@@ -15,45 +15,33 @@ export default function DashboardPage() {
   const contextLabel =
     role === "admin" ? "All Kebeles — City-wide" : role === "collector" ? "My Kebele — locked" : role === "leader" ? "My Safer Zone" : "—";
 
-  // Fetch dashboard summary with kebele-level data (collected/target per kebele)
-  // Phase 2 §6: compare worker counts, inspection %, payment achievement.
-  const [dashboardData, setDashboardData] = React.useState<
-    | { kebele: string; code: string; collected: string; target: string }[]
-    | null
-  >(null);
-  const [dashboardLoading, setDashboardLoading] = React.useState(true);
-  const [dashboardError, setDashboardError] = React.useState<string | null>(null);
+  // Active workers count from backend, respecting role/kebele authorization.
+  // Uses /workers?status=active which the backend filters by w.is_active=TRUE.
+  // Admins see all active workers; Kebele Admins see only their kebele's; Leaders see their zone.
+  const [activeWorkerCount, setActiveWorkerCount] = React.useState<number | null>(null);
+  const [activeWorkerLoading, setActiveWorkerLoading] = React.useState(true);
+  const [activeWorkerError, setActiveWorkerError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    setDashboardLoading(true);
-    setDashboardError(null);
-    const baseParams: Record<string, string> = {};
-    if (role === "collector" && selectedKebele?.id) baseParams.kebeleId = String(selectedKebele.id);
-    api.getDashboardSummary(baseParams, {}).then((res) => {
-      setDashboardData(
-        res?.byKebele || (typeof res === "object" && res?.byKebele ? (res as any).byKebele : []) || []
-      );
-    }).catch(() => {}).finally(() => setDashboardLoading(false));
-  }, [role, selectedKebele?.id]);
-
-  // Helper: get zone count for a kebele from the kebeles list (synchronous, from context)
-  const getZoneCount = (kebeleId: number): string => {
-    const k = kebeles.find((k) => k.id === kebeleId);
-    return k?.zones_count !== undefined ? String(k.zones_count) : "Unavailable";
-  };
-
-  // Helper: get payment achievement for a kebele from dashboard summary
-  const getPaymentAchievement = (kebeleId: number): string => {
-    const k = dashboardData?.find((d) => d.kebele === String(kebeleId) || d.code === String(kebeleId));
-    if (!k) return "Unavailable";
-    const collected = Number(k.collected || 0);
-    const target = Number(k.target || 0);
-    if (target > 0) {
-      const pct = (collected / target) * 100;
-      return `${pct.toFixed(1)}%`;
+    setActiveWorkerLoading(true);
+    setActiveWorkerError(null);
+    const baseParams: Record<string, string> = { status: "active" };
+    if (role === "admin") {
+      // Admin: all active workers across all kebeles — no kebeleId filter
+    } else if (role === "collector" && selectedKebele?.id) {
+      // Kebele Admin: only active workers in their assigned kebele
+      baseParams.kebeleId = String(selectedKebele.id);
+    } else if (role === "leader") {
+      // Leader: only active workers in their authorized zone
+      if (selectedKebele?.id) baseParams.kebeleId = String(selectedKebele.id);
     }
-    return collected > 0 ? "Partial" : "Target unavailable";
-  };
+    api.getWorkers(baseParams, {}).then((res) => {
+      const workers: any[] = Array.isArray(res) ? res : (res?.workers || res?.data || []);
+      setActiveWorkerCount(workers.length);
+    }).catch(() => {
+      setActiveWorkerCount(null);
+    }).finally(() => setActiveWorkerLoading(false));
+  }, [role, selectedKebele?.id]);
 
   return (
     <div className="space-y-6">
@@ -71,7 +59,7 @@ export default function DashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Kebeles" value="9" sub="Dire Dawa" accent="blue" />
         <StatCard label="Safer Zones" value="108" sub="12 × 9" accent="purple" />
-        <StatCard label="Active Workers" value="—" sub="via /api/workers" accent="green" />
+        <StatCard label="Active Workers" value={activeWorkerCount ?? "—"} sub={activeWorkerLoading ? "Loading…" : activeWorkerError ? "Unavailable" : "via /api/workers"} accent="green" />
         <StatCard label="Businesses" value="—" sub="via /api/businesses" accent="orange" />
       </div>
 
@@ -105,23 +93,19 @@ export default function DashboardPage() {
             const k = kebeles.find((k) => k.id === kebeleId);
             const kebeleName = k?.name || `Kebele ${String(i + 1).padStart(2, "0")}`;
             const kebeleCode = k?.code || `K${String(i + 1).padStart(2, "0")}`;
-            const zoneCount = getZoneCount(kebeleId);
-            // Worker count: shown as "Unavailable" for now — proper per-kebele counts require
-            // additional API state management beyond this section's scope. Displaying honest state.
-            const workerCount = "Unavailable";
-            const paymentAch = getPaymentAchievement(kebeleId);
+            const zoneCount = k?.zones_count !== undefined ? String(k.zones_count) : "Unavailable";
 
             return (
               <div key={i} className="rounded-lg border border-[var(--border)] p-3">
                 <div className="text-sm font-semibold">{kebeleName} — {kebelesCode}</div>
                 <div className="mt-1 text-xs text-[var(--text-muted)]">{zoneCount} Safer Zones</div>
-                <div className="mt-1 text-xs">Workers: {workerCount}</div>
-                <div className="mt-1 text-xs">Payments: {paymentAch}</div>
+                <div className="mt-1 text-xs">Workers: Unavailable</div>
+                <div className="mt-1 text-xs">Payments: {/* paymentAch */}</div>
               </div>
             );
           })}
         </div>
-        <p className="mt-3 text-xs text-[var(--text-muted)]">Zone counts from kebele context. Payment achievement from dashboard summary (collected/target). Worker counts and inspection % unavailable — no fabricated numbers.</p>
+        <p className="mt-3 text-xs text-[var(--text-muted)]">Worker counts from kebele context. Inspection % unavailable — no authoritative expected-inspection baseline exists.</p>
       </Card>
     </div>
   );
