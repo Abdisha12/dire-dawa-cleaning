@@ -40,25 +40,14 @@ dire-dawa-cleaning/
 │   ├── logs/                  winston daily-rotate logs
 │   ├── server.js
 │   └── .env  (copy from .env.example)
-├── frontend/                  Pure HTML + CSS + Vanilla JS
-│   ├── css/main.css
-│   ├── js/
-│   │   ├── api.js             fetch wrapper, all endpoints
-│   │   ├── utils.js            toasts, modals, formatters, leaderBanner()
-│   │   ├── main.js              router + role-aware sidebar
-│   │   └── pages/
-│   │       ├── login.js
-│   │       ├── dashboard.js
-│   │       ├── businesses.js
-│   │       ├── inspections.js
-│   │       ├── workers.js
-│   │       ├── tools.js          NEW
-│   │       ├── payments.js
-│   │       ├── zonereports.js    NEW
-│   │       ├── reports.js
-│   │       ├── users.js
-│   │       └── settings.js       zone↔leader, kebele↔collector assignment
-│   └── index.html
+├── frontend-next/             Modern Next.js 15 App Router Frontend (React 19, TS, Tailwind)
+│   ├── src/
+│   │   ├── app/               App router pages & route groups
+│   │   ├── components/        Reusable UI components, modals, tables, map
+│   │   ├── features/          Feature modules (workers, businesses, inspections, etc.)
+│   │   ├── lib/               API helpers, auth & kebele contexts
+│   │   └── types/             TypeScript definitions
+│   └── package.json
 └── database/
      ├── schema.sql            MariaDB legacy (retained for rollback)
      ├── postgresql/

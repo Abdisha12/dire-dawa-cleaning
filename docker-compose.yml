@@ -71,32 +71,7 @@ services:
     networks:
       - ddcms_net
 
-  # ── Nginx Frontend ─────────────────────────────────────────────
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: ddcms_frontend
-    restart: unless-stopped
-    depends_on:
-      backend:
-        condition: service_healthy
-    ports:
-      - "${FRONTEND_PORT:-80}:80"
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/"]
-      start_period: 5s
-      interval: 30s
-      timeout: 5s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-    networks:
-      - ddcms_net
-
-  # ── Next.js Frontend ───────────────────────────────────────────
+  # ── Modern Next.js Frontend ─────────────────────────────────────
   frontend-next:
     build:
       context: ./frontend-next
@@ -107,9 +82,20 @@ services:
       backend:
         condition: service_healthy
     ports:
+      - "${FRONTEND_PORT:-80}:3000"
       - "3000:3000"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:5000/api
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
+      start_period: 15s
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     networks:
       - ddcms_net
 
