@@ -108,10 +108,10 @@ export default function PaymentsPage() {
         businessesApi.getAll(undefined, { signal: ctrl.signal }),
       ]);
       setZones(z);
-      const bList = Array.isArray(bRes) ? bRes : (bRes as { data: Business[] }).data || [];
+      const bList = Array.isArray(bRes) ? bRes : (bRes as { data: Business[] })?.data || [];
       setBusinesses(bList);
       const isPaginated = pRes && typeof pRes === "object" && "data" in (pRes as Record<string, unknown>);
-      const pData: Payment[] = isPaginated ? (pRes as { data: Payment[] }).data : (pRes as Payment[]) || [];
+      const pData: Payment[] = isPaginated ? (pRes as { data: Payment[] })?.data || [] : (pRes as Payment[]) || [];
       const meta = isPaginated ? (pRes as { total: number; pages: number }) : { total: pData.length, pages: 1 };
       setPayments(pData);
       if (isPaginated) {

@@ -112,23 +112,23 @@ export default function GisMapPage() {
       let paint: Record<string, unknown> = {};
 
       if (lt.id === "kebeles") {
-        sourceData = kebeles.data;
+        sourceData = kebeles?.data || null;
         type = "fill";
         paint = { "fill-color": "#3b82f6", "fill-opacity": 0.15, "fill-outline-color": "#2563eb" };
       } else if (lt.id === "zones") {
-        sourceData = zones.data;
+        sourceData = zones?.data || null;
         type = "line";
         paint = { "line-color": "#6366f1", "line-width": 1.5, "line-opacity": 0.7 };
       } else if (lt.id === "businesses") {
-        sourceData = businesses.data;
+        sourceData = businesses?.data || null;
         type = "circle";
         paint = { "circle-color": "#10b981", "circle-radius": 5, "circle-opacity": 0.8, "circle-stroke-width": 1, "circle-stroke-color": "#059669" };
       } else if (lt.id === "workers") {
-        sourceData = workers.data;
+        sourceData = workers?.data || null;
         type = "circle";
         paint = { "circle-color": "#f59e0b", "circle-radius": 4, "circle-opacity": 0.7, "circle-stroke-width": 1, "circle-stroke-color": "#d97706" };
       } else if (lt.id === "inspections") {
-        sourceData = inspections.data;
+        sourceData = inspections?.data || null;
         type = "circle";
         paint = { "circle-color": "#ef4444", "circle-radius": 5, "circle-opacity": 0.8, "circle-stroke-width": 1, "circle-stroke-color": "#dc2626" };
       }
@@ -145,13 +145,13 @@ export default function GisMapPage() {
       });
     }
     return configs;
-  }, [layerToggles, kebeles.data, zones.data, businesses.data, workers.data, inspections.data]);
+  }, [layerToggles, kebeles?.data, zones?.data, businesses?.data, workers?.data, inspections?.data]);
 
   const allFeatures = useMemo(() => {
     const sources = layerConfigs.filter((l) => l.sourceData).map((l) => l.sourceData!);
     const combined: GeoJSON.Feature[] = [];
     for (const fc of sources) {
-      combined.push(...fc.features);
+      combined.push(...(fc.features || []));
     }
     return { type: "FeatureCollection", features: combined } as GeoJSON.FeatureCollection;
   }, [layerConfigs]);
@@ -178,15 +178,15 @@ export default function GisMapPage() {
 
   const listItems = useMemo(() => {
     const items: Array<{ id: number; name?: string; fullName?: string; entityType: string }> = [];
-    for (const fc of [kebeles.data, zones.data, businesses.data, workers.data, inspections.data]) {
+    for (const fc of [kebeles?.data, zones?.data, businesses?.data, workers?.data, inspections?.data]) {
       if (!fc) continue;
-      for (const f of fc.features) {
+      for (const f of fc.features || []) {
         const p = f.properties ?? {};
         items.push({ id: p.id, name: p.name, fullName: p.fullName, entityType: p.entityType ?? "entity" });
       }
     }
     return items;
-  }, [kebeles.data, zones.data, businesses.data, workers.data, inspections.data]);
+  }, [kebeles?.data, zones?.data, businesses?.data, workers?.data, inspections?.data]);
 
   const loading = kebeles.loading || zones.loading;
 

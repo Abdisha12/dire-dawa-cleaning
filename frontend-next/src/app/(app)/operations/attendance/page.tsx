@@ -96,11 +96,11 @@ export default function AttendancePage() {
         api.getSaferZones(),
         api.getAttendance(0, { date }).catch(() => ({ data: [] } as unknown as Attendance[]) ),
       ]);
-      setWorkers(Array.isArray(w) ? w : (w as { data: Worker[] }).data);
-      setZones((z as { zones: SaferZone[] }).zones);
+      setWorkers(Array.isArray(w) ? w : (w as { data: Worker[] })?.data || []);
+      setZones((z as { zones: SaferZone[] })?.zones || []);
 
       // Handle attendance response - backend may return array or paginated
-      const attendanceData = Array.isArray(aRes) ? (aRes as Attendance[]) : (aRes as { data: Attendance[] }).data || [];
+      const attendanceData = Array.isArray(aRes) ? (aRes as Attendance[]) : (aRes as { data: Attendance[] })?.data || [];
       const enriched = attendanceData.map((a) => {
         const w = workers.find((x) => x.id === a.worker_id);
         const z = zones.find((z) => z.id === w?.safer_zone_id);
@@ -144,7 +144,7 @@ export default function AttendancePage() {
   const fetchWorkersForBulk = React.useCallback(async () => {
     try {
       const res = await api.getWorkers(kebeleFilter ? { kebeleId: kebeleFilter } : {});
-      setWorkers((Array.isArray(res) ? res : (res as { data: Worker[] }).data).filter((w) => w.is_active));
+      setWorkers((Array.isArray(res) ? res : (res as { data: Worker[] })?.data || []).filter((w) => w?.is_active));
     } catch {
       // ignore: bulk modal shows subset it already has
     }

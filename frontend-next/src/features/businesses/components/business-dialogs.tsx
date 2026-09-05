@@ -213,7 +213,7 @@ export function BusinessDetailsDrawer({ business, onClose }: { business: Busines
       .getAll({ businessId: String(business.id) })
       .then((res) => {
         if (cancelled) return;
-        const arr = Array.isArray(res) ? res : (res as { data: Payment[] }).data || [];
+        const arr = Array.isArray(res) ? res : (res as { data: Payment[] })?.data || [];
         setPayments(arr.slice(0, 5));
       })
       .catch(() => {

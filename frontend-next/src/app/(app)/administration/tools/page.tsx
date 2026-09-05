@@ -23,7 +23,7 @@ export default function ToolsPage() {
   const { toast } = useToast();
   const role = user?.role;
   const canEdit = role === "admin" || role === "collector" || role === "leader";
-  const canDelete = role === "admin" || role === "collector";
+  const canDelete = role === "admin" || role === "collector" || role === "leader";
 
   const [tools, setTools] = React.useState<Tool[]>([]);
   const [zones, setZones] = React.useState<SaferZone[]>([]);

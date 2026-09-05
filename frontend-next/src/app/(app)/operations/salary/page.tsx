@@ -96,7 +96,7 @@ export default function SalaryPage() {
   const fetchWorkers = React.useCallback(async () => {
     try {
       const res = await workersApi.getAll(kebeleFilter ? { kebeleId: kebeleFilter } : {});
-      const data = Array.isArray(res) ? res : (res as { data: Worker[] }).data;
+      const data = Array.isArray(res) ? res : (res as { data: Worker[] })?.data || [];
       setWorkers(data);
     } catch {}
   }, [kebeleFilter]);
@@ -122,7 +122,7 @@ export default function SalaryPage() {
         },
         { signal: ctrl.signal }
       );
-      const wData: Worker[] = Array.isArray(allWorkersRes) ? allWorkersRes : (allWorkersRes as { data: Worker[] }).data || [];
+      const wData: Worker[] = Array.isArray(allWorkersRes) ? allWorkersRes : (allWorkersRes as { data: Worker[] })?.data || [];
       // Fetch salary history for each worker on current page (scoped, no floating-point)
       const histories = await Promise.all(
         wData.map((w) =>

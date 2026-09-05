@@ -104,7 +104,7 @@ export default function BusinessesPage() {
       setZones(z);
 
       const isPaginated = bRes && typeof bRes === "object" && "data" in (bRes as Record<string, unknown>);
-      const bData: Business[] = isPaginated ? (bRes as { data: Business[] }).data : (bRes as Business[]) || [];
+      const bData: Business[] = isPaginated ? (bRes as { data: Business[] })?.data || [] : (bRes as Business[]) || [];
       const meta = isPaginated ? (bRes as { total: number; pages: number }) : { total: bData.length, pages: 1 };
       setBusinesses(bData);
       if (isPaginated) {

@@ -329,7 +329,9 @@ const inspectionListQuery = z.object({
 const toolsListQuery = z.object({
   page: pagination.page,
   limit: pagination.limit.optional(),
-  zoneId: id.optional()
+  zoneId: id.optional(),
+  saferZoneId: id.optional(),
+  search: z.string().trim().optional()
 });
 
 // ── Reports ───────────────────────────────────────────────────

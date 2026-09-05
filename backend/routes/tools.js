@@ -9,7 +9,8 @@ router.use(authenticate);
 // ── Tools ────────────────────────────────────────────────────
 router.get("/", validate(schemas.toolsListQuery, "query"), async (req, res, next) => {
   try {
-    const { zoneId } = req.query;
+    const zoneId = req.query.zoneId || req.query.saferZoneId;
+    const search = req.query.search;
     let sql = `SELECT t.*,sz.name AS zone_name,k.name AS kebele_name
              FROM tools t JOIN safer_zones sz ON sz.id=t.safer_zone_id
              JOIN kebeles k ON k.id=sz.kebele_id WHERE 1=1`;
@@ -22,6 +23,11 @@ router.get("/", validate(schemas.toolsListQuery, "query"), async (req, res, next
     } else if (zoneId) {
       sql += ` AND t.safer_zone_id=$${paramIdx}`;
       params.push(zoneId);
+      paramIdx++;
+    }
+    if (search) {
+      sql += ` AND (t.name ILIKE $${paramIdx} OR t.category ILIKE $${paramIdx})`;
+      params.push(`%${search}%`);
       paramIdx++;
     }
     sql += " ORDER BY t.category,t.name";
@@ -64,7 +70,7 @@ router.put(
   validate(schemas.updateTool),
   async (req, res, next) => {
     try {
-      const { name, category, quantity, conditionStatus, notes } = req.body;
+      const { name, category, quantity, conditionStatus, notes, saferZoneId } = req.body;
       if (req.user.role === "leader") {
         const check = await db.query(
           "SELECT t.id FROM tools t JOIN safer_zones sz ON sz.id=t.safer_zone_id WHERE t.id=$1 AND sz.leader_id=$2",
@@ -72,14 +78,26 @@ router.put(
         );
         if (!check.rows.length) return res.status(403).json({ error: "Not your zone's tool" });
       }
-      await db.query("UPDATE tools SET name=$1,category=$2,quantity=$3,condition_status=$4,notes=$5 WHERE id=$6", [
-        name,
-        category,
-        quantity,
-        conditionStatus,
-        notes || null,
-        req.params.id
-      ]);
+      if (saferZoneId) {
+        await db.query("UPDATE tools SET name=$1,category=$2,quantity=$3,condition_status=$4,notes=$5,safer_zone_id=$6 WHERE id=$7", [
+          name,
+          category,
+          quantity,
+          conditionStatus,
+          notes || null,
+          saferZoneId,
+          req.params.id
+        ]);
+      } else {
+        await db.query("UPDATE tools SET name=$1,category=$2,quantity=$3,condition_status=$4,notes=$5 WHERE id=$6", [
+          name,
+          category,
+          quantity,
+          conditionStatus,
+          notes || null,
+          req.params.id
+        ]);
+      }
       res.json({ message: "Updated" });
     } catch (err) {
       next(err);
@@ -87,8 +105,15 @@ router.put(
   }
 );
 
-router.delete("/:id", requireRole("admin", "collector"), async (req, res, next) => {
+router.delete("/:id", requireRole("admin", "collector", "leader"), async (req, res, next) => {
   try {
+    if (req.user.role === "leader") {
+      const check = await db.query(
+        "SELECT t.id FROM tools t JOIN safer_zones sz ON sz.id=t.safer_zone_id WHERE t.id=$1 AND sz.leader_id=$2",
+        [req.params.id, req.user.id]
+      );
+      if (!check.rows.length) return res.status(403).json({ error: "Not your zone's tool" });
+    }
     await db.query("DELETE FROM tools WHERE id=$1", [req.params.id]);
     res.json({ message: "Deleted" });
   } catch (err) {

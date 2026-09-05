@@ -112,8 +112,8 @@ export default function InspectionsPage() {
       let meta: { total: number; pages: number } = { total: 0, pages: 1 };
       if (isPaginated) {
         const pag = raw as { data: Inspection[]; total: number; pages: number };
-        data = pag.data || [];
-        meta = { total: pag.total, pages: pag.pages };
+        data = pag?.data || [];
+        meta = { total: pag?.total || 0, pages: pag?.pages || 1 };
       } else if (Array.isArray(raw)) {
         data = raw;
         meta = { total: data.length, pages: 1 };

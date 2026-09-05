@@ -113,7 +113,7 @@ export default function WorkersPage() {
       ]);
       setZones(z);
       // Handle paginated {data,total,page,pages} or array fallback
-      const wData: Worker[] = Array.isArray(wRes) ? (wRes as Worker[]) : (wRes as { data: Worker[] }).data || [];
+      const wData: Worker[] = Array.isArray(wRes) ? (wRes as Worker[]) : (wRes as { data: Worker[] })?.data || [];
       const meta = Array.isArray(wRes) ? { total: wData.length, pages: 1 } : (wRes as { total: number; pages: number; page: number });
       const normalized = wData.map((r) => {
         if (r.custom_attributes && typeof r.custom_attributes === "string") {

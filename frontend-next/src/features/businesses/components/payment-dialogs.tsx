@@ -43,7 +43,7 @@ export function PaymentFormModal({
 
   React.useEffect(() => {
     businessesApi.getAll().then((res) => {
-      const arr = Array.isArray(res) ? res : (res as { data: Business[] }).data || [];
+      const arr = Array.isArray(res) ? res : (res as { data: Business[] })?.data || [];
       setBusinesses(arr);
     }).catch(() => {});
   }, []);
