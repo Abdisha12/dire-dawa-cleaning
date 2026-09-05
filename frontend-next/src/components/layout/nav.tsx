@@ -46,7 +46,6 @@ const NAV: NavItem[] = [
   // Reports & Analytics
   { id: "reports", label: "Reports", href: "/reports", icon: "reports", roles: ["admin", "collector", "viewer"], group: "Reports & Analytics" },
   { id: "analytics", label: "Analytics", href: "/reports/analytics", icon: "analytics", roles: ["admin", "collector", "leader", "viewer"], group: "Reports & Analytics" },
-  { id: "performance", label: "Performance", icon: "performance", roles: ["admin", "collector"], group: "Reports & Analytics", disabled: true, badge: "Soon" },
 
   // Administration
   { id: "users", label: "Users", href: "/administration/users", icon: "users", roles: ["admin"], group: "Administration" },
