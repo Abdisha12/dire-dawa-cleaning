@@ -40,31 +40,30 @@ export default function DashboardPage() {
     }).finally(() => setActiveWorkerLoading(false));
   }, [role, selectedKebele?.id]);
 
-  // Businesses count from backend, respecting role/kebele authorization.
-  // Uses /api/businesses?status=active which the backend filters by b.is_active=TRUE.
-  // Admins see all active businesses; Kebele Admins see only their kebele's; Leaders see their zone.
-  const [businessCount, setBusinessCount] = React.useState<number | null>(null);
-  const [businessLoading, setBusinessLoading] = React.useState(true);
-  const [businessError, setBusinessError] = React.useState<string | null>(null);
+  // Safer zones count from backend, respecting role/kebele authorization.
+  // Uses /api/safer-zones which returns the authoritative zone records.
+  // Admins see all safer zones across Dire Dawa; Kebele Admins see only their kebele's; Leaders see their zone.
+  const [safeZoneCount, setSafeZoneCount] = React.useState<number | null>(null);
+  const [safeZoneLoading, setSafeZoneLoading] = React.useState(true);
+  const [safeZoneError, setSafeZoneError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    const baseParams: Record<string, string> = { status: "active" };
+    const baseParams: Record<string, string> = {};
     if (role === "admin") {
-      // Admin: all active businesses across Dire Dawa — no kebeleId filter
+      // Admin: all safer zones across Dire Dawa — no filter
     } else if (role === "collector" && selectedKebele?.id) {
-      // Kebele Admin: only active businesses in their assigned kebele
+      // Kebele Admin: only safer zones in their assigned kebele
       baseParams.kebeleId = String(selectedKebele.id);
     } else if (role === "leader") {
-      // Leader: only active businesses in their authorized zone
+      // Leader: only safer zones in their authorized zone
       if (selectedKebele?.id) baseParams.kebeleId = String(selectedKebele.id);
     }
-    api.getBusinesses(baseParams, {}).then((res) => {
-      // Backend returns array or {data:Business[],total,page,pages}
-      const businesses: any[] = Array.isArray(res) ? res : (res?.businesses || res?.data || []).filter((b: any) => b.is_active !== false);
-      setBusinessCount(businesses.length);
+    api.getSaferZones(baseParams, {}).then((res) => {
+      const zones: any[] = Array.isArray(res) ? res : (res?.zones || res?.data || []).filter((z: any) => z.is_active !== false);
+      setSafeZoneCount(zones.length);
     }).catch(() => {
-      setBusinessCount(null);
-    }).finally(() => setBusinessLoading(false));
+      setSafeZoneCount(null);
+    }).finally(() => setSafeZoneLoading(false));
   }, [role, selectedKebele?.id]);
 
   return (
@@ -82,7 +81,7 @@ export default function DashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Kebeles" value="9" sub="Dire Dawa" accent="blue" />
-        <StatCard label="Safer Zones" value="108" sub="12 × 9" accent="purple" />
+        <StatCard label="Safer Zones" value={safeZoneCount ?? "—"} sub={safeZoneLoading ? "Loading…" : safeZoneError ? "Unavailable" : "via /api/safer-zones"} accent="purple" />
         <StatCard label="Active Workers" value={activeWorkerCount ?? "—"} sub={activeWorkerLoading ? "Loading…" : activeWorkerError ? "Unavailable" : "via /api/workers"} accent="green" />
         <StatCard label="Businesses" value={businessCount ?? "—"} sub={businessLoading ? "Loading…" : businessError ? "Unavailable" : "via /api/businesses"} accent="orange" />
       </div>
