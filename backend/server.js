@@ -123,14 +123,14 @@ if (process.env.NODE_ENV !== "test") {
     "/api/auth/login",
     rateLimit({
       windowMs: 15 * 60 * 1000,
-      max: 10,
+      max: parseInt(process.env.RATE_LIMIT_LOGIN_MAX) || 10,
       message: { error: "Too many login attempts. Please try again later." },
       standardHeaders: true,
       legacyHeaders: false
     })
   );
-  app.use("/api/auth/", rateLimit({ windowMs: 15 * 60 * 1000, max: 30, message: { error: "Too many auth requests" } }));
-  app.use("/api/", rateLimit({ windowMs: 60 * 1000, max: 500, message: { error: "Rate limit exceeded" } }));
+  app.use("/api/auth/", rateLimit({ windowMs: 15 * 60 * 1000, max: parseInt(process.env.RATE_LIMIT_AUTH_MAX) || 30, message: { error: "Too many auth requests" } }));
+  app.use("/api/", rateLimit({ windowMs: 60 * 1000, max: parseInt(process.env.RATE_LIMIT_API_MAX) || 2000, message: { error: "Rate limit exceeded" } }));
 }
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
