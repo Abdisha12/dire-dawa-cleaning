@@ -1,6 +1,6 @@
 # MASTER PROJECT REGISTRY
 
-**Dire Dawa Cleaning Management System — factual source of truth.**
+**Dire Dawa Cleaning Management System — single source of truth for project state.**
 
 ## Document Roles
 
@@ -16,10 +16,10 @@ The Agent Work Instructions define HOW an AI agent should work on it.
 
 ---
 
-## 1. Registry Document Control
+## 0. Document Control
 
 ```text
-Registry Version:       2.1
+Registry Version:       3.0
 Last Updated:           2026-09-05
 Last Audited:           2026-09-05
 Current Project Status: STEADY — no mid-flight feature work; production infrastructure externally BLOCKED
@@ -29,26 +29,31 @@ Current Repository HEAD: fe316b5 (main, 80 commits, clean tree)
 Registry Owner:         opencode agent (maintains roadmap; user authorizes scope)
 ```
 
-**Source of Truth Priority:**
+### Source-of-Truth Priority
+
+```text
 1. Actual repository implementation
 2. Database/schema
 3. Git history
-4. Existing project documentation
-5. Approved requirements/decisions
+4. Project documentation
+5. Approved requirements and decisions
 6. Conversation history only when repository evidence is unavailable
+```
 
 ---
 
-## 2. Project Identity
+## 1. Project Identity
 
-- **Official name:** Dire Dawa Cleaning Management System
-- **Organization:** Dire Dawa City Administration — Sanitation/Cleaning Department
+- **Official project name:** Dire Dawa Cleaning Management System
+- **Organization:** Dire Dawa City Administration
+- **Department:** Sanitation/Cleaning Department
 - **Mission:** Digitize and manage the city's cleaning operations end-to-end — workers, attendance, wages, businesses, fees, payments, inspections, zone reporting, and GIS — with every data point authoritative, role-isolated, and operationally honest (no fabricated metrics).
-- **Primary objective:** Replace the legacy static-HTML/MariaDB tool with a maintainable, mobile-first, secure system on PostgreSQL + PostGIS and a modern Next.js frontend, deployable for municipal IT on a VPS with real HTTPS, backups, monitoring, and handover documentation.
+- **Primary objectives:** Replace the legacy static-HTML/MariaDB tool with a maintainable, mobile-first, secure system on PostgreSQL + PostGIS and a modern Next.js frontend, deployable for municipal IT on a VPS with real HTTPS, backups, monitoring, and handover documentation.
+- **System purpose:** Manage municipal cleaning operations across the full lifecycle — workforce, finance, inspections, location intelligence, community, reporting, and administration.
 
 ---
 
-## 3. Municipal Model
+## 2. Municipal Model
 
 ```text
 Dire Dawa
@@ -60,169 +65,211 @@ Dire Dawa
 
 Verified in `database/postgresql/schema.sql`:
 
-- **9-kebele requirement:** structural (`UNIQUE(code)`, K01–K09) and seeded as records (lines 418–422).
-- **108-safer-zone requirement:** `UNIQUE (name, kebele_id)`, 12 zones per kebele. Verified: kebele_id `1..9` each has exactly 12 records.
+- **Required structure:** 9 kebeles (`UNIQUE(code)`, K01–K09) and 108 safer zones (`UNIQUE(name, kebele_id)`, 12 per kebele) — design invariant.
+- **Actual records:** kebele rows seeded (lines 418–422); safer-zones seeded, verified kebele_id `1..9` each has exactly 12 records. Runtime records depend on usage.
 - **Geographic relationships:** `safer_zones.kebele_id → kebeles`; `safer_zones.leader_id → users`; `workers.safer_zone_id`; `businesses.safer_zone_id`.
-- **Official GIS requirement:** kebele/zone boundaries must come from the official municipal dataset.
-
-Three distinct truths (not to be conflated):
-
-```text
-Requirement            → 9 kebeles, 108 zones, 12/kebele (design invariant)
-Actual database records → seed data present in schema; runtime records depend on usage
-Official GIS data      → NOT yet loaded (boundary columns exist; municipal dataset unavailable)
-```
+- **Official GIS requirement:** kebele/zone boundaries and coordinates must come from the official municipal dataset (columns exist; dataset not yet loaded).
 
 ---
 
-## 4. Architecture
+## 3. System Architecture
 
-### 4.1 Frontend (canonical)
-- Next.js 15.3.5 + React 19 + TypeScript, App Router.
-- Tailwind-style utility styling driven by design tokens (`frontend-next/src/styles/tokens.css`).
-- Component library: `src/components/ui/` (button, card, badge, data-table, modal, drawer, form, select, input, tabs, toast, tooltip, skeleton, pagination, breadcrumb, dropdown, icon, alert, checkbox, network-status).
-- Central API client `src/lib/api.ts` — all requests go through it; no direct `fetch` in components.
-- Domain types: `src/types/domain.ts`. Feature modules under `src/app/(app)/…`.
+### 3.1 New Frontend (canonical)
+- **Stack:** Next.js 15.3.5 + React 19 + TypeScript, App Router, Tailwind-style utilities.
+- **Design system/tokens:** `frontend-next/src/styles/tokens.css` — single token source of truth.
+- **Component library:** `src/components/ui/` (button, card, badge, data-table, modal, drawer, form, select, input, tabs, toast, tooltip, skeleton, pagination, breadcrumb, dropdown, icon, alert, checkbox, network-status).
+- **API client:** `src/lib/api.ts` — all requests flow through it; no direct `fetch` in components.
+- **Domain types:** `src/types/domain.ts`. Feature modules under `src/app/(app)/…`.
+- **Status:** sole canonical frontend (since `43d101d`).
 
-### 4.2 Legacy Frontend
-- `frontend/` — **REMOVED** (decommissioned by commit `43d101d`). No directory exists at repo root. Deliberate, recorded decision (CHANGED from earlier "preserve legacy" constraint). Not to be reintroduced.
+### 3.2 Legacy Frontend
+- `frontend/` — **REMOVED** (decommissioned by commit `43d101d`). No directory at repo root. Deliberate, recorded decision (CHANGED from the earlier "preserve legacy" constraint). Not to be reintroduced.
 
-### 4.3 Backend
-- Node.js/Express (`backend/server.js`, port 5000). Route modules in `backend/routes/`.
-- Validation: `middleware/schemas.js` + `validate.js`. Auth: DB-backed sessions; `x-session-token`/Bearer.
-- Authorization: `middleware/auth.js` — `authenticate`, `requireRole(...)`, `zoneAccess`; kebele/zone isolation enforced server-side in SQL.
-- Data access: `pg` parameterized queries (no ORM). Config `backend/config/db.js` (default `DB_USER=ddcms`).
-- Uploads: `middleware/uploadSecurity.js`. Rate limiting env-configurable (`RATE_LIMIT_*`). CORS env allowlist.
+### 3.3 Backend
+- **Runtime:** Node.js/Express (`backend/server.js`, port 5000). Route modules in `backend/routes/`.
+- **API architecture:** REST under `/api`, validation via `middleware/schemas.js` + `validate.js`, error handler + correlationId middleware.
+- **Authentication:** DB-backed `sessions` table; `x-session-token` header or `Authorization: Bearer`; expiry `expires_at > NOW()`.
+- **Authorization:** `middleware/auth.js` — `authenticate`, `requireRole(...)`, `zoneAccess`; kebele/zone isolation enforced server-side in SQL.
+- **Services/routes:** Express routers per module (auth, workers, businesses, payments, inspections, zoneReports, locations, gis, reports, analytics, users, tools, documents, auditLog, notifications, public, sandbox).
+- **Data access:** `pg` parameterized queries (no ORM). Config `backend/config/db.js` (default `DB_USER=ddcms`).
+- **Uploads:** `middleware/uploadSecurity.js`. Rate limits env-configurable (`RATE_LIMIT_*`). CORS env allowlist.
 
-### 4.4 Database
-- PostgreSQL 16 + PostGIS 3.4 (`postgis/postgis:16-3.4`), schema `database/postgresql/schema.sql`.
-- **Prisma: not used.** Migrations: `database/migrations/001_add_lifecycle_fields.js` + `MIGRATIONS.md`.
-- Database users (least privilege): `ddcms` (app), `ddcms_migrator` (migrations) — created in schema (lines 491–520).
-- Extensions: `postgis`, `uuid-ossp`. Geometry: MULTIPOLYGON boundaries (kebeles/zones), POINT locations (businesses/inspections/workers), SRID 4326, GIST spacial indexes.
+### 3.4 Database
+- **PostgreSQL 16 + PostGIS 3.4** (`postgis/postgis:16-3.4`), schema `database/postgresql/schema.sql`.
+- **Prisma:** not used.
+- **Migrations:** SQL schema + `database/migrations/001_add_lifecycle_fields.js` + `MIGRATIONS.md` + `validate-migration.js`.
+- **Database roles (least privilege):** `ddcms` (app), `ddcms_migrator` (migrations) — created in schema (lines 491–520).
+- **Geometry architecture:** MULTIPOLYGON boundaries (kebeles/zones), POINT locations (businesses/inspections/workers), SRID 4326, GIST spatial indexes.
 
-### 4.5 Infrastructure
+### 3.5 Infrastructure
 - **Docker:** `docker-compose.yml` — `db` (PostGIS), `backend`, `frontend-next` (ports 80/3000 frontend, 5000 backend, 5432 db) with healthchecks + resource limits.
 - **systemd / Nginx:** documented only; not deployed. Nginx config specified in `PRODUCTION_INFRASTRUCTURE.md`.
 - **DNS / TLS:** BLOCKED (external municipal IT).
-- **Backup infrastructure:** `scripts/backup-db.sh` (SHA256-tested), `db-health-check.sh`, `check-config.sh`.
-- **Monitoring:** documented dashboards only; not live.
+- **Backups:** `scripts/backup-db.sh` (SHA256-tested), `db-health-check.sh`, `check-config.sh`.
+- **Monitoring:** documented only; not live.
 
 ---
 
-## 5. Role and Authorization Model
+## 4. Repository Structure
 
-| Role | UI Name | Database Role | Scope | Permissions | Status |
-| ---- | ------- | ------------- | ----- | ----------- | ------ |
+```text
+frontend-next/   Canonical Next.js frontend (app, components, lib, styles, types, test)
+frontend/        REMOVED (decommissioned 43d101d)
+backend/         Express API (routes, middleware, config, services, test, uploads)
+prisma/          NOT USED (no Prisma anywhere)
+database/        PostgreSQL schema, migrations, PostGIS, seed
+android/         Kotlin field-operations app (Phases 10–12)
+tests/           Frontend tests exist under frontend-next/src/test; backend tests under backend/test
+scripts/         backup-db.sh, db-health-check.sh, check-config.sh
+docs/            modernization/ + operations/ + security/ + migration/
+public/          Not applicable at repo root (static assets live under frontend-next)
+docker-compose.yml, .env.example, .env, README.md, .github/
+```
+
+Only architecturally important locations are listed.
+
+---
+
+## 5. Role & Authorization Model
+
+| Role | UI Name | Database Role/ID | Geographic Scope | Permissions | Status |
+| ---- | ------- | ---------------- | ---------------- | ----------- | ------ |
 | Admin | Admin | `admin` | City-wide (all 9 kebeles) | Full CRUD across all modules | COMPLETE |
 | Collector | Kebele Admin | `collector` | Assigned kebele (`kebeles.collector_id`) | Worker/inspection/business CRUD in own kebele | COMPLETE |
 | Zone Leader | Zone Leader | `leader` | Own safer zone (`safer_zones.leader_id`) | Zone data visibility; `zoneAccess` enforced | COMPLETE |
 | Worker | Worker | (not in `user_role` enum) | Own record / attendance | Field role only; not a login role | UNKNOWN |
 | Viewer | Viewer | `viewer` | Depends on assignment | Read-only | COMPLETE |
 
-- **Authentication:** DB sessions, token in `x-session-token`/Bearer, expiry `expires_at > NOW()` enforced.
-- **Authorization:** `requireRole(...)` (403 on mismatch); `zoneAccess` (leader restricted to own zone). Collector scoped by SQL `kebele_id`; leader by `safer_zones.leader_id`.
+- **Authentication:** DB sessions, token in `x-session-token`/Bearer, expiry enforced, inactive users rejected.
+- **Geographic scope:** collector scoped by SQL `kebele_id`; leader by `safer_zones.leader_id`; admin unconstrained.
 - **Resource permissions:** per-route guards (`requireRole("admin")` on users/tools/documents/safer-zones mutations/businesses-delete/inspections-delete; `requireRole("admin","collector")` on operational CRUD).
 - **Backend enforcement:** isolation in SQL + middleware, tested by `authorization.test.js`.
-- **Frontend visibility:** role-aware nav; kebele selector is UX-only (see Dashboard context banner).
-- **Note:** "Worker" as a login role is not represented in `user_role` (`admin`,`collector`,`leader`,`viewer`).
+- **Current role terminology:** UI shows "Kebele Admin" for DB role `collector`; "Worker" is a domain entity, not a login role.
 
-> **Permanent fact: Backend authorization is authoritative. Client-side filtering is never the security boundary.**
+> **Permanent project rule: Backend authorization is authoritative. Client-side filtering is never the security boundary.**
 
 ---
 
 ## 6. Functional Module Registry
 
-Status: COMPLETE / PARTIAL / IN PROGRESS / BACKLOG / DEFERRED / BLOCKED / UNKNOWN.
+Statuses: COMPLETE / PARTIAL / IN PROGRESS / BACKLOG / DEFERRED / BLOCKED / UNKNOWN.
 
 ### 6.1 Dashboard
-- Exists: yes. Implemented: yes. Functional: yes. Real Data: yes (Safer Zones, Active Workers, Businesses KPIs; 9-Kebele Overview zones + payment achievement). Authorization: yes (role/kebele scoped). Mobile: yes. Accessibility: yes. Tests: yes. Placeholder: Kebeles KPI hardcoded `9`; "Operational overview" chart card. Known limitations: no charts yet; per-kebele worker counts "Unavailable"; inspection % "Unavailable" (no baseline). Status: PARTIAL.
+- Route: `/dashboard`. Status: PARTIAL.
+- Backend: `/workers?status=active`, `/businesses?status=active`, `/safer-zones`, `/payments/summary/dashboard`.
+- Real Data: yes (Safer Zones, Active Workers, Businesses KPIs; 9-Kebele Overview zones + payment achievement).
+- Authorization: yes (role/kebele scoped). Mobile: yes. Accessibility: yes. Tests: yes.
+- Placeholders: Kebeles KPI hardcoded `9`; "Operational overview" chart card.
+- Known limitations: no charts yet; per-kebele worker counts "Unavailable"; inspection % "Unavailable" (no baseline).
 
 ### 6.2 Workers
-- Exists/Implemented/Functional/Real Data/Authorization/Mobile/Accessibility: yes. Tests: yes (pagination test intermittently times out under parallel vitest; passes solo — see §20). Placeholder: none. Limitation: flaky pagination test. Status: COMPLETE.
+- Route: `/operations/workers`. Status: COMPLETE.
+- Backend: `/workers` CRUD, `/workers/summary/stats`, `/workers/:id/attendance`, `/workers/:id/salary`.
+- Real Data: yes. Authorization: yes (role/kebele). Mobile: yes. Accessibility: yes. Tests: yes.
+- Known limitation: `workers.test.tsx` pagination test intermittently times out under parallel vitest (passes solo).
 
 ### 6.3 Attendance
-- COMPLETE. Bulk attendance; `UNIQUE(worker_id,date)`; date/context/search/summary/table; mobile-tested.
+- Route: `/operations/attendance`. Status: COMPLETE.
+- Backend: `/workers/attendance/bulk`, `/workers/:id/attendance`. Bulk attendance; `UNIQUE(worker_id,date)`; date/context/search/summary/table; mobile-tested.
 
 ### 6.4 Salary
-- COMPLETE. Salary page + per-worker history; `salary_payments` table.
+- Route: `/operations/salary`. Status: COMPLETE.
+- Backend: `/workers/:id/salary`, `/workers/summary/stats`. Salary page + per-worker history; `salary_payments` table.
 
 ### 6.5 Businesses
-- COMPLETE. Count contract defined (`BUSINESSES_COUNT_CONTRACT.md`); KPI `/businesses?status=active`; index page is a placeholder (§19).
+- Route: `/businesses`. Status: COMPLETE (index page placeholder).
+- Backend: `/businesses` CRUD. Count contract defined (`BUSINESSES_COUNT_CONTRACT.md`); KPI `/businesses?status=active`.
 
 ### 6.6 Payments
-- COMPLETE. `/payments`, `/summary/dashboard`, `/payments/:id/verify`; Telebirr/cbebirr webhooks; sandbox checkout/callback; receipts at DB level.
+- Route: `/businesses/payments`. Status: COMPLETE.
+- Backend: `/payments`, `/payments/summary/dashboard`, `/payments/:id/verify`, webhooks (telebirr/cbebirr), sandbox. Receipts at DB level.
 
 ### 6.7 Inspections
-- COMPLETE. Photos, GPS→PostGIS, status enum, 9-kebele scoping + collector enforcement; multer body-parsing order fixed.
+- Route: `/operations/inspections`. Status: COMPLETE.
+- Backend: `/inspections`. Photos, GPS→PostGIS, status enum, 9-kebele scoping + collector enforcement; multer body-parsing order fixed.
 
 ### 6.8 Zone Reports
-- COMPLETE. Stepper UI, status state machine, `UNIQUE(safer_zone_id, report_year, report_month)`.
+- Route: `/operations/zone-reports`. Status: COMPLETE.
+- Backend: `/zone-reports`. Stepper UI, status state machine, `UNIQUE(safer_zone_id, report_year, report_month)`.
 
 ### 6.9 Kebeles
-- COMPLETE (module). `/kebeles`, `/kebeles/:id` (PUT admin). Locations index page is a placeholder (§19).
+- Route: `/locations/kebeles`. Status: COMPLETE (module).
+- Backend: `/kebeles`, `/kebeles/:id` (PUT admin). Locations index page is a placeholder.
 
 ### 6.10 Safer Zones
-- COMPLETE. `/safer-zones` CRUD (admin); `UNIQUE(name,kebele_id)`; 108 seeded zones.
+- Route: `/locations/safer-zones`. Status: COMPLETE.
+- Backend: `/safer-zones` CRUD (admin). `UNIQUE(name,kebele_id)`; 108 seeded zones.
 
 ### 6.11 GIS
-- PARTIAL. GeoJSON APIs (`/gis/kebeles|safer-zones|businesses|workers|inspections`); MapLibre map component; Android GIS. Web nav renders map disabled "Soon"; official boundaries unavailable. Backlog P3-1.
+- Status: PARTIAL.
+- Backend: GeoJSON APIs (`/gis/kebeles|safer-zones|businesses|workers|inspections`).
+- MapLibre map component exists; Android GIS exists. Web nav renders map disabled "Soon"; official boundaries unavailable. Backlog P3-1.
 
 ### 6.12 Notifications
-- COMPLETE. `/notifications`, unread-count, mark-read, read-all, admin generate.
+- Route: `/community/notifications`. Status: COMPLETE.
+- Backend: `/notifications`, unread-count, mark-read, read-all, admin generate.
 
 ### 6.13 Complaints
-- NOT IMPLEMENTED. No backend route (grep verified); nav item `complaints` disabled "Soon". Status: UNKNOWN (decision required — P1-2).
+- Status: UNKNOWN (NOT IMPLEMENTED).
+- No backend route (grep verified); nav item `complaints` disabled "Soon". Decision required — P1-2.
 
 ### 6.14 Reports
-- COMPLETE. `/reports/payments/monthly|yearly`, `/reports/workers/monthly`, `/reports/inspections`, `/reports/monthly-summary`.
+- Route: `/reports`. Status: COMPLETE.
+- Backend: `/reports/payments/monthly|yearly`, `/reports/workers/monthly`, `/reports/inspections`, `/reports/monthly-summary`.
 
 ### 6.15 Analytics
-- COMPLETE. `/analytics/attendance|payments|inspections|zones|trends`.
+- Route: `/reports/analytics`. Status: COMPLETE.
+- Backend: `/analytics/attendance|payments|inspections|zones|trends`.
 
 ### 6.16 Users
-- COMPLETE. `/users` CRUD (admin), `/users/leaders`.
+- Route: `/administration/users`. Status: COMPLETE.
+- Backend: `/users` CRUD (admin), `/users/leaders`.
 
 ### 6.17 Tools
-- COMPLETE. `/tools` CRUD.
+- Route: `/administration/tools`. Status: COMPLETE.
+- Backend: `/tools` CRUD.
 
 ### 6.18 Documents
-- COMPLETE. `/documents`, upload/download with `uploadSecurity.js` validation.
+- Route: `/administration/documents`. Status: COMPLETE.
+- Backend: `/documents`, upload/download with `uploadSecurity.js` validation.
 
 ### 6.19 Audit Logs
-- COMPLETE. `/auditLog` (admin-only read).
+- Route: `/administration/audit-logs`. Status: COMPLETE.
+- Backend: `/auditLog` (admin-only read).
 
 ### 6.20 My Account
-- PARTIAL. Password change API exists (`/users/:id/password`); Settings page is a placeholder; nav `system` disabled "Soon". Backlog P1-3/P2-5.
+- Route: `/settings`. Status: PARTIAL.
+- Backend: `/users/:id/password`. Settings page is a placeholder; nav `system` disabled "Soon". Backlog P1-3/P2-5.
 
 ---
 
 ## 7. Requirements Registry
 
-| ID | Requirement | Module | Priority | Status | Evidence |
-| -- | ----------- | ------ | -------- | ------ | -------- |
-| REQ-MUN-001 | 9 Kebeles, 108 Safer Zones, 12/kebele | Municipal | P0 | COMPLETE | schema.sql seed + UNIQUE constraints |
-| REQ-OPS-001 | Worker management (CRUD, active/inactive) | Workers | P1 | COMPLETE | `workers.js`, Workers page |
-| REQ-OPS-002 | Attendance (single + bulk, uniqueness) | Attendance | P1 | COMPLETE | `workers.js:315,381`, attendance tests |
-| REQ-OPS-003 | Salary/payroll tracking | Salary | P1 | COMPLETE | `salary_payments`, Salary page |
-| REQ-BIZ-001 | Business registration with safer-zone link | Businesses | P1 | COMPLETE | `locations.js`, Businesses page |
-| REQ-PAY-001 | Payments by business/month, webhooks | Payments | P1 | COMPLETE | `payments.js`, sandbox |
-| REQ-INSP-001 | Cleanliness inspections + photos + GPS | Inspections | P1 | COMPLETE | `inspections.js`, Inspections page |
-| REQ-ZREP-001 | Zone reports with status workflow | Zone Reports | P1 | COMPLETE | `zoneReports.js`, stepper UI |
-| REQ-GIS-001 | PostGIS boundaries + point locations | GIS | P1 | PARTIAL | schema geometry, gis.js |
-| REQ-GIS-002 | Web map visualization | GIS | P2 | PARTIAL | MapLibre component | 
-| REQ-COM-001 | Complaints from community | Complaints | P1 | UNKNOWN | no route/page → P1-2 |
-| REQ-REP-001 | Reports + CSV where implemented | Reports | P1 | COMPLETE | reports.js |
-| REQ-ANA-001 | Analytics & kebele comparisons | Analytics | P1 | COMPLETE | analytics.js |
-| REQ-ADM-001 | Users/roles administration | Users | P1 | COMPLETE | users.js |
-| REQ-ADM-002 | Tools/equipment registry | Tools | P1 | COMPLETE | tools.js |
-| REQ-ADM-003 | Documents storage | Documents | P1 | COMPLETE | documents.js |
-| REQ-ADM-004 | Audit logs | Audit Logs | P1 | COMPLETE | auditLog.js |
-| REQ-ADM-005 | Settings / My Account | Settings | P1 | PARTIAL | users.js:95; placeholder page |
-| REQ-SEC-001 | Server-authoritative kebele/zone isolation | Security | P0 | COMPLETE | auth.js, SQL filters, authorization tests |
-| REQ-SEC-002 | Sessions, secrets, CORS, rate limits | Security | P0 | COMPLETE | Phase 0 commits, env config |
-| REQ-DASH-001 | Dashboard KPIs with real backend data | Dashboard | P1 | COMPLETE | dashboard commits §17/§18 |
-| REQ-MOB-001 | Android field operations | Android | P1 | COMPLETE | android/ (Phases 10–12) |
-| REQ-PROD-001 | Production deployment | Production | P1 | BLOCKED | infra docs; external municipal IT |
+| ID | Requirement | Module | Priority | Status | Evidence | Notes |
+| -- | ----------- | ------ | -------- | ------ | -------- | ----- |
+| REQ-MUN-001 | 9 Kebeles, 108 Safer Zones, 12/kebele | Municipal | P0 | COMPLETE | schema.sql seed + UNIQUE constraints | Verified per kebele_id |
+| REQ-OPS-001 | Worker management (CRUD, active/inactive) | Workers | P1 | COMPLETE | `workers.js`, Workers page | |
+| REQ-OPS-002 | Attendance (single + bulk, uniqueness) | Attendance | P1 | COMPLETE | `workers.js:315,381`, attendance tests | |
+| REQ-OPS-003 | Salary/payroll tracking | Salary | P1 | COMPLETE | `salary_payments`, Salary page | |
+| REQ-BIZ-001 | Business registration with safer-zone link | Businesses | P1 | COMPLETE | `locations.js`, Businesses page | |
+| REQ-PAY-001 | Payments by business/month, webhooks | Payments | P1 | COMPLETE | `payments.js`, sandbox | |
+| REQ-INSP-001 | Cleanliness inspections + photos + GPS | Inspections | P1 | COMPLETE | `inspections.js`, Inspections page | |
+| REQ-ZREP-001 | Zone reports with status workflow | Zone Reports | P1 | COMPLETE | `zoneReports.js`, stepper UI | |
+| REQ-GIS-001 | PostGIS boundaries + point locations | GIS | P1 | PARTIAL | schema geometry, gis.js | Official boundaries blocked |
+| REQ-GIS-002 | Web map visualization | GIS | P2 | PARTIAL | MapLibre component | Nav disabled "Soon" |
+| REQ-COM-001 | Complaints from community | Complaints | P1 | UNKNOWN | no route/page | P1-2 decision required |
+| REQ-REP-001 | Reports + CSV where implemented | Reports | P1 | COMPLETE | reports.js | |
+| REQ-ANA-001 | Analytics & kebele comparisons | Analytics | P1 | COMPLETE | analytics.js | |
+| REQ-ADM-001 | Users/roles administration | Users | P1 | COMPLETE | users.js | |
+| REQ-ADM-002 | Tools/equipment registry | Tools | P1 | COMPLETE | tools.js | |
+| REQ-ADM-003 | Documents storage | Documents | P1 | COMPLETE | documents.js | |
+| REQ-ADM-004 | Audit logs | Audit Logs | P1 | COMPLETE | auditLog.js | |
+| REQ-ADM-005 | Settings / My Account | Settings | P1 | PARTIAL | users.js:95; placeholder page | |
+| REQ-SEC-001 | Server-authoritative kebele/zone isolation | Security | P0 | COMPLETE | auth.js, SQL filters, authorization tests | |
+| REQ-SEC-002 | Sessions, secrets, CORS, rate limits | Security | P0 | COMPLETE | Phase 0 commits, env config | |
+| REQ-DASH-001 | Dashboard KPIs with real backend data | Dashboard | P1 | COMPLETE | dashboard commits §19/§20 | Kebeles KPI hardcoded |
+| REQ-MOB-001 | Android field operations | Android | P1 | COMPLETE | android/ (Phases 10–12) | Play Store deferred |
+| REQ-PROD-001 | Production deployment | Production | P1 | BLOCKED | infra docs | External municipal IT |
 
 ---
 
@@ -233,55 +280,56 @@ Status: COMPLETE / PARTIAL / IN PROGRESS / BACKLOG / DEFERRED / BLOCKED / UNKNOW
 | Functionality | Removed | All modules implemented | MIGRATED (obsolesced) |
 | Routes | N/A | App Router | MIGRATED |
 | Authentication | N/A | Token sessions | MIGRATED |
-| Data integration | N/A | `lib/api.ts` → backend | MIGRATED |
+| API integration | N/A | `lib/api.ts` → backend | MIGRATED |
 | Permissions | N/A | Role-aware nav + backend | MIGRATED |
 | Mobile | N/A | Responsive + bottom nav | MIGRATED |
 | Accessibility | N/A | audit maintained | MIGRATED |
-| Public landing | plan | `(public)/login` | MIGRATED |
+| Public landing experience | plan | `(public)/login` | MIGRATED |
 
-- **Canonical frontend:** `frontend-next/` (sole frontend since `43d101d`).
-- **Remaining migration work:** none from legacy (deleted). Outstanding work is placeholder completion (see §19), not legacy parity.
+- **Feature parity:** full migration completed before decommission.
+- **Canonical frontend status:** `frontend-next/` is the sole frontend (since `43d101d`).
+- **Remaining migration work:** none from legacy (deleted). Outstanding work is placeholder completion (see §21), not legacy parity.
 - **Compatibility requirements:** none (legacy gone).
 
 ---
 
 ## 9. API Registry
 
-| Endpoint | Method | Module | Authentication | Scope | Pagination | Status |
-| -------- | ------ | ------ | -------------- | ----- | ---------- | ------ |
-| `/api/auth/login` | POST | Auth | public | — | — | COMPLETE |
-| `/api/auth/logout` | POST | Auth | auth | — | — | COMPLETE |
-| `/api/auth/me` | GET | Auth | auth | — | — | COMPLETE |
-| `/api/health` | GET | Health | public | — | — | COMPLETE |
-| `/api/public/stats` | GET | Public | public | city | — | COMPLETE |
-| `/api/workers` | GET | Workers | auth | role/kebele | yes | COMPLETE |
-| `/api/workers/summary/stats` | GET | Workers | auth | role/kebele | — | COMPLETE |
-| `/api/workers` | POST | Workers | admin/collector | own kebele | — | COMPLETE |
-| `/api/workers/attendance/bulk` | POST | Attendance | admin/collector | own kebele | — | COMPLETE |
-| `/api/workers/:id/attendance` | GET | Attendance | auth | role/kebele | yes | COMPLETE |
-| `/api/workers/:id/salary` | GET | Salary | auth | role/kebele | — | COMPLETE |
-| `/api/businesses` | GET | Businesses | auth | role/kebele | yes | COMPLETE |
-| `/api/businesses` | POST | Businesses | admin/collector | own kebele | — | COMPLETE |
-| `/api/kebeles` | GET | Kebeles | auth | — | — | COMPLETE |
-| `/api/safer-zones` | GET | Safer Zones | auth | role/kebele | — | COMPLETE |
-| `/api/payments` | GET | Payments | auth | role/leader | yes | COMPLETE |
-| `/api/payments/summary/dashboard` | GET | Payments | auth | role/leader | — | COMPLETE |
-| `/api/payments/callback/telebirr` | POST | Payments | webhook | — | — | COMPLETE |
-| `/api/payments/callback/cbebirr` | POST | Payments | webhook | — | — | COMPLETE |
-| `/api/inspections` | GET | Inspections | auth | role/kebele | yes | COMPLETE |
-| `/api/zone-reports` | GET | Zone Reports | auth | role/kebele | yes | COMPLETE |
-| `/api/gis/kebeles` | GET | GIS | auth | city | — | COMPLETE |
-| `/api/gis/safer-zones` | GET | GIS | auth | role | — | COMPLETE |
-| `/api/reports/payments/monthly` | GET | Reports | auth | role | — | COMPLETE |
-| `/api/analytics/attendance` | GET | Analytics | auth | role | — | COMPLETE |
-| `/api/analytics/zones` | GET | Analytics | auth | role | — | COMPLETE |
-| `/api/users` | GET/POST | Users | admin | city | yes | COMPLETE |
-| `/api/users/:id/password` | PUT | Settings | self/admin | — | — | COMPLETE |
-| `/api/tools` | GET/POST | Tools | admin | city | yes | COMPLETE |
-| `/api/documents` | GET | Documents | auth | role/kebele | yes | COMPLETE |
-| `/api/auditLog` | GET | Audit Logs | admin | city | yes | COMPLETE |
-| `/api/notifications` | GET | Notifications | auth | user | — | COMPLETE |
-| `/api/sandbox/sandbox-checkout` | GET | Payments sandbox | auth | — | — | COMPLETE |
+| Endpoint | Method | Module | Authentication | Scope | Validation | Pagination | Status |
+| -------- | ------ | ------ | -------------- | ----- | ---------- | ---------- | ------ |
+| `/api/auth/login` | POST | Auth | public | — | yes | — | COMPLETE |
+| `/api/auth/logout` | POST | Auth | auth | — | — | — | COMPLETE |
+| `/api/auth/me` | GET | Auth | auth | — | — | — | COMPLETE |
+| `/api/health` | GET | Health | public | — | — | — | COMPLETE |
+| `/api/public/stats` | GET | Public | public | city | — | — | COMPLETE |
+| `/api/workers` | GET | Workers | auth | role/kebele | yes | yes | COMPLETE |
+| `/api/workers/summary/stats` | GET | Workers | auth | role/kebele | — | — | COMPLETE |
+| `/api/workers` | POST | Workers | admin/collector | own kebele | yes | — | COMPLETE |
+| `/api/workers/attendance/bulk` | POST | Attendance | admin/collector | own kebele | yes | — | COMPLETE |
+| `/api/workers/:id/attendance` | GET | Attendance | auth | role/kebele | yes | yes | COMPLETE |
+| `/api/workers/:id/salary` | GET | Salary | auth | role/kebele | yes | — | COMPLETE |
+| `/api/businesses` | GET | Businesses | auth | role/kebele | yes | yes | COMPLETE |
+| `/api/businesses` | POST | Businesses | admin/collector | own kebele | yes | — | COMPLETE |
+| `/api/kebeles` | GET | Kebeles | auth | — | — | — | COMPLETE |
+| `/api/safer-zones` | GET | Safer Zones | auth | role/kebele | — | — | COMPLETE |
+| `/api/payments` | GET | Payments | auth | role/leader | yes | yes | COMPLETE |
+| `/api/payments/summary/dashboard` | GET | Payments | auth | role/leader | yes | — | COMPLETE |
+| `/api/payments/callback/telebirr` | POST | Payments | webhook | — | yes | — | COMPLETE |
+| `/api/payments/callback/cbebirr` | POST | Payments | webhook | — | yes | — | COMPLETE |
+| `/api/inspections` | GET | Inspections | auth | role/kebele | yes | yes | COMPLETE |
+| `/api/zone-reports` | GET | Zone Reports | auth | role/kebele | yes | yes | COMPLETE |
+| `/api/gis/kebeles` | GET | GIS | auth | city | — | — | COMPLETE |
+| `/api/gis/safer-zones` | GET | GIS | auth | role | — | — | COMPLETE |
+| `/api/reports/payments/monthly` | GET | Reports | auth | role | yes | — | COMPLETE |
+| `/api/analytics/attendance` | GET | Analytics | auth | role | — | — | COMPLETE |
+| `/api/analytics/zones` | GET | Analytics | auth | role | — | — | COMPLETE |
+| `/api/users` | GET/POST | Users | admin | city | yes | yes | COMPLETE |
+| `/api/users/:id/password` | PUT | Settings | self/admin | — | yes | — | COMPLETE |
+| `/api/tools` | GET/POST | Tools | admin | city | yes | yes | COMPLETE |
+| `/api/documents` | GET | Documents | auth | role/kebele | yes | yes | COMPLETE |
+| `/api/auditLog` | GET | Audit Logs | admin | city | — | yes | COMPLETE |
+| `/api/notifications` | GET | Notifications | auth | user | — | — | COMPLETE |
+| `/api/sandbox/sandbox-checkout` | GET | Payments sandbox | auth | — | — | — | COMPLETE |
 
 Only meaningful endpoints listed.
 
@@ -290,6 +338,7 @@ Only meaningful endpoints listed.
 ## 10. Database Registry
 
 ### Tables
+
 | Table | Purpose | Key Relationships | Status |
 | ----- | ------- | ----------------- | ------ |
 | users | System users (login/roles) | sessions, kebeles.collector_id, safer_zones.leader_id | COMPLETE |
@@ -311,36 +360,45 @@ Only meaningful endpoints listed.
 | documents | Uploaded documents | users/optional kebele | COMPLETE |
 
 ### Enums
+
 `user_role`(admin,collector,leader,viewer) · `business_type`(shop,cafe,hotel,restaurant,pharmacy,market,workshop,office,school,clinic,other) · `payment_method`(cash,mobile,bank,other,telebirr,cbebirr) · `payment_status`(paid,pending,overdue,failed) · `inspection_status`(active,warning,danger) · `tool_category`(vehicle,equipment,uniform,chemical,other) · `tool_condition`(good,fair,poor,broken) · `report_status`(draft,submitted,reviewed,approved) · `document_category`(contract,photo,training,incident,report,other)
 
+### Geometry
+
+- Types: `GEOMETRY(MULTIPOLYGON, 4326)` (kebeles.boundary, safer_zones.boundary); `GEOMETRY(POINT, 4326)` (businesses.location, inspections.location, workers.location).
+- SRID: 4326. GIST spatial indexes present.
+- Relationships: zone→kebele; boundaries owned by official municipal dataset.
+- Validation: geometries must be PostGIS-valid; never fabricated.
+
 ### Constraints
-- FKs with cascades / SET NULL as declared.
+
+- Foreign keys with cascades / SET NULL as declared.
 - UNIQUE: `kebeles.name`, `kebeles.code`, `safer_zones(name,kebele_id)`, `attendance(worker_id,date)`, `payments(business_id,month,year)`, `users.username`, `workers.fayda_id`, `receipt_number`, `gateway_ref`, zone-report `(safer_zone_id,report_year,report_month)`.
-- `update_updated_at()` trigger on all operational tables.
+- Check: enum-backed column checks via SQL ENUM types.
+- Triggers: `update_updated_at()` on all operational tables.
 
 ### Indexes
+
 `idx_sz_kebele`, `idx_workers_active_zone`, `idx_users_role_active`, `idx_inspections_kebele`, `idx_businesses_active`, `idx_doc_kebele`, login_attempts indexes, GIST spatial indexes.
 
-### Geometry
-- Types: `GEOMETRY(MULTIPOLYGON, 4326)` (kebeles.boundary, safer_zones.boundary); `GEOMETRY(POINT, 4326)` (businesses.location, inspections.location, workers.location).
-- SRID: 4326. GIST spatial indexes present. Boundaries owned by official municipal dataset (not yet loaded).
+### Migrations & Database Roles
 
-### Migrations & Roles
 - Migration: `database/migrations/001_add_lifecycle_fields.js`; strategy SQL + `MIGRATIONS.md` + `validate-migration.js`; seed `database/postgresql/schema.sql`.
-- Database roles (least privilege): `ddcms` (app), `ddcms_migrator` (migrations) — created in schema lines 491–520; app connects as `DB_USER` (default `ddcms`).
+- Roles (least privilege): `ddcms` (app), `ddcms_migrator` (migrations) — created in schema lines 491–520; app connects as `DB_USER` (default `ddcms`).
 
 ### PostGIS Configuration
-- Extension enabled; SRID 4326; MULTIPOLYGON boundaries + POINT locations; validation = never fabricate.
+
+- Extension enabled; SRID 4326; MULTIPOLYGON boundaries + POINT locations; validation rule = never fabricate.
 
 ---
 
-## 11. Business Rules and Data Definitions
+## 11. Data Definitions & Business Rules
 
 - **Active Worker** — Definition: worker with `is_active=TRUE`. Source: `GET /workers?status=active` (backend filters `w.is_active=TRUE`). Formula: count of active workers. Included: active in scope (admin=city, collector=own kebele, leader=own zone). Excluded: inactive. Scope: role/kebele. Status: COMPLETE.
-- **Active Business** — Definition: business with `is_active=TRUE`. Source: `GET /businesses?status=active` (backend `b.is_active=TRUE`). Contract: `BUSINESSES_COUNT_CONTRACT.md`. Formula: count of active businesses in scope. Included/Excluded per contract. Status: COMPLETE.
-- **Payment Achievement** — Definition: collected/pending/overdue totals + by-kebele collected vs target. Source: `/payments/summary/dashboard`. Formula: `SUM(amount)` by status; `SUM(b.monthly_target)` target. Status: COMPLETE.
+- **Active Business** — Definition: business with `is_active=TRUE`. Source: `GET /businesses?status=active` (backend `b.is_active=TRUE`). Contract: `BUSINESSES_COUNT_CONTRACT.md`. Formula: count of active businesses in scope. Included/Excluded: per contract. Scope: role/kebele. Status: COMPLETE.
+- **Payment Achievement** — Definition: collected/pending/overdue totals + by-kebele collected vs target. Source: `/payments/summary/dashboard`. Formula: `SUM(amount)` by status; `SUM(b.monthly_target)` target. Scope: role/leader. Status: COMPLETE.
 - **Inspection %** — Definition: NOT defined (no authoritative expected-inspection baseline). Dashboard shows "Unavailable" honestly. Status: LIMITATION.
-- **Attendance** — Definition: attendance record per worker per date; `UNIQUE(worker_id,date)`; bulk allowed. Status: COMPLETE.
+- **Attendance** — Definition: attendance record per worker per date; `UNIQUE(worker_id,date)`; bulk allowed. Scope: role/kebele. Status: COMPLETE.
 - **Kebele** — Definition: one of 9 municipal kebeles, K01–K09; scope unit for collectors. Status: COMPLETE.
 - **Safer Zone** — Definition: one of 108 zones; 12 per kebele; scope unit for leaders. Status: COMPLETE.
 - **Zone Report** — Definition: monthly report per safer zone; unique per `(safer_zone_id, year, month)`; workflow draft→submitted→reviewed→approved. Status: COMPLETE.
@@ -364,40 +422,65 @@ Dedicated contract: `docs/modernization/BUSINESSES_COUNT_CONTRACT.md`.
 
 ---
 
-## 13. UI/UX Rules as PROJECT DECISIONS
+## 13. UI/UX Design System
 
-Approved design decisions (recorded; implementation in `frontend-next/src/styles/tokens.css` and `src/components/ui/`):
+Approved project decisions (implementation in `frontend-next/src/styles/tokens.css` and `src/components/ui/`):
 
 - **Mobile-first** responsive design; sidebar (desktop) + bottom nav (mobile).
 - **Design tokens** are the single source of truth — no arbitrary per-component colors.
 - **Typography:** Inter + Segoe UI fallback; `--text-base 15px`, `--leading 1.5`, heading scale `--h-hero/--h-section/--h-card`.
 - **Spacing:** 4–64 px scale (`--s-1..--s-16`).
-- **Colors:** semantic tokens (primary/secondary/success/warning/danger/information/neutral + status mapping draft/submitted/reviewed/approved); dark-mode tokens prepared but opt-in.
+- **Colors/tokens:** semantic (primary/secondary/success/warning/danger/information/neutral + status mapping draft/submitted/reviewed/approved); dark-mode tokens prepared but opt-in.
 - **Breakpoints:** `--bp-sm 480 / md 768 / lg 1024 / xl 1280`.
-- **Radii / shadows / z-index:** token-driven (`--r-*`, `--shadow-*`, `--z-*`).
 - **Icons:** centralized Lucide component (`components/ui/icon.tsx`); emojis not used in modules.
-- **Component conventions:** shadcn-style primitives; server pagination in tables; react-hook-form inputs; skeleton loading, alert error, toast success, empty-state text, offline `network-status` banner.
-- **Accessibility target:** WCAG AA (login Tab-order, dialog focus, aria-disabled nav, accessible labels — covered by tests).
+- **Components:** shadcn-style primitives (see §3.1).
+- **Forms:** react-hook-form + inputs (form/input/select/textarea).
+- **Tables:** data-table + pagination; server pagination.
+- **Dialogs:** modal/drawer with focus management.
+- **Cards:** card + StatCard variants.
+- **States:** skeleton loading, alert error, toast success, empty-state text, offline `network-status` banner.
 
 ---
 
-## 14. Security Rules as PROJECT REQUIREMENTS
+## 14. Accessibility Requirements
 
-Permanent requirements (implemented and tested):
+- **WCAG target:** AA (per Phase 2/3 audits).
+- **Keyboard behavior:** tested for login (Tab order), dialogs, buttons (`Button` defaults `type="button"`), drawer focus.
+- **Focus behavior:** modal/drawer focus management.
+- **Labels:** accessible labels on forms/labels (login test verifies).
+- **Semantic structure:** headings, buttons, aria attributes on nav/disabled items (`aria-disabled`).
+- **Contrast:** token-driven semantic colors meet contrast for text combinations.
+- **Touch targets:** mobile nav/buttons at accessible sizes where applicable.
+- **Dialogs:** focus containment + return handling.
+- **Responsive accessibility:** tests under `src/test/responsive*.test.tsx`.
 
-- **Server-authoritative authorization** — client-side filtering is never a security boundary (see §5).
-- **Kebele isolation** — collectors scoped by SQL `kebele_id`.
-- **Safer-zone isolation** — leaders scoped by `safer_zones.leader_id` (`zoneAccess`).
-- **Session security** — DB `sessions` table, token header, expiry, `is_active` gate; no tokens in URLs.
-- **Secret handling** — `.env` required; separate webhook secret; Phase 0 removed exposed secrets.
-- **Input validation** — schema-based (`validate.js`); XSS/SQLi parameterization; CSV formula injection prevented.
-- **Database least privilege** — `ddcms` / `ddcms_migrator` roles; no superuser default.
-- **Auditability** — `audit_log` for admin actions; `correlationId` request logging.
-- **Hardening extras:** env CORS allowlist, rate limits (`RATE_LIMIT_*`), upload security (MIME/sanitize/size), security headers.
+Known defects tracked separately: none active beyond the flaky `workers.test.tsx` pagination timeout (covered in §22).
 
 ---
 
-## 15. GIS Requirements
+## 15. Security Requirements
+
+| Requirement | Status |
+| ----------- | ------ |
+| Authentication (session tokens, expiry) | VERIFIED |
+| Sessions (DB-backed, revocable) | VERIFIED |
+| Password handling (bcrypt, secure change) | VERIFIED |
+| Authorization (requireRole, zoneAccess) | VERIFIED |
+| IDOR protection (role/kebele-scoped queries) | VERIFIED |
+| Kebele isolation | VERIFIED |
+| Safer-zone isolation | VERIFIED |
+| Input validation (schemas) | VERIFIED |
+| Secrets (`.env` required; webhook secret separate) | VERIFIED |
+| CORS (env allowlist) | VERIFIED |
+| Security headers (Phase 0 hardening) | VERIFIED |
+| Database privileges (least privilege) | VERIFIED in schema; confirm on provisioning (P0-1) |
+| Auditability (audit_log, correlationId) | VERIFIED |
+| Backups (backup-db.sh SHA256-tested) | VERIFIED |
+| Rollback (docs + docker volumes) | PARTIAL (documented, not executed in prod) |
+
+---
+
+## 16. GIS Registry
 
 - **PostGIS:** enabled; SRID 4326.
 - **Geometry types:** MULTIPOLYGON boundaries (kebeles, safer_zones); POINT (businesses, inspections, workers).
@@ -405,29 +488,43 @@ Permanent requirements (implemented and tested):
 - **Point data:** stored from inspections (GPS→PostGIS); worker/business points available.
 - **Map behavior:** MapLibre component exists; web nav map disabled "Soon".
 - **Mobile GIS:** Android field ops capture GPS (Phases 11–12).
-- **Current GIS limitations:** no official boundaries; web map disabled; validates against real data.
+- **Official data requirements:** boundaries must come from official municipal dataset.
+- **Current GIS limitations:** no official boundaries; web map disabled; data validated, not fabricated.
 
-> **Permanent decision: Official geographic information must not be fabricated.**
+> **Permanent project decision: Official geographic coordinates and boundaries must never be fabricated.**
 
 ---
 
-## 16. Testing Baseline
+## 17. Data Integrity Requirements
+
+- **Duplicates:** prevented by UNIQUE constraints (zone names, worker/date, business/month/year, receipts, gateway refs, usernames, fayda IDs, zone reports).
+- **Orphan safer zones:** FKs enforce zone→kebele cardinality.
+- **Cross-kebele relationships:** prevented by role-scoped server queries + `zoneAccess` (leader can only reach own zone).
+- **Invalid geometry:** PostGIS validity rules; no fabricated coordinates.
+- **Invalid payments:** `payment_status` enum + amount validation (`fc37a5a`).
+- **Invalid attendance:** date validation + per-worker/date uniqueness.
+- **Inconsistent assignments:** kebele.collector_id / zone.leader_id drive server scope.
+- **Accidental deletion:** soft-delete via `is_active` flags; admin-only destructive endpoints.
+
+---
+
+## 18. Testing Baseline
 
 | Category | Command | Result | Date | Commit |
 | -------- | ------- | ------ | ---- | ------ |
-| Frontend | `npx vitest run` (from `frontend-next/`) | 147/147 (15 files); workers pagination intermittent under parallel load (passes solo) | 2026-09-05 | fe316b5 |
-| Backend | `npm test` (from `backend/`, NODE_ENV=test) | 161 passing, 2 pending, 0 failing (10 suites) | 2026-09-05 | fe316b5 |
+| Frontend tests | `npx vitest run` (from `frontend-next/`) | 147/147 (15 files); workers pagination intermittent under parallel load (passes solo) | 2026-09-05 | fe316b5 |
+| Backend tests | `npm test` (from `backend/`, NODE_ENV=test) | 161 passing, 2 pending, 0 failing (10 suites) | 2026-09-05 | fe316b5 |
 | Lint (frontend) | `next lint` | script present (run before changes) | — | — |
 | Typecheck (frontend) | `tsc --noEmit` | run before changes | — | — |
 | Build (frontend) | `next build` (no `--turbopack`) | verified (local) | prior phases | — |
 | Security | `security.test.js`, `authorization.test.js` | passing | 2026-09-05 | fe316b5 |
 | Database | `validate-migration.js`, `db-health-check.sh` | 9 kebeles / 108 zones verified | 2026-09-05 | fe316b5 |
 
-Historical results are preserved with date and commit.
+Historical results preserved with date and commit.
 
 ---
 
-## 17. Completed Work History
+## 19. Completed Work Log
 
 | Date | Work | Result | Commit | Evidence |
 | ---- | ---- | ------ | ------ | -------- |
@@ -445,20 +542,20 @@ Historical results are preserved with date and commit.
 | 2026-09-04 | Production hardening + deployment/observability/DR | done | `4de66d0` `39b37a1` | phases 13–14 |
 | 2026-09-04 | Production docs (18/19/20/23) + test stabilization | done | `b136f91` `320787e` `cc2225d` `cb1d4b7` `7643889` | docs/operations |
 | 2026-09-05 | Dev fixes: --turbopack, :3000 container, CORS, .data, rate limits, Button/multer | done | `38f803f` `f29d8b0` `ef474c2` `3adb6fa` `6157d92` `84bd76f` | — |
-| 2026-09-05 | Decommission legacy frontend (Next.js on 80/3000) | done | `43d101d` | §4.2 |
+| 2026-09-05 | Decommission legacy frontend (Next.js on 80/3000) | done | `43d101d` | §3.2 |
 | 2026-09-05 | Dashboard: remove fake progress bars | done | `7304d7c` | §12 |
-| 2026-09-05 | Dashboard: remove Performance "Soon" nav item | done | `4a5297e` | §19 |
+| 2026-09-05 | Dashboard: remove Performance "Soon" nav item | done | `4a5297e` | §21 |
 | 2026-09-05 | Dashboard: 9-Kebele Overview real data | done | `ae5187a` | §12 |
 | 2026-09-05 | Dashboard: Active Workers KPI | done | `879342f` | §12 |
 | 2026-09-05 | Businesses Count Contract | done | `b28c2c4` | BUSINESSES_COUNT_CONTRACT.md |
 | 2026-09-05 | Dashboard: Businesses KPI | done | `2a82988` | §12 |
 | 2026-09-05 | Dashboard: Safer Zones KPI | done | `fe316b5` | §12 |
-| 2026-09-05 | Master Project Registry (v1, v2.0, v2.1) | done | `5e72309` `9943367` | this file |
-| 2026-09-05 | Agent Work Instructions created | done | (this commit) | AGENT_WORK_INSTRUCTIONS.md |
+| 2026-09-05 | Master Project Registry (v1, v2.0, v2.1, v3.0) | done | `5e72309` `9943367` `08854f2` | this file |
+| 2026-09-05 | Agent Work Instructions created | done | `08854f2` | AGENT_WORK_INSTRUCTIONS.md |
 
 ---
 
-## 18. Incremental Improvement History
+## 20. Incremental Improvement Log
 
 | # | Improvement | Before | After | Commit | Tests |
 | - | ----------- | ------ | ----- | ------ | ----- |
@@ -472,7 +569,7 @@ Historical results are preserved with date and commit.
 
 ---
 
-## 19. Placeholder / Incomplete Inventory
+## 21. Placeholder / Incomplete Inventory
 
 | Location | Item | Classification | Priority | Status |
 | -------- | ---- | -------------- | -------- | ------ |
@@ -491,7 +588,7 @@ Historical results are preserved with date and commit.
 
 ---
 
-## 20. Technical Debt
+## 22. Technical Debt Registry
 
 - Flaky `workers.test.tsx` pagination timeout under parallel vitest (P1-4).
 - Duplicate `phase-2-ui-architecture.md` / `phase-2-ui-ux-architecture.md` (identical content) — converge to one.
@@ -503,41 +600,60 @@ Historical results are preserved with date and commit.
 
 ---
 
-## 21. Production Status
+## 23. Production Status
 
 ```text
-Application:         1.0.0 (pre-production build)
-Application Commit:  fe316b5
-Production Host:     NOT ASSIGNED
-Public IP:           NONE
-DNS:                 BLOCKED (diredawa-cleaning.gov.et unassigned)
-TLS:                 BLOCKED (ACME incomplete)
-Database:            PostgreSQL+PostGIS ready (local Compose verified)
-Deployment:          Docker Compose (80/3000 frontend, 5000 backend) verified locally
-Backups:             backup-db.sh SHA256-tested
-Monitoring:          documented only; not live
-Rollback:            documented (docker volumes + release-process.md)
+Application Release:   1.0.0 (pre-production build)
+Application Commit:    fe316b5
+Production Host:       NOT ASSIGNED
+Public IP:             NONE
+DNS:                   BLOCKED (diredawa-cleaning.gov.et unassigned)
+TLS:                   BLOCKED (ACME incomplete)
+Database:              PostgreSQL+PostGIS ready (local Compose verified)
+Deployment:            Docker Compose (80/3000 frontend, 5000 backend) verified locally
+Monitoring:            documented only; not live
+Backups:               backup-db.sh SHA256-tested
+Rollback:              documented (docker volumes + release-process.md)
 ```
 
 **State: READY (code) / BLOCKED (infrastructure).** Do not mark LIVE.
 
 ---
 
-## 22. External Blockers
+## 24. Deployment & Operations
 
-| Blocker | Owner | Impact | Required External Action | Status |
-| ------- | ----- | ------ | ------------------------ | ------ |
+References:
+- `docs/operations/PRODUCTION_INFRASTRUCTURE.md`
+- `docs/operations/PRODUCTION_RUNBOOK.md`
+- `docs/operations/PRODUCTION_HANDOVER.md`
+- `docs/operations/FINAL_PRODUCTION_GO_LIVE.md`
+- `docs/operations/MUNICIPAL_IT_PRODUCTION_HANDOFF.md`
+- `docs/operations/PHASE_23_INFRASTRUCTURE_VERIFICATION.md`
+
+- **Deployment architecture:** Docker Compose services db/backend/frontend-next; Nginx TLS termination documented for prod.
+- **Environment requirements:** `DB_*`, `SESSION_SECRET`, `SESSION_EXPIRY_HOURS`, `PAYMENT_WEBHOOK_SECRET`, `MAX_FILE_SIZE_MB`, `CORS_ORIGINS`, `RATE_LIMIT_*`, `FRONTEND_PORT`, `NEXT_PUBLIC_API_URL` (`.env.example`). Secrets live only in `.env`.
+- **Backups:** `scripts/backup-db.sh`.
+- **Health checks:** backend `/api/health`; compose healthchecks for db/backend/frontend-next.
+- **Logging:** `correlationId` middleware + `logs/` volume.
+- **Monitoring / rollback / recovery:** documented in `disaster-recovery.md`, runbook, and `release-process.md`.
+
+No secrets are stored in this document.
+
+---
+
+## 25. External Blockers
+
+| Blocker | Owner | Impact | Required Action | Status |
+| ------- | ----- | ------ | --------------- | ------ |
 | Production VPS unavailable | Municipal IT | cannot deploy | allocate Ubuntu 22.04 VPS with static IP | BLOCKED |
 | DNS unavailable | Municipal IT | no public domain | assign A record `diredawa-cleaning.gov.et` | BLOCKED |
 | TLS unavailable | Municipal IT | no HTTPS | complete ACME/Certbot | BLOCKED |
 | Official GIS dataset unavailable | Municipal IT | boundaries not loaded | supply official kebele/zone boundaries | BLOCKED |
 | External payment service (live keys) | Payment providers | webhooks in sandbox | provide production credentials | BLOCKED |
 
-References: `docs/operations/PRODUCTION_INFRASTRUCTURE.md`, `PRODUCTION_RUNBOOK.md`, `PRODUCTION_HANDOVER.md`, `FINAL_PRODUCTION_GO_LIVE.md`, `MUNICIPAL_IT_PRODUCTION_HANDOFF.md`, `PHASE_23_INFRASTRUCTURE_VERIFICATION.md`.
-
 ---
 
-## 23. Deferred Features
+## 26. Deferred Features
 
 | Feature | Reason Deferred | Activation Condition | Status |
 | ------- | --------------- | -------------------- | ------ |
@@ -548,7 +664,7 @@ References: `docs/operations/PRODUCTION_INFRASTRUCTURE.md`, `PRODUCTION_RUNBOOK.
 
 ---
 
-## 24. Rejected Decisions
+## 27. Rejected Decisions
 
 | Decision | Reason | Status |
 | -------- | ------ | ------ |
@@ -560,7 +676,7 @@ References: `docs/operations/PRODUCTION_INFRASTRUCTURE.md`, `PRODUCTION_RUNBOOK.
 
 ---
 
-## 25. Known Limitations
+## 28. Known Limitations
 
 - Production host/infrastructure unavailable (external).
 - Official GIS dataset unavailable (boundary columns empty).
@@ -572,7 +688,7 @@ References: `docs/operations/PRODUCTION_INFRASTRUCTURE.md`, `PRODUCTION_RUNBOOK.
 
 ---
 
-## 26. Open Questions
+## 29. Open Questions
 
 | ID | Question | Evidence Checked | Owner | Status |
 | -- | -------- | ---------------- | ----- | ------ |
@@ -583,18 +699,54 @@ References: `docs/operations/PRODUCTION_INFRASTRUCTURE.md`, `PRODUCTION_RUNBOOK.
 
 ---
 
-## 27. Prioritized Backlog
+## 30. Prioritized Backlog
 
 ### P0 — Critical
-- **P0-1** — Confirm DB least-privilege role on production provisioning. Module: Database/Deployment. Reason: security/data integrity. Dependencies: production VPS. Acceptance: app connects as least-privilege role (schema-created `ddcms`/`ddcms_migrator`), not superuser. Status: BLOCKED (external).
+
+- **ID:** P0-1
+- **Title:** Confirm DB least-privilege role on production provisioning
+- **Module:** Database/Deployment
+- **Reason:** security/data integrity
+- **Dependencies:** production VPS
+- **Acceptance Criteria:** app connects as least-privilege role (schema-created `ddcms`/`ddcms_migrator`), not superuser
+- **Status:** BLOCKED (external)
 
 ### P1 — Core Functionality
-- **P1-1** — Dashboard Kebeles KPI from backend count. Module: Dashboard. Reason: only remaining hardcoded KPI. Dependencies: none. Acceptance: Kebeles StatCard from backend-sourced count respecting authorization; loading/error/empty states; tests pass. Status: NEXT PENDING.
-- **P1-2** — Complaints decision. Module: Complaints. Reason: remove UNKNOWN status. Acceptance: implemented OR formally deferred/rejected with rationale. Status: UNKNOWN.
-- **P1-3** — Settings/"System" decision. Module: Settings. Reason: remove placeholder ambiguity. Acceptance: real My Account page or scoped decision. Status: UNKNOWN.
-- **P1-4** — Stabilize workers pagination test. Module: Workers/Tests. Reason: test reliability. Acceptance: 147/147 stable under parallel vitest. Status: BACKLOG.
+
+- **ID:** P1-1
+- **Title:** Dashboard Kebeles KPI from backend count
+- **Module:** Dashboard
+- **Reason:** only remaining hardcoded KPI
+- **Dependencies:** none
+- **Acceptance Criteria:** Kebeles StatCard from backend-sourced count respecting authorization; loading/error/empty states; tests pass
+- **Status:** NEXT PENDING
+
+- **ID:** P1-2
+- **Title:** Complaints decision (implement or defer/reject)
+- **Module:** Complaints
+- **Reason:** remove UNKNOWN status
+- **Dependencies:** none
+- **Acceptance Criteria:** implemented OR formally deferred/rejected with rationale
+- **Status:** UNKNOWN
+
+- **ID:** P1-3
+- **Title:** Settings/"System" decision
+- **Module:** Settings
+- **Reason:** remove placeholder ambiguity
+- **Dependencies:** none
+- **Acceptance Criteria:** real My Account page or scoped decision
+- **Status:** UNKNOWN
+
+- **ID:** P1-4
+- **Title:** Stabilize workers pagination test
+- **Module:** Workers/Tests
+- **Reason:** test reliability
+- **Dependencies:** none
+- **Acceptance Criteria:** 147/147 stable under parallel vitest
+- **Status:** BACKLOG
 
 ### P2 — Important Improvements
+
 - **P2-1** Real dashboard charts from backend dimensions (placeholder chart card). Module: Dashboard. Status: BACKLOG.
 - **P2-2** Operations index page. Status: BACKLOG.
 - **P2-3** Locations index page. Status: BACKLOG.
@@ -603,33 +755,32 @@ References: `docs/operations/PRODUCTION_INFRASTRUCTURE.md`, `PRODUCTION_RUNBOOK.
 - **P2-6** Re-link or remove `reports/performance` route. Status: BACKLOG.
 
 ### P3 — Polish
+
 - **P3-1** Enable web GIS map when official data present. Status: BLOCKED.
 - **P3-2** Kebele comparisons/operational stats (no fabrication). Status: BACKLOG.
 - **P3-3** Remaining loading/empty/error state gaps. Status: BACKLOG.
 
 ### FUTURE — Deferred
-- Android/Play Store publishing; continuous GPS tracking; route optimization; live payment gateway. (All §23.)
+
+- Android/Play Store publishing; continuous GPS tracking; route optimization; live payment gateway. (All §26.)
 
 ---
 
-## 28. Current Next Item
+## 31. Current Next Item
 
 ```text
-Current Next Item:  P1-1 — Dashboard Kebeles KPI: replace hardcoded "9" with a backend-sourced
+ID:                 P1-1
+Title:              Dashboard Kebeles KPI — replace hardcoded "9" with a backend-sourced
                     kebele count, mirroring the Safer Zones / Active Workers / Businesses KPIs.
-
-Reason:             It is the only remaining hardcoded KPI on the Dashboard and aligns with the
-                    established pattern (real backend data, authorized scope, no fabrication).
-                    Highest value among unblocked, dependency-free items.
-
+Reason:             Only remaining hardcoded KPI on the Dashboard; aligns with the established
+                    pattern (real backend data, authorized scope, no fabrication). Highest value
+                    among unblocked, dependency-free items.
 Dependencies:       None. (Kebeles already served by GET /api/kebeles with role/kebele scoping.)
-
 Acceptance Criteria:
   - Kebeles StatCard shows a count fetched from the backend (not literal 9).
   - Request respects role authorization (admin=city; collector/leader=assigned scope).
   - Loading / error / empty states match the other KPI cards ("Unavailable" on failure).
   - Frontend tests pass; no regression in the 147-pass suite.
-
 Status:             NEXT PENDING
 ```
 
@@ -637,28 +788,26 @@ No second "next" item.
 
 ---
 
-## 29. Permanent Project Constraints
+## 32. Permanent Project Decisions & Constraints
 
 - PostgreSQL + PostGIS remain the database foundation.
-- Dire Dawa has 9 Kebeles and 108 Safer Zones (12 per kebele).
-- Authorization is server-authoritative; backend is authoritative.
-- Kebele Admin is the UI term; DB role remains `collector`.
-- Never fabricate municipal data or GIS.
-- No TanStack Query.
-- No continuous GPS tracking unless explicitly activated.
-- No route optimization unless explicitly activated.
-- Legacy frontend was decommissioned; do not reintroduce it.
-- Mobile-first and accessibility remain mandatory.
-- Do not weaken security for convenience.
-- Do not change database architecture unnecessarily.
-- Do not publish Android/Play Store unless explicitly activated.
-- Production infra not marked live until externally verified.
-- One task = one complete improvement (enforced by AGENT_WORK_INSTRUCTIONS.md).
-- Test → verify → commit → update registry → STOP (enforced by AGENT_WORK_INSTRUCTIONS.md).
+- Dire Dawa contains 9 Kebeles and 108 Safer Zones (12 per kebele).
+- Backend authorization is authoritative.
+- Kebele Admin is the UI terminology; underlying role IDs remain unchanged unless explicitly changed.
+- Municipal/GIS data must not be fabricated.
+- TanStack Query is not approved.
+- Continuous GPS tracking is not approved.
+- Route optimization is not approved.
+- Legacy frontend must not be accidentally reintroduced (decommissioned `43d101d`).
+- Mobile-first and accessibility remain required.
+- Database architecture must not be changed unnecessarily.
+- Android/Play Store work remains deferred unless explicitly activated.
+- Production infrastructure not marked live until externally verified.
+- No fake progress bars / fake KPIs (honest "Unavailable" when no authoritative data).
 
 ---
 
-## 30. Evidence Index
+## 33. Evidence Index
 
 | Evidence | Location |
 | -------- | -------- |
@@ -670,16 +819,32 @@ No second "next" item.
 | Production runbook | `docs/operations/PRODUCTION_RUNBOOK.md` |
 | Phase reports | `docs/modernization/phase-*.md`, `docs/modernization/PHASE_18/19.md` |
 | Handover/go-live | `docs/operations/FINAL_PRODUCTION_GO_LIVE.md`, `MUNICIPAL_IT_PRODUCTION_HANDOFF.md`, `PHASE_23_INFRASTRUCTURE_VERIFICATION.md` |
+| Deployment & operations | `docs/operations/PRODUCTION_PROVISIONING_CHECKLIST.md`, `PRODUCTION_RUNBOOK.md`, `disaster-recovery.md`, `release-process.md` |
 | Key commits | `git log --oneline` (HEAD `fe316b5`) |
 | This registry | `docs/modernization/MASTER_PROJECT_REGISTRY.md` |
 | Agent procedures | `docs/modernization/AGENT_WORK_INSTRUCTIONS.md` |
 
 ---
 
-## 31. Registry Change Log
+## 34. Registry Change Log
 
-| Date | Registry Change | Reason | Commit |
-| ---- | --------------- | ------ | ------ |
+| Date | Change | Reason | Commit |
+| ---- | ------ | ------ | ------ |
 | 2026-09-05 | v1.0 registry created (audit + roadmap) | Phase 24 master recovery | `5e72309` |
 | 2026-09-05 | v2.0 restructured to canonical 39-section schema | registry standardization directive | `9943367` |
-| 2026-09-05 | v2.1 removed procedural/agent instructions → separate `AGENT_WORK_INSTRUCTIONS.md`; renumbered to 31 factual sections | separation of facts from agent procedures | (this commit) |
+| 2026-09-05 | v2.1 removed procedural/agent instructions → separate `AGENT_WORK_INSTRUCTIONS.md`; 31 factual sections | separation of facts from agent procedures | `08854f2` |
+| 2026-09-05 | v3.0 restructured to exact 36-section schema (§0–§35); added Repository Structure, Accessibility, Data Integrity, Deployment & Operations sections | exact-structure directive | (this commit) |
+
+---
+
+## 35. Registry Authority
+
+```text
+This document is the canonical record of the Dire Dawa Cleaning Management
+System's requirements, architecture, decisions, implementation status,
+history, limitations, blockers, and roadmap.
+
+Agent workflow instructions are maintained separately in:
+
+docs/modernization/AGENT_WORK_INSTRUCTIONS.md
+```
