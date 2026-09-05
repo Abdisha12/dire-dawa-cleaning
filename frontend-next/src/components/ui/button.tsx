@@ -27,8 +27,8 @@ const sizes: Record<Size, string> = {
   lg: "px-6 py-3 text-[0.95rem] rounded-[6px]",
 };
 
-export function Button({ className, variant = "primary", size = "md", ...props }: ButtonProps) {
+export function Button({ type = "button", className, variant = "primary", size = "md", ...props }: ButtonProps) {
   return (
-    <button className={cn(base, variants[variant], sizes[size], className)} {...props} />
+    <button type={type} className={cn(base, variants[variant], sizes[size], className)} {...props} />
   );
 }

@@ -141,10 +141,10 @@ router.get("/:id", async (req, res, next) => {
 router.post(
   "/",
   requireRole("admin", "collector", "leader"),
-  validate(schemas.createInspection),
   upload.array("photos", 10),
   validateUploadedFile("inspection"),
   handleMulterError,
+  validate(schemas.createInspection),
   async (req, res, next) => {
     try {
       const { kebeleId, saferZoneId, date, status, notes, latitude, longitude } = req.body;
@@ -214,10 +214,10 @@ router.post(
 router.put(
   "/:id",
   requireRole("admin", "collector", "leader"),
-  validate(schemas.updateInspection),
   upload.array("photos", 10),
   validateUploadedFile("inspection"),
   handleMulterError,
+  validate(schemas.updateInspection),
   async (req, res, next) => {
     try {
       const { status, notes, latitude, longitude } = req.body;
