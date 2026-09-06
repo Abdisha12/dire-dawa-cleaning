@@ -267,7 +267,7 @@ Statuses: COMPLETE / PARTIAL / IN PROGRESS / BACKLOG / DEFERRED / BLOCKED / UNKN
 | REQ-ADM-005 | Settings / My Account | Settings | P1 | PARTIAL | users.js:95; placeholder page | |
 | REQ-SEC-001 | Server-authoritative kebele/zone isolation | Security | P0 | COMPLETE | auth.js, SQL filters, authorization tests | |
 | REQ-SEC-002 | Sessions, secrets, CORS, rate limits | Security | P0 | COMPLETE | Phase 0 commits, env config | |
-| REQ-DASH-001 | Dashboard KPIs with real backend data | Dashboard | P1 | COMPLETE | dashboard commits §19/§20 | Kebeles KPI hardcoded |
+| REQ-DASH-001 | Dashboard KPIs with real backend data | Dashboard | P1 | COMPLETE | dashboard commits §19/§20 | Kebeles KPI now backend-sourced (§12) |
 | REQ-MOB-001 | Android field operations | Android | P1 | COMPLETE | android/ (Phases 10–12) | Play Store deferred |
 | REQ-PROD-001 | Production deployment | Production | P1 | BLOCKED | infra docs | External municipal IT |
 
@@ -410,7 +410,7 @@ Only meaningful endpoints listed.
 
 | KPI | Definition | Source | Scope | Calculation | Status |
 | --- | ---------- | ------ | ----- | ----------- | ------ |
-| Kebeles | 9 (currently hardcoded) | `dashboard/page.tsx` | admin | count (backend TBD) | P1-1 |
+| Kebeles | count of authorized Kebele records (Dire Dawa city roster K01–K09) | `useKebele().kebeles` → `GET /api/kebeles` | all roles (endpoint is not role-scoped; returns full roster for every authenticated role); operational detail: `kebeles.collector_id` / `zone.leader_id` still scope ops | `kebeles.length`, loaded once by KebeleProvider | COMPLETE |
 | Safer Zones | count of zones, active-only | `GET /api/safer-zones` | role/kebele | length of returned rows `is_active!==false` | COMPLETE |
 | Active Workers | count of `is_active` workers | `GET /workers?status=active` | role/kebele | count of returned workers | COMPLETE |
 | Businesses | count of `is_active` businesses | `GET /businesses?status=active` | role/kebele | count (see contract) | COMPLETE |
@@ -512,11 +512,11 @@ Known defects tracked separately: none active beyond the flaky `workers.test.tsx
 
 | Category | Command | Result | Date | Commit |
 | -------- | ------- | ------ | ---- | ------ |
-| Frontend tests | `npx vitest run` (from `frontend-next/`) | 147/147 (15 files); workers pagination intermittent under parallel load (passes solo) | 2026-09-05 | fe316b5 |
+| Frontend tests | `npx vitest run` (from `frontend-next/`) | 155/155 (16 files); workers pagination intermittent under parallel load (passes solo) | 2026-09-06 | (P1-1 commit) |
 | Backend tests | `npm test` (from `backend/`, NODE_ENV=test) | 161 passing, 2 pending, 0 failing (10 suites) | 2026-09-05 | fe316b5 |
-| Lint (frontend) | `next lint` | script present (run before changes) | — | — |
-| Typecheck (frontend) | `tsc --noEmit` | run before changes | — | — |
-| Build (frontend) | `next build` (no `--turbopack`) | verified (local) | prior phases | — |
+| Lint (frontend) | `next lint` | pass (2026-09-06) | 2026-09-06 | (P1-1 commit) |
+| Typecheck (frontend) | `tsc --noEmit` | pass (2026-09-06); previously 9 errors from dashboard page | 2026-09-06 | (P1-1 commit) |
+| Build (frontend) | `next build` | BLOCKED (environment): `next-swc` native binding SIGBUS (exit 135) in this sandbox; reproducible on a minimal throwaway app — not caused by project code; run on a normal host | 2026-09-06 | — |
 | Security | `security.test.js`, `authorization.test.js` | passing | 2026-09-05 | fe316b5 |
 | Database | `validate-migration.js`, `db-health-check.sh` | 9 kebeles / 108 zones verified | 2026-09-05 | fe316b5 |
 
@@ -552,6 +552,7 @@ Historical results preserved with date and commit.
 | 2026-09-05 | Dashboard: Safer Zones KPI | done | `fe316b5` | §12 |
 | 2026-09-05 | Master Project Registry (v1, v2.0, v2.1, v3.0) | done | `5e72309` `9943367` `08854f2` | this file |
 | 2026-09-05 | Agent Work Instructions created | done | `08854f2` | AGENT_WORK_INSTRUCTIONS.md |
+| 2026-09-06 | Dashboard: Kebeles KPI from authoritative `GET /api/kebeles` + repair of pre-existing compile-blocking regressions (missing KebeleSelector/KebeleSummary import from `ae5187a`, Businesses-KPI effect dropped by `fe316b5`, Workers/Zones response typing, `kebelesCode` typo) | done | (this commit) | §12, §20, §22 |
 
 ---
 
@@ -566,6 +567,7 @@ Historical results preserved with date and commit.
 | 5 | Businesses count contract | undefined | documented authoritative contract | `b28c2c4` | docs |
 | 6 | Businesses KPI | static/hardcoded | `GET /businesses?status=active` scoped | `2a82988` | pass |
 | 7 | Safer Zones KPI | hardcoded 108 | `GET /api/safer-zones` scoped | `fe316b5` | pass |
+| 8 | Kebeles KPI | hardcoded `9` | `useKebele().kebeles` → `GET /api/kebeles` (authoritative, all roles); loading/zero/error states | (this commit) | 8 new dashboard tests, 155/155 pass |
 
 ---
 
@@ -574,7 +576,6 @@ Historical results preserved with date and commit.
 | Location | Item | Classification | Priority | Status |
 | -------- | ---- | -------------- | -------- | ------ |
 | `/dashboard` Operational overview | chart skeletons | PLACEHOLDER | P2-1 | BACKLOG |
-| `/dashboard` Kebeles StatCard | hardcoded `9` | PLACEHOLDER | P1-1 | NEXT PENDING |
 | `nav.tsx` complaints | disabled "Soon" | COMING SOON | P1-2 | UNKNOWN |
 | `nav.tsx` system | disabled "Soon" | COMING SOON | P1-3 | UNKNOWN |
 | `settings/page.tsx` | 5-line placeholder | PLACEHOLDER | P2-5 | BACKLOG |
@@ -593,6 +594,9 @@ Historical results preserved with date and commit.
 - Flaky `workers.test.tsx` pagination timeout under parallel vitest (P1-4).
 - Duplicate `phase-2-ui-architecture.md` / `phase-2-ui-ux-architecture.md` (identical content) — converge to one.
 - `reports/performance` route orphaned after nav removal (P2-6).
+- REPAIRED in P1-1 commit: dashboard page had failed to compile since `ae5187a` (`KebeleSelector`/`KebeleSummary` used without import) and `fe316b5` dropped the Businesses-KPI state/effect while keeping the StatCard; also `kebelesCode` typo and Workers/Zones response typing were wrong. All repaired with no KPI semantics changed.
+- `next build` cannot run in the current sandbox: `@next/swc-linux-x64-gnu` native binding raises SIGBUS (exit 135) — environmental, not project code (reproduced on a minimal throwaway app); must be run on a normal host.
+- Frontend `next dev` is likewise unavailable in this sandbox for the same SWC reason — browser-level manual verification must happen on a normal host; vitest renders the full DashboardPage with real providers as functional coverage.
 - Placeholder index pages (Operations/Locations/Businesses/Settings) — deliberate backlog items, not errors.
 - No live monitoring/observability tooling yet (production BLOCKED).
 - Android app not in this repo's CI test matrix (deferred).
@@ -719,7 +723,7 @@ No secrets are stored in this document.
 - **Reason:** only remaining hardcoded KPI
 - **Dependencies:** none
 - **Acceptance Criteria:** Kebeles StatCard from backend-sourced count respecting authorization; loading/error/empty states; tests pass
-- **Status:** NEXT PENDING
+- **Status:** COMPLETE (2026-09-06)
 
 - **ID:** P1-2
 - **Title:** Complaints decision (implement or defer/reject)
@@ -769,19 +773,19 @@ No secrets are stored in this document.
 ## 31. Current Next Item
 
 ```text
-ID:                 P1-1
-Title:              Dashboard Kebeles KPI — replace hardcoded "9" with a backend-sourced
-                    kebele count, mirroring the Safer Zones / Active Workers / Businesses KPIs.
-Reason:             Only remaining hardcoded KPI on the Dashboard; aligns with the established
-                    pattern (real backend data, authorized scope, no fabrication). Highest value
-                    among unblocked, dependency-free items.
-Dependencies:       None. (Kebeles already served by GET /api/kebeles with role/kebele scoping.)
+ID:                 P1-2
+Title:              Complaints decision — implement the module, or formally defer/reject it.
+Reason:             P1-1 (Dashboard Kebeles KPI) is COMPLETE. Complaints is the next-highest
+                    P1 item and the only functional module still marked UNKNOWN (J-route nav
+                    shows disabled "Soon"; no backend route exists — verified by grep). The
+                    "decision" scope means the next task documents the chosen direction before
+                    any implementation.
+Dependencies:       Product decision required (implement / defer / reject).
 Acceptance Criteria:
-  - Kebeles StatCard shows a count fetched from the backend (not literal 9).
-  - Request respects role authorization (admin=city; collector/leader=assigned scope).
-  - Loading / error / empty states match the other KPI cards ("Unavailable" on failure).
-  - Frontend tests pass; no regression in the 147-pass suite.
-Status:             NEXT PENDING
+  - Decision recorded: either Complaint module implemented (route, page, data model), or
+    formally deferred/rejected with rationale and the UNKNOWN status cleared.
+  - No fabricated functionality if rejected — record the decision and STOP.
+Status:             NEXT PENDING (awaits product decision)
 ```
 
 No second "next" item.
