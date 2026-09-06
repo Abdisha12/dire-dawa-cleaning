@@ -41,7 +41,7 @@ const NAV: NavItem[] = [
 
   // Community
   { id: "notifications", label: "Notifications", href: "/community/notifications", icon: "notifications", roles: ["admin", "collector", "leader", "viewer"], group: "Community" },
-  { id: "complaints", label: "Complaints", icon: "complaints", roles: ["admin", "collector", "leader", "viewer"], group: "Community", disabled: true, badge: "Soon" },
+  { id: "complaints", label: "Complaints", href: "/community/complaints", icon: "complaints", roles: ["admin", "collector", "leader", "viewer"], group: "Community" },
 
   // Reports & Analytics
   { id: "reports", label: "Reports", href: "/reports", icon: "reports", roles: ["admin", "collector", "viewer"], group: "Reports & Analytics" },

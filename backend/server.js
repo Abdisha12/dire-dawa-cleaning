@@ -80,6 +80,7 @@ const analyticsRoutes = require("./routes/analytics");
 const dashboardRoutes = require("./routes/dashboard");
 const documentRoutes = require("./routes/documents");
 const gisRoutes = require("./routes/gis");
+const complaintRoutes = require("./routes/complaints");
 const notifService = require("./services/notificationService");
 
 const app = express();
@@ -157,6 +158,7 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/documents", documentRoutes);
 app.use("/api/gis", gisRoutes);
+app.use("/api/complaints", complaintRoutes);
 app.use("/api", locationRoutes);
 
 app.use((req, res) => res.status(404).json({ error: `Not found: ${req.method} ${req.url}` }));

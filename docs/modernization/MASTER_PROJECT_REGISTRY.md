@@ -210,8 +210,8 @@ Statuses: COMPLETE / PARTIAL / IN PROGRESS / BACKLOG / DEFERRED / BLOCKED / UNKN
 - Backend: `/notifications`, unread-count, mark-read, read-all, admin generate.
 
 ### 6.13 Complaints
-- Status: UNKNOWN (NOT IMPLEMENTED).
-- No backend route (grep verified); nav item `complaints` disabled "Soon". Decision required — P1-2.
+- Route: `/community/complaints`. Status: COMPLETE.
+- Backend: `/api/complaints` GET/POST/PUT/:id/status/DELETE/:id + summary. Staff file complaints on behalf of community (app is auth-only; reporter captured as free-text name/phone). Role-scoped: admin/viewer=city, collector=own kebele, leader=own zone. Status machine: new → in_progress → resolved. Complaint category enum: illegal_dumping, litter, blocked_drain, hazard, other.
 
 ### 6.14 Reports
 - Route: `/reports`. Status: COMPLETE.
@@ -257,7 +257,7 @@ Statuses: COMPLETE / PARTIAL / IN PROGRESS / BACKLOG / DEFERRED / BLOCKED / UNKN
 | REQ-ZREP-001 | Zone reports with status workflow | Zone Reports | P1 | COMPLETE | `zoneReports.js`, stepper UI | |
 | REQ-GIS-001 | PostGIS boundaries + point locations | GIS | P1 | PARTIAL | schema geometry, gis.js | Official boundaries blocked |
 | REQ-GIS-002 | Web map visualization | GIS | P2 | PARTIAL | MapLibre component | Nav disabled "Soon" |
-| REQ-COM-001 | Complaints from community | Complaints | P1 | UNKNOWN | no route/page | P1-2 decision required |
+| REQ-COM-001 | Complaints from community | Complaints | P1 | COMPLETE | `complaints.js`, Complaints page | Implemented P1-2 (2026-09-06) |
 | REQ-REP-001 | Reports + CSV where implemented | Reports | P1 | COMPLETE | reports.js | |
 | REQ-ANA-001 | Analytics & kebele comparisons | Analytics | P1 | COMPLETE | analytics.js | |
 | REQ-ADM-001 | Users/roles administration | Users | P1 | COMPLETE | users.js | |
@@ -331,6 +331,11 @@ Statuses: COMPLETE / PARTIAL / IN PROGRESS / BACKLOG / DEFERRED / BLOCKED / UNKN
 | `/api/documents` | GET | Documents | auth | role/kebele | yes | yes | COMPLETE |
 | `/api/auditLog` | GET | Audit Logs | admin | city | — | yes | COMPLETE |
 | `/api/notifications` | GET | Notifications | auth | user | — | — | COMPLETE |
+| `/api/complaints` | GET | Complaints | auth | role (leader=own zone, collector=own kebele, admin/viewer=city) | yes | yes | COMPLETE |
+| `/api/complaints/summary` | GET | Complaints | auth | role | — | — | COMPLETE |
+| `/api/complaints` | POST | Complaints | admin/collector/leader | own kebele/zone | yes | — | COMPLETE |
+| `/api/complaints/:id/status` | PUT | Complaints | admin/collector/leader | own kebele/zone | yes | — | COMPLETE |
+| `/api/complaints/:id` | DELETE | Complaints | admin | city | yes | — | COMPLETE |
 | `/api/sandbox/sandbox-checkout` | GET | Payments sandbox | auth | — | — | — | COMPLETE |
 
 Only meaningful endpoints listed.
@@ -360,10 +365,11 @@ Only meaningful endpoints listed.
 | audit_log | Audit trail | users (context) | COMPLETE |
 | notifications | User notifications | users | COMPLETE |
 | documents | Uploaded documents | users/optional kebele | COMPLETE |
+| complaints | Community-reported cleanliness issues | safer_zones (NOT NULL), users (created_by/assigned_to/resolved_by) | COMPLETE |
 
 ### Enums
 
-`user_role`(admin,collector,leader,viewer) · `business_type`(shop,cafe,hotel,restaurant,pharmacy,market,workshop,office,school,clinic,other) · `payment_method`(cash,mobile,bank,other,telebirr,cbebirr) · `payment_status`(paid,pending,overdue,failed) · `inspection_status`(active,warning,danger) · `tool_category`(vehicle,equipment,uniform,chemical,other) · `tool_condition`(good,fair,poor,broken) · `report_status`(draft,submitted,reviewed,approved) · `document_category`(contract,photo,training,incident,report,other)
+`user_role`(admin,collector,leader,viewer) · `business_type`(shop,cafe,hotel,restaurant,pharmacy,market,workshop,office,school,clinic,other) · `payment_method`(cash,mobile,bank,other,telebirr,cbebirr) · `payment_status`(paid,pending,overdue,failed) · `inspection_status`(active,warning,danger) · `tool_category`(vehicle,equipment,uniform,chemical,other) · `tool_condition`(good,fair,poor,broken) · `report_status`(draft,submitted,reviewed,approved) · `document_category`(contract,photo,training,incident,report,other) · `complaint_category`(illegal_dumping,litter,blocked_drain,hazard,other) · `complaint_status`(new,in_progress,resolved)
 
 ### Geometry
 
@@ -406,6 +412,7 @@ Only meaningful endpoints listed.
 - **Zone Report** — Definition: monthly report per safer zone; unique per `(safer_zone_id, year, month)`; workflow draft→submitted→reviewed→approved. Status: COMPLETE.
 - **Safer Zone Count (KPI)** — Definition: count of safer zones in scope, excluding `is_active=false`. Source: `GET /api/safer-zones`. Status: COMPLETE.
 - **Operational Overview** — Definition: single role-scoped aggregate for the dashboard (revenue collected/pending/overdue/target + achievementPct, monthly collected trend, attendance summary + rate, inspection status counts, per-kebele comparison rows: zones/workerCount/businessCount/target/collected/achievementPct/attendanceRate/inspection buckets). Source: `GET /api/dashboard/overview` (`backend/routes/dashboard.js`). Formula: zone-scoped SQL; `achievementPct` computed only when target>0; attendance rate null when zero records (rendered "No data"). Scope: admin/viewer=city, collector=own kebele (`kebeles.collector_id`; unassigned → empty result, not city data), leader=own zone. Status: COMPLETE.
+- **Complaint** — Definition: community-reported cleanliness issue (category, title, description, zone, optional reporter name/phone) filed by authenticated staff on behalf of a community member (no anonymous public portal exists; honest limitation), resolved by staff. Source: `GET/POST /api/complaints`, `PUT /api/complaints/:id/status` (`backend/routes/complaints.js`). Lifecycle: new → in_progress → resolved (monotonic; no regressions allowed). Scope: admin/viewer=city, collector=own kebele, leader=own zone (`safer_zones.leader_id` constrained in all operations). Delete: admin-only, audited. Notifications: `complaint_update` sent to assignee (or creator) on status change. Status: COMPLETE.
 
 ---
 
@@ -518,8 +525,8 @@ Known defects tracked separately: none active beyond the flaky `workers.test.tsx
 
 | Category | Command | Result | Date | Commit |
 | -------- | ------- | ------ | ---- | ------ |
-| Frontend tests | `npx vitest run` (from `frontend-next/`) | 163/163 (16 files); workers pagination intermittent under parallel load (passes solo) | 2026-09-06 | (this commit) |
-| Backend tests | `npm test` (from `backend/`, NODE_ENV=test) | 167 passing, 2 pending, 0 failing | 2026-09-06 | (this commit) |
+| Frontend tests | `npx vitest run` (from `frontend-next/`) | 171/171 (17 files); workers pagination intermittent under parallel load (passes solo) | 2026-09-06 | (this commit) |
+| Backend tests | `npm test` (from `backend/`, NODE_ENV=test) | 199 passing, 2 pending, 0 failing | 2026-09-06 | (this commit) |
 | Lint (frontend) | `next lint` | pass | 2026-09-06 | (this commit) |
 | Typecheck (frontend) | `tsc --noEmit` | pass | 2026-09-06 | (this commit) |
 | Build (frontend) | `next build` | BLOCKED (environment): `next-swc` native binding SIGBUS (exit 135) in this sandbox; reproducible on a minimal throwaway app — not caused by project code; run on a normal host | 2026-09-06 | — |
@@ -560,6 +567,7 @@ Historical results preserved with date and commit.
 | 2026-09-05 | Agent Work Instructions created | done | `08854f2` | AGENT_WORK_INSTRUCTIONS.md |
 | 2026-09-06 | Dashboard: Kebeles KPI from authoritative `GET /api/kebeles` + repair of pre-existing compile-blocking regressions (missing KebeleSelector/KebeleSummary import from `ae5187a`, Businesses-KPI effect dropped by `fe316b5`, Workers/Zones response typing, `kebelesCode` typo) | done | (this commit) | §12, §20, §22 |
 | 2026-09-06 | Dashboard: Operational Overview COMPLETE — role-aware `GET /api/dashboard/overview` aggregation (revenue totals+target+achievement, monthly trend, attendance, inspections, per-kebele comparison), real far-overview cards replacing the placeholder chart card, real 9-kebele comparison via DataTable (no more "Unavailable" worker counts), monthly trend with a11y details text alternative, honest null/zero/empty/loading/error states, api.ts `DashboardOverview` type | done | (this commit) | §6.1, §7, §9, §11, §12, §18, §20, §21 |
+| 2026-09-06 | Complaints module COMPLETE (P1-2 decision: implement) — `complaints` table + migration `002_add_complaints.js`, `/api/complaints` GET/POST/PUT/:id/status/DELETE/:id/summary with role-scoped kebele/zone isolation, new→in_progress→resolved state machine, audit + `complaint_update` notifications, Complaints page (summary cards, filters, DataTable, create + status-transition modals, mobile cards, viewer read-only), nav item enabled, 31 backend tests + 8 frontend tests | done | (this commit) | §6.13, §7, §9, §10, §11, §18, §20, §21, §29, §30, §31 |
 
 ---
 
@@ -576,6 +584,7 @@ Historical results preserved with date and commit.
 | 7 | Safer Zones KPI | hardcoded 108 | `GET /api/safer-zones` scoped | `fe316b5` | pass |
 | 8 | Kebeles KPI | hardcoded `9` | `useKebele().kebeles` → `GET /api/kebeles` (authoritative, all roles); loading/zero/error states | (this commit) | 8 new dashboard tests, 155/155 pass |
 | 9 | Operational overview + 9-kebele comparison | placeholder "Operational overview" chart card; per-kebele worker counts "Unavailable"; no comparisons | single role-scoped `GET /api/dashboard/overview`; real revenue/attendance/inspections cards; monthly trend with a11y text alternative; real comparative DataTable; honest null/zero/empty/loading/error states | (this commit) | 8 new backend tests + 8 new dashboard tests, all pass |
+| 10 | Complaints (P1-2) | nav disabled "Soon", no backend route, no page | full module implemented: `complaints` table (migration `002`), `/api/complaints` CRUD + status transitions + summary, role-scoped (leader=own zone, collector=own kebele), audit + `complaint_update` notifications, Complaints page (summary cards, filters, DataTable, create + transition modals, mobile cards, viewer read-only), nav enabled | (this commit) | 31 backend tests + 8 frontend tests, all pass |
 
 ---
 
@@ -583,7 +592,6 @@ Historical results preserved with date and commit.
 
 | Location | Item | Classification | Priority | Status |
 | -------- | ---- | -------------- | -------- | ------ |
-| `nav.tsx` complaints | disabled "Soon" | COMING SOON | P1-2 | UNKNOWN |
 | `nav.tsx` system | disabled "Soon" | COMING SOON | P1-3 | UNKNOWN |
 | `settings/page.tsx` | 5-line placeholder | PLACEHOLDER | P2-5 | BACKLOG |
 | `operations/page.tsx` | placeholder | PLACEHOLDER | P2-2 | BACKLOG |
@@ -703,7 +711,7 @@ No secrets are stored in this document.
 
 | ID | Question | Evidence Checked | Owner | Status |
 | -- | -------- | ---------------- | ----- | ------ |
-| QID-001 | Implement Complaints module, or formally defer/reject it? | no route, no page; nav "Soon" | user | OPEN (P1-2) |
+| QID-001 | Implement Complaints module, or formally defer/reject it? | no route, no page; nav "Soon" | user | RESOLVED (P1-2, 2026-09-06 — implemented: route, page, data model, tests) |
 | QID-002 | Should Settings/"System" become a real page or be scoped down? | `settings/page.tsx`, `users.js:95` | user | OPEN (P1-3) |
 | QID-003 | Re-link `reports/performance` into nav or remove the route? | `4a5297e`, page.tsx | agent (backlog) | OPEN (P2-6) |
 | QID-004 | Does "Worker" exist as a login role or only as a domain entity? | `user_role` enum (no worker) | user | OPEN |
@@ -738,7 +746,7 @@ No secrets are stored in this document.
 - **Reason:** remove UNKNOWN status
 - **Dependencies:** none
 - **Acceptance Criteria:** implemented OR formally deferred/rejected with rationale
-- **Status:** UNKNOWN
+- **Status:** COMPLETE (2026-09-06 — decision recorded: implemented. Rationale: P1 core functionality; pre-existing `complaint_update` notification type and nav/permission scaffolding already anticipated a real module; a user-facing portal is out of scope for the auth-only app, so staff file complaints on behalf of the community (reporter captured as free-text name/phone) — honest limitation, no fabricated data.)
 
 - **ID:** P1-3
 - **Title:** Settings/"System" decision
@@ -780,18 +788,19 @@ No secrets are stored in this document.
 ## 31. Current Next Item
 
 ```text
-ID:                 P1-2
-Title:              Complaints decision — implement the module, or formally defer/reject it.
-Reason:             P1-1 (Dashboard Kebeles KPI) is COMPLETE. Complaints is the next-highest
-                    P1 item and the only functional module still marked UNKNOWN (J-route nav
-                    shows disabled "Soon"; no backend route exists — verified by grep). The
-                    "decision" scope means the next task documents the chosen direction before
-                    any implementation.
-Dependencies:       Product decision required (implement / defer / reject).
+ID:                 P1-3
+Title:              Settings/"System" decision — real My Account page, or scoped decision.
+Reason:             P1-2 (Complaints) is COMPLETE. Settings is the next-highest P1 item: the
+                    current My Account page is a minimal placeholder and nav `system` is a
+                    disabled "Soon" item, both still UNKNOWN. The decision scope means the next
+                    task documents the chosen direction (real page vs scoped-down decision)
+                    before any implementation.
+Dependencies:       Product decision required (real page / scoped decision).
 Acceptance Criteria:
-  - Decision recorded: either Complaint module implemented (route, page, data model), or
-    formally deferred/rejected with rationale and the UNKNOWN status cleared.
-  - No fabricated functionality if rejected — record the decision and STOP.
+  - Decision recorded: either the My Account page is implemented (password change, profile,
+    session handling), or formally scoped down with rationale and the UNKNOWN status cleared.
+  - No fabricated functionality if scoped down — record the decision and STOP.
+
 Status:             NEXT PENDING (awaits product decision)
 ```
 
@@ -825,6 +834,7 @@ No second "next" item.
 | Database architecture | `database/postgresql/schema.sql`, `database/MIGRATIONS.md` |
 | Security architecture | `backend/middleware/auth.js`, `backend/middleware/uploadSecurity.js`, `docs/security/` |
 | Frontend architecture | `frontend-next/src/lib/api.ts`, `frontend-next/src/styles/tokens.css`, `src/components/ui/`, `src/types/domain.ts` |
+| Complaints module | `backend/routes/complaints.js`, `database/migrations/002_add_complaints.js`, `frontend-next/src/app/(app)/community/complaints/page.tsx`, `backend/test/complaints.test.js`, `frontend-next/src/test/complaints.test.tsx` |
 | Businesses contract | `docs/modernization/BUSINESSES_COUNT_CONTRACT.md` |
 | Production infrastructure | `docs/operations/PRODUCTION_INFRASTRUCTURE.md` |
 | Production runbook | `docs/operations/PRODUCTION_RUNBOOK.md` |
@@ -847,6 +857,7 @@ No second "next" item.
 | 2026-09-05 | v3.0 restructured to exact 36-section schema (§0–§35); added Repository Structure, Accessibility, Data Integrity, Deployment & Operations sections | exact-structure directive | `98e9139` |
 | 2026-09-06 | Separation audit — validated Registry vs Agent Work Instructions for contradictions, duplication, missing facts/rules, separation clarity; refreshed Document Control HEAD | brief validation step | (this commit) |
 | 2026-09-06 | Dashboard Operational Overview COMPLETE: `/api/dashboard/overview` role-aware aggregation, real overview cards + 9-kebele comparison, honest null/zero/empty/loading/error states; §§6.1/7/9/11/12/18/19/20/21/28/30/33 updated; §31 next item unchanged (P1-2) | feature completion (P2-1/P3-2) | (this commit) |
+| 2026-09-06 | Complaints module COMPLETE (P1-2 implement decision): `complaints` table + migration `002`, `/api/complaints` CRUD + status transitions + summary, role-scoped kebele/zone isolation, audit + `complaint_update` notifications, Complaints page + nav enabled, viewer read-only; 31 backend tests + 8 frontend tests, all pass; §21 `nav.tsx` complaints placeholder removed; §29 QID-001 resolved; §30 P1-2 COMPLETE; §31 next item → P1-3 (do-not-implement) | feature completion (P1-2) | (this commit) |
 
 ---
 

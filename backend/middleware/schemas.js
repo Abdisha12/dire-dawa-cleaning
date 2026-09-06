@@ -374,6 +374,43 @@ const zoneReportListQuery = z.object({
   zoneId: id.optional()
 });
 
+// ── Complaints ────────────────────────────────────────────────
+const complaintCategory = z.enum(["illegal_dumping", "litter", "blocked_drain", "hazard", "other"]);
+const complaintStatus = z.enum(["new", "in_progress", "resolved"]);
+
+const createComplaint = {
+  body: z.object({
+    title: z.string().min(1).max(200).trim(),
+    description: z.string().min(1).max(5000).trim(),
+    category: complaintCategory.default("other"),
+    saferZoneId: id,
+    reporterName: z.string().max(120).trim().optional().nullable(),
+    reporterPhone: z.string().max(30).trim().optional().nullable()
+  })
+};
+
+const updateComplaintStatus = {
+  body: z.object({
+    status: complaintStatus,
+    resolutionNotes: z.string().max(5000).trim().optional().nullable(),
+    assignedTo: z.coerce.number().int().positive().optional().nullable()
+  }),
+  params: z.object({ id })
+};
+
+const complaintsListQuery = z.object({
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  status: complaintStatus.optional(),
+  kebeleId: id.optional(),
+  zoneId: id.optional(),
+  search: z.string().max(200).trim().optional()
+});
+
+const complaintParams = {
+  params: z.object({ id })
+};
+
 // ── Users (list query) ────────────────────────────────────────
 const usersListQuery = z
   .object({
@@ -412,5 +449,9 @@ module.exports = {
   auditLogQuery,
   usersListQuery,
   paymentsListQuery,
-  zoneReportListQuery
+  zoneReportListQuery,
+  createComplaint,
+  updateComplaintStatus,
+  complaintsListQuery,
+  complaintParams
 };

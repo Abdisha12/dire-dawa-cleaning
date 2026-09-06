@@ -259,6 +259,34 @@ export interface Notification {
   created_at: string;
 }
 
+// Complaints — community-reported cleanliness issues (P1-2)
+export type ComplaintCategory = "illegal_dumping" | "litter" | "blocked_drain" | "hazard" | "other";
+export type ComplaintStatus = "new" | "in_progress" | "resolved";
+
+export interface Complaint {
+  id: number;
+  title: string;
+  description: string;
+  category: ComplaintCategory;
+  safer_zone_id: number;
+  zone_name?: string;
+  kebele_name?: string;
+  kebele_code?: string;
+  reporter_name: string | null;
+  reporter_phone: string | null;
+  status: ComplaintStatus;
+  assigned_to: number | null;
+  assigned_name: string | null;
+  resolution_notes: string | null;
+  resolved_by: number | null;
+  resolved_name: string | null;
+  resolved_at: string | null;
+  created_by: number | null;
+  created_by_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // Additional types used by shell/analytics (minimal)
 export interface Tool {
   id: number;

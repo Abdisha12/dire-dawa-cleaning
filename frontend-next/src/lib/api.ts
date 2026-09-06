@@ -353,6 +353,25 @@ export const api = {
   deleteNotification: (id: number, opts?: FetchOptions) =>
     req<{ message: string }>("DELETE", `/notifications/${id}`, undefined, opts),
 
+  // Complaints — community-reported cleanliness issues (P1-2)
+  getComplaints: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<import("@/types").Complaint[] | { data: import("@/types").Complaint[]; total: number; page: number; pages: number }>(
+      "GET",
+      `/complaints?${new URLSearchParams(params).toString()}`,
+      undefined,
+      opts
+    ),
+  getComplaintSummary: (opts?: FetchOptions) =>
+    req<{ total: number; new: number; in_progress: number; resolved: number }>("GET", "/complaints/summary", undefined, opts),
+  getComplaint: (id: number, opts?: FetchOptions) =>
+    req<import("@/types").Complaint>("GET", `/complaints/${id}`, undefined, opts),
+  createComplaint: (data: Record<string, unknown>, opts?: FetchOptions) =>
+    req<{ id: number; status: string }>("POST", "/complaints", data, opts),
+  updateComplaintStatus: (id: number, data: Record<string, unknown>, opts?: FetchOptions) =>
+    req<{ message: string; status: string }>("PUT", `/complaints/${id}/status`, data, opts),
+  deleteComplaint: (id: number, opts?: FetchOptions) =>
+    req<{ message: string }>("DELETE", `/complaints/${id}`, undefined, opts),
+
   // Admin — Users (full CRUD)
   createUser: (data: Record<string, unknown>, opts?: FetchOptions) =>
     req<{ id: number }>("POST", "/users", data, opts),

@@ -57,7 +57,8 @@ describe("Authorization", function () {
       ["GET", "/api/tools"],
       ["GET", "/api/documents"],
       ["GET", "/api/audit-log"],
-      ["GET", "/api/notifications"]
+      ["GET", "/api/notifications"],
+      ["GET", "/api/complaints"]
     ];
 
     for (const [method, path] of protectedEndpoints) {
