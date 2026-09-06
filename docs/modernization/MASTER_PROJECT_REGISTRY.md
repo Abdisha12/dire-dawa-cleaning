@@ -20,12 +20,12 @@ The Agent Work Instructions define HOW an AI agent should work on it.
 
 ```text
 Registry Version:       3.0
-Last Updated:           2026-09-05
-Last Audited:           2026-09-05
+Last Updated:           2026-09-06
+Last Audited:           2026-09-06
 Current Project Status: STEADY — no mid-flight feature work; production infrastructure externally BLOCKED
 Current Phase:          Post-modernization incremental improvements (registry keeps the roadmap)
 Current Release:        1.0.0 (pre-production; local Docker Compose verified)
-Current Repository HEAD: fe316b5 (main, 80 commits, clean tree)
+Current Repository HEAD: 98e9139 (main, 84 commits, clean tree)
 Registry Owner:         opencode agent (maintains roadmap; user authorizes scope)
 ```
 
@@ -833,7 +833,8 @@ No second "next" item.
 | 2026-09-05 | v1.0 registry created (audit + roadmap) | Phase 24 master recovery | `5e72309` |
 | 2026-09-05 | v2.0 restructured to canonical 39-section schema | registry standardization directive | `9943367` |
 | 2026-09-05 | v2.1 removed procedural/agent instructions → separate `AGENT_WORK_INSTRUCTIONS.md`; 31 factual sections | separation of facts from agent procedures | `08854f2` |
-| 2026-09-05 | v3.0 restructured to exact 36-section schema (§0–§35); added Repository Structure, Accessibility, Data Integrity, Deployment & Operations sections | exact-structure directive | (this commit) |
+| 2026-09-05 | v3.0 restructured to exact 36-section schema (§0–§35); added Repository Structure, Accessibility, Data Integrity, Deployment & Operations sections | exact-structure directive | `98e9139` |
+| 2026-09-06 | Separation audit — validated Registry vs Agent Work Instructions for contradictions, duplication, missing facts/rules, separation clarity; refreshed Document Control HEAD | brief validation step | (this commit) |
 
 ---
 
