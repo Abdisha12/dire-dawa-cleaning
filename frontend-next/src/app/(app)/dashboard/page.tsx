@@ -6,14 +6,21 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
 import { useKebele } from "@/lib/kebele-context";
 import { api } from "@/lib/api";
-import { fmtETB } from "@/lib/utils";
+import { KebeleSelector, KebeleSummary } from "@/features/kebeles/components/kebele-selector";
+import type { Business } from "@/types";
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { selectedKebele, kebeles } = useKebele();
+  const { selectedKebele, kebeles, loading: kebeleLoading, error: kebeleError } = useKebele();
   const role = user?.role;
   const contextLabel =
     role === "admin" ? "All Kebeles — City-wide" : role === "collector" ? "My Kebele — locked" : role === "leader" ? "My Safer Zone" : "—";
+
+  // Kebeles count from the authoritative backend dataset (GET /api/kebeles).
+  // The kebeles endpoint is NOT role-scoped: it returns the full municipal roster
+  // (all authorized records K01–K09) for every authenticated role. KebeleProvider
+  // already loads this set, so the KPI reuses kebeles.length — no new endpoint, no hardcode.
+  const kebeleCount = kebeles.length;
 
   // Active workers count from backend, respecting role/kebele authorization.
   // Uses /workers?status=active which the backend filters by w.is_active=TRUE.
@@ -32,9 +39,9 @@ export default function DashboardPage() {
       // Leader: only active workers in their authorized zone
       if (selectedKebele?.id) baseParams.kebeleId = String(selectedKebele.id);
     }
+    // api.getWorkers already returns the flattened roster (Worker[]).
     api.getWorkers(baseParams, {}).then((res) => {
-      const workers: any[] = Array.isArray(res) ? res : (res?.workers || res?.data || []);
-      setActiveWorkerCount(workers.length);
+      setActiveWorkerCount(res.length);
     }).catch(() => {
       setActiveWorkerCount(null);
     }).finally(() => setActiveWorkerLoading(false));
@@ -58,12 +65,41 @@ export default function DashboardPage() {
       // Leader: only safer zones in their authorized zone
       if (selectedKebele?.id) baseParams.kebeleId = String(selectedKebele.id);
     }
+    // api.getSaferZones already normalizes to { zones: SaferZone[] }.
     api.getSaferZones(baseParams, {}).then((res) => {
-      const zones: any[] = Array.isArray(res) ? res : (res?.zones || res?.data || []).filter((z: any) => z.is_active !== false);
+      const zones = (res.zones || []).filter((z) => (z as { is_active?: boolean }).is_active !== false);
       setSafeZoneCount(zones.length);
     }).catch(() => {
       setSafeZoneCount(null);
     }).finally(() => setSafeZoneLoading(false));
+  }, [role, selectedKebele?.id]);
+
+  // Businesses count from backend, respecting role/kebele authorization.
+  // Uses /api/businesses?status=active which the backend filters by b.is_active=TRUE.
+  // Admins see all active businesses; Kebele Admins see only their kebele's; Leaders see their zone.
+  const [businessCount, setBusinessCount] = React.useState<number | null>(null);
+  const [businessLoading, setBusinessLoading] = React.useState(true);
+  const [businessError, setBusinessError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const baseParams: Record<string, string> = { status: "active" };
+    if (role === "admin") {
+      // Admin: all active businesses across Dire Dawa — no kebeleId filter
+    } else if (role === "collector" && selectedKebele?.id) {
+      // Kebele Admin: only active businesses in their assigned kebele
+      baseParams.kebeleId = String(selectedKebele.id);
+    } else if (role === "leader") {
+      // Leader: only active businesses in their authorized zone
+      if (selectedKebele?.id) baseParams.kebeleId = String(selectedKebele.id);
+    }
+    // Backend returns an array or paginated {data,total,page,pages} (or {businesses}).
+    api.getBusinesses(baseParams, {}).then((res) => {
+      const r = res as unknown as { businesses?: Business[]; data?: Business[] } | Business[];
+      const arr: Business[] = Array.isArray(r) ? r : (r?.businesses || r?.data || []);
+      setBusinessCount(arr.filter((b) => b.is_active !== false).length);
+    }).catch(() => {
+      setBusinessCount(null);
+    }).finally(() => setBusinessLoading(false));
   }, [role, selectedKebele?.id]);
 
   return (
@@ -80,7 +116,7 @@ export default function DashboardPage() {
       <KebeleSummary />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Kebeles" value="9" sub="Dire Dawa" accent="blue" />
+        <StatCard label="Kebeles" value={kebeleLoading ? "—" : kebeleError ? "—" : String(kebeleCount)} sub={kebeleLoading ? "Loading…" : kebeleError ? "Unavailable" : "Dire Dawa"} accent="blue" />
         <StatCard label="Safer Zones" value={safeZoneCount ?? "—"} sub={safeZoneLoading ? "Loading…" : safeZoneError ? "Unavailable" : "via /api/safer-zones"} accent="purple" />
         <StatCard label="Active Workers" value={activeWorkerCount ?? "—"} sub={activeWorkerLoading ? "Loading…" : activeWorkerError ? "Unavailable" : "via /api/workers"} accent="green" />
         <StatCard label="Businesses" value={businessCount ?? "—"} sub={businessLoading ? "Loading…" : businessError ? "Unavailable" : "via /api/businesses"} accent="orange" />
@@ -120,7 +156,7 @@ export default function DashboardPage() {
 
             return (
               <div key={i} className="rounded-lg border border-[var(--border)] p-3">
-                <div className="text-sm font-semibold">{kebeleName} — {kebelesCode}</div>
+                <div className="text-sm font-semibold">{kebeleName} — {kebeleCode}</div>
                 <div className="mt-1 text-xs text-[var(--text-muted)]">{zoneCount} Safer Zones</div>
                 <div className="mt-1 text-xs">Workers: Unavailable</div>
                 <div className="mt-1 text-xs">Payments: {/* paymentAch */}</div>
