@@ -7,6 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Icons } from "@/components/ui/icon";
 import { Alert } from "@/components/ui/alert";
 import { fmtDate } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input, Label } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 
 export default function SettingsPage() {
   const { user, loading, error } = useAuth();
@@ -111,7 +114,139 @@ export default function SettingsPage() {
 
       <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
         <h3 className="font-semibold mb-2">About this page</h3>
-        <p className="text-sm text-[var(--text-muted)]">This profile displays authoritative user identity and operational scope from the backend. Editing profile fields (full name, phone, Fayda ID) is not supported by the current backend route (only admins can update users via <code>/api/users/:id</code>). Password and security settings are handled separately. This page is read-only to preserve server authority over role, kebele, zone, and permissions.</p>
+        <p className="text-sm text-[var(--text-muted)]">This profile displays authoritative user identity and operational scope from the backend. Editing profile fields (full name, phone, Fayda ID) is not supported by the current backend route (only admins can update users via <code>/api/users/:id</code>). Password change is supported — see Security section below. Notification preferences do not have a backend persistence endpoint and are not exposed here (honest limitation per P1-3).</p>
+      </div>
+
+      {/* Security Section */}
+      <Card>
+        <div className="mb-3 flex items-center gap-2 border-b border-[var(--border)] pb-3">
+          <Icons.info size={18} />
+          <h3 className="font-semibold">Account Security</h3>
+        </div>
+        <div className="space-y-4">
+          <PasswordChangeSection user={{ id: user?.id ?? 0 }} />
+          <SessionSection />
+        </div>
+      </Card>
+
+      {/* Preferences — documented limitation */}
+      <Card>
+        <div className="mb-3 flex items-center gap-2 border-b border-[var(--border)] pb-3">
+          <Icons.info size={18} />
+          <h3 className="font-semibold">Notification Preferences</h3>
+        </div>
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--warning-l)] p-3">
+          <div className="text-xs font-medium text-[var(--warning)]">Not implemented — backend limitation</div>
+          <div className="text-sm text-[var(--text-muted)] mt-1">No backend endpoint exists for user-configurable notification preferences. The notification system supports types (<code>complaint_update</code>, <code>pending_report</code>, etc.) but users cannot currently enable/disable them. This is an honest limitation, not a missing UI switch. See registry §6.20 / P1-3.</div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* Password Change — backed by /api/users/:id/password (self or admin) */
+function PasswordChangeSection({ user }: { user: { id: number } }) {
+  const [open, setOpen] = React.useState(false);
+  const [currentPassword, setCurrentPassword] = React.useState("");
+  const [newPassword, setNewPassword] = React.useState("");
+  const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [status, setStatus] = React.useState<"idle" | "saving" | "success" | "error">("idle");
+  const [message, setMessage] = React.useState("");
+
+  const reset = () => {
+    setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
+    setStatus("idle"); setMessage("");
+  };
+
+  const handleSubmit = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setStatus("error"); setMessage("All fields are required."); return;
+    }
+    if (newPassword.length < 8) { setStatus("error"); setMessage("Minimum 8 characters."); return; }
+    if (!/[a-zA-Z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      setStatus("error"); setMessage("Must contain at least one letter and one number."); return;
+    }
+    if (newPassword !== confirmPassword) { setStatus("error"); setMessage("Passwords do not match."); return; }
+    setStatus("saving"); setMessage("");
+    try {
+      const res = await fetch(`/api/users/${user.id}/password`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "x-session-token": localStorage.getItem("ddcms_token") || "" },
+        body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setStatus("error"); setMessage(body.error || `Error ${res.status}`);
+        return;
+      }
+      setStatus("success"); setMessage("Password updated. All existing sessions have been invalidated.");
+      reset();
+      setTimeout(() => setOpen(false), 1500);
+    } catch (e) {
+      setStatus("error"); setMessage(e instanceof Error ? e.message : "Update failed.");
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h4 className="font-medium">Change Password</h4>
+          <p className="text-xs text-[var(--text-muted)]">Requires current password. All sessions revoked on success.</p>
+        </div>
+        <Button onClick={() => { setOpen(true); reset(); }} aria-label="Change password">Change</Button>
+      </div>
+
+      <Modal open={open} onClose={() => setOpen(false)} title="Change Password" footer={
+        <>
+          <Button variant="outline" onClick={() => { setOpen(false); reset(); }}>Cancel</Button>
+          <Button onClick={handleSubmit} disabled={status === "saving"}>{status === "saving" ? "Saving…" : "Update Password"}</Button>
+        </>
+      }>
+        <div className="space-y-3">
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="curr-pw">Current Password *</Label>
+            <Input id="curr-pw" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} maxLength={200} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="new-pw">New Password *</Label>
+            <Input id="new-pw" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} minLength={8} maxLength={200} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="conf-pw">Confirm New Password *</Label>
+            <Input id="conf-pw" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} maxLength={200} />
+          </div>
+          {status === "success" && <Alert variant="success">{message}</Alert>}
+          {status === "error" && <Alert variant="danger">{message}</Alert>}
+          <div className="text-xs text-[var(--text-muted)]">Policy: min 8 chars, at least one letter and one number.</div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+/* Session / Logout */
+function SessionSection() {
+  const { logout } = useAuth();
+  const [loggingOut, setLoggingOut] = React.useState(false);
+  const [msg, setMsg] = React.useState<string | null>(null);
+
+  return (
+    <div className="space-y-3 border-t border-[var(--border)] pt-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h4 className="font-medium">Session</h4>
+          <p className="text-xs text-[var(--text-muted)]">Sign out to invalidate your current session.</p>
+        </div>
+        <Button variant="outline" onClick={async () => {
+          setLoggingOut(true); setMsg(null);
+          try { await logout(); setMsg("Signed out successfully."); } catch (e) { setMsg("Sign out failed."); }
+          setLoggingOut(false);
+        }} disabled={loggingOut} aria-label="Sign out">{loggingOut ? "Signing out…" : "Sign Out"}</Button>
+      </div>
+      {msg && <Alert variant={msg.includes("failed") ? "danger" : "success"}>{msg}</Alert>}
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-xs text-[var(--text-muted)]">
+        <strong>Session security:</strong> Your session is validated against the database (<code>sessions</code> table) on every request. Changing your password invalidates all existing sessions. Logout removes your session token.
       </div>
     </div>
   );

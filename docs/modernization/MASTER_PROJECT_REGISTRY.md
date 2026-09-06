@@ -238,8 +238,9 @@ Statuses: COMPLETE / PARTIAL / IN PROGRESS / BACKLOG / DEFERRED / BLOCKED / UNKN
 - Backend: `/auditLog` (admin-only read).
 
 ### 6.20 My Account
-- Route: `/settings`. Status: PARTIAL.
-- Backend: `/users/:id/password`. Settings page is a placeholder; nav `system` disabled "Soon". Backlog P1-3/P2-5.
+- Route: `/settings`. Status: COMPLETE (P1-3A profile + P1-3B security implemented; notification preferences documented unsupported — backend has no preference endpoint).
+- Backend: `/users/:id/password` (self/admin password change), `/auth/logout`, `/auth/me`; no preference persistence endpoint exists.
+- Nav `system` disabled "Soon" preserved; settings work is user-facing profile/security, not global system admin.
 
 ---
 
@@ -754,7 +755,7 @@ No secrets are stored in this document.
 - **Reason:** remove placeholder ambiguity
 - **Dependencies:** none
 - **Acceptance Criteria:** real My Account page or scoped decision
-- **Status:** UNKNOWN
+- **Status:** COMPLETE (P1-3A profile implemented + P1-3B security: password change via `/api/users/:id/password` with full validation, session/logout preserved, notification preferences honestly documented as unsupported — no fake toggles; read-only profile protected from role/kebele/zone modification; all changes server-authoritative)
 
 - **ID:** P1-4
 - **Title:** Stabilize workers pagination test
@@ -770,7 +771,7 @@ No secrets are stored in this document.
 - **P2-2** Operations index page. Status: BACKLOG.
 - **P2-3** Locations index page. Status: BACKLOG.
 - **P2-4** Businesses index page. Status: BACKLOG.
-- **P2-5** My Account/Settings page. Status: BACKLOG.
+- **P2-5** My Account/Settings page. Status: COMPLETE (P1-3A profile + P1-3B password/session; notification preferences documented unsupported — no backend endpoint).
 - **P2-6** Re-link or remove `reports/performance` route. Status: BACKLOG.
 
 ### P3 — Polish
@@ -788,20 +789,15 @@ No secrets are stored in this document.
 ## 31. Current Next Item
 
 ```text
-ID:                 P1-3
-Title:              Settings/"System" decision — real My Account page, or scoped decision.
-Reason:             P1-2 (Complaints) is COMPLETE. Settings is the next-highest P1 item: the
-                    current My Account page is a minimal placeholder and nav `system` is a
-                    disabled "Soon" item, both still UNKNOWN. The decision scope means the next
-                    task documents the chosen direction (real page vs scoped-down decision)
-                    before any implementation.
-Dependencies:       Product decision required (real page / scoped decision).
+ID:                 P1-4
+Title:              Stabilize workers pagination test
+Module:             Workers/Tests
+Reason:             P1-3 (Settings Security & Preferences) is COMPLETE. P1-4 is the next meaningful item: workers pagination intermittently times out under parallel vitest (documented in §22 technical debt).
+Dependencies:       None (test-only fix; no backend change required).
 Acceptance Criteria:
-  - Decision recorded: either the My Account page is implemented (password change, profile,
-    session handling), or formally scoped down with rationale and the UNKNOWN status cleared.
-  - No fabricated functionality if scoped down — record the decision and STOP.
-
-Status:             NEXT PENDING (awaits product decision)
+  - `workers.test.tsx` pagination passes reliably under parallel vitest (current intermittent timeout resolved).
+  - 147/147 workers tests stable.
+Status:             NEXT PENDING (awaits test fix)
 ```
 
 No second "next" item.
@@ -859,6 +855,7 @@ No second "next" item.
 | 2026-09-06 | Dashboard Operational Overview COMPLETE: `/api/dashboard/overview` role-aware aggregation, real overview cards + 9-kebele comparison, honest null/zero/empty/loading/error states; §§6.1/7/9/11/12/18/19/20/21/28/30/33 updated; §31 next item unchanged (P1-2) | feature completion (P2-1/P3-2) | (this commit) |
 | 2026-09-06 | Complaints module COMPLETE (P1-2 implement decision): `complaints` table + migration `002`, `/api/complaints` CRUD + status transitions + summary, role-scoped kebele/zone isolation, audit + `complaint_update` notifications, Complaints page + nav enabled, viewer read-only; 31 backend tests + 8 frontend tests, all pass; §21 `nav.tsx` complaints placeholder removed; §29 QID-001 resolved; §30 P1-2 COMPLETE; §31 next item → P1-3 (do-not-implement) | feature completion (P1-2) | (this commit) |
 
+| 2026-09-06 | Settings Security & Preferences (P1-3B): password change (validated via `/api/users/:id/password`), session/logout preserved, notification preferences documented unsupported (no backend endpoint), read-only profile protected; registry updated §6.20/§30/§31; next item → P1-4 | feature completion (P1-3B) | (this commit) |
 ---
 
 ## 35. Registry Authority
