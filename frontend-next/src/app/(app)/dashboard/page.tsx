@@ -3,10 +3,13 @@
 import * as React from "react";
 import { Card, CardHeader, CardTitle, StatCard } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
+import { DataTable, type Column } from "@/components/ui/data-table";
 import { useAuth } from "@/lib/auth-context";
 import { useKebele } from "@/lib/kebele-context";
-import { api } from "@/lib/api";
+import { api, type DashboardOverview } from "@/lib/api";
 import { KebeleSelector, KebeleSummary } from "@/features/kebeles/components/kebele-selector";
+import { fmtETB, monthName } from "@/lib/utils";
 import type { Business } from "@/types";
 
 export default function DashboardPage() {
@@ -17,13 +20,9 @@ export default function DashboardPage() {
     role === "admin" ? "All Kebeles — City-wide" : role === "collector" ? "My Kebele — locked" : role === "leader" ? "My Safer Zone" : "—";
 
   // Kebeles count from the authoritative backend dataset (GET /api/kebeles).
-  // The kebeles endpoint is NOT role-scoped: it returns the full municipal roster
-  // (all authorized records K01–K09) for every authenticated role. KebeleProvider
-  // already loads this set, so the KPI reuses kebeles.length — no new endpoint, no hardcode.
   const kebeleCount = kebeles.length;
 
   // Active workers count from backend, respecting role/kebele authorization.
-  // Uses /workers?status=active which the backend filters by w.is_active=TRUE.
   const [activeWorkerCount, setActiveWorkerCount] = React.useState<number | null>(null);
   const [activeWorkerLoading, setActiveWorkerLoading] = React.useState(true);
   const [activeWorkerError, setActiveWorkerError] = React.useState<string | null>(null);
@@ -39,7 +38,6 @@ export default function DashboardPage() {
       // Leader: only active workers in their authorized zone
       if (selectedKebele?.id) baseParams.kebeleId = String(selectedKebele.id);
     }
-    // api.getWorkers already returns the flattened roster (Worker[]).
     api.getWorkers(baseParams, {}).then((res) => {
       setActiveWorkerCount(res.length);
     }).catch(() => {
@@ -48,8 +46,6 @@ export default function DashboardPage() {
   }, [role, selectedKebele?.id]);
 
   // Safer zones count from backend, respecting role/kebele authorization.
-  // Uses /api/safer-zones which returns the authoritative zone records.
-  // Admins see all safer zones across Dire Dawa; Kebele Admins see only their kebele's; Leaders see their zone.
   const [safeZoneCount, setSafeZoneCount] = React.useState<number | null>(null);
   const [safeZoneLoading, setSafeZoneLoading] = React.useState(true);
   const [safeZoneError, setSafeZoneError] = React.useState<string | null>(null);
@@ -65,7 +61,6 @@ export default function DashboardPage() {
       // Leader: only safer zones in their authorized zone
       if (selectedKebele?.id) baseParams.kebeleId = String(selectedKebele.id);
     }
-    // api.getSaferZones already normalizes to { zones: SaferZone[] }.
     api.getSaferZones(baseParams, {}).then((res) => {
       const zones = (res.zones || []).filter((z) => (z as { is_active?: boolean }).is_active !== false);
       setSafeZoneCount(zones.length);
@@ -75,8 +70,6 @@ export default function DashboardPage() {
   }, [role, selectedKebele?.id]);
 
   // Businesses count from backend, respecting role/kebele authorization.
-  // Uses /api/businesses?status=active which the backend filters by b.is_active=TRUE.
-  // Admins see all active businesses; Kebele Admins see only their kebele's; Leaders see their zone.
   const [businessCount, setBusinessCount] = React.useState<number | null>(null);
   const [businessLoading, setBusinessLoading] = React.useState(true);
   const [businessError, setBusinessError] = React.useState<string | null>(null);
@@ -92,7 +85,6 @@ export default function DashboardPage() {
       // Leader: only active businesses in their authorized zone
       if (selectedKebele?.id) baseParams.kebeleId = String(selectedKebele.id);
     }
-    // Backend returns an array or paginated {data,total,page,pages} (or {businesses}).
     api.getBusinesses(baseParams, {}).then((res) => {
       const r = res as unknown as { businesses?: Business[]; data?: Business[] } | Business[];
       const arr: Business[] = Array.isArray(r) ? r : (r?.businesses || r?.data || []);
@@ -101,6 +93,60 @@ export default function DashboardPage() {
       setBusinessCount(null);
     }).finally(() => setBusinessLoading(false));
   }, [role, selectedKebele?.id]);
+
+  // Operational overview — single role-scoped backend aggregation.
+  // The server scopes by the authenticated user (admin=city, collector=kebele, leader=zone),
+  // so the client never constructs or guesses its own scope.
+  const [overview, setOverview] = React.useState<DashboardOverview | null>(null);
+  const [overviewLoading, setOverviewLoading] = React.useState(true);
+  const [overviewError, setOverviewError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const ctrl = new AbortController();
+    setOverviewLoading(true);
+    setOverviewError(null);
+    api.getDashboardOverview({}, { signal: ctrl.signal })
+      .then((res) => setOverview(res))
+      .catch((e) => {
+        if ((e as Error).name === "AbortError") return;
+        setOverviewError(e instanceof Error ? e.message : "Failed to load operational overview");
+      })
+      .finally(() => setOverviewLoading(false));
+    return () => ctrl.abort();
+  }, []);
+
+  const comparisonTitle =
+    role === "admin" || role === "viewer"
+      ? "9-Kebele Operational Comparison"
+      : role === "collector"
+        ? "Kebele Operational Overview"
+        : "My Kebele — Operational Overview";
+  const comparisonBadge =
+    role === "admin" || role === "viewer" ? "City-wide" : role === "collector" ? "My Kebele" : "My Safer Zone";
+
+  type KebeleRow = DashboardOverview["kebeles"][number];
+  const comparisonColumns: Column<KebeleRow>[] = [
+    { key: "name", header: "Kebele", priority: 1, render: (k) => `${k.name} — ${k.code}` },
+    { key: "zones", header: "Zones", priority: 2, render: (k) => k.zones },
+    { key: "workers", header: "Workers", priority: 2, render: (k) => k.workerCount },
+    { key: "businesses", header: "Businesses", priority: 2, render: (k) => k.businessCount },
+    { key: "collected", header: "Collected", priority: 1, render: (k) => fmtETB(k.collected) },
+    ...(overview && overview.kebeles.some((k) => k.target !== null && k.target !== "") ? [
+      {
+        key: "achievement",
+        header: "Achievement %",
+        priority: 2,
+        render: (k: KebeleRow) => (k.achievementPct !== null ? `${k.achievementPct.toFixed(1)}%` : "—"),
+      },
+    ] as Column<KebeleRow>[] : []),
+    {
+      key: "attendance",
+      header: "Attendance %",
+      priority: 2,
+      render: (k: KebeleRow) => (k.attendanceRate !== null ? `${k.attendanceRate.toFixed(1)}%` : "—"),
+    },
+    { key: "inspections", header: "Inspections", priority: 2, render: (k) => k.inspectionTotal },
+  ];
 
   return (
     <div className="space-y-6">
@@ -125,47 +171,111 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle>Operational overview</CardTitle>
-          <Badge variant="blue">Placeholder — charts later</Badge>
+          <Badge variant="blue">{comparisonBadge}</Badge>
         </CardHeader>
-        {/* Skeletons for future dashboard charts — not migrated yet */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <div className="text-label">Monthly revenue (future chart)</div>
-            <div className="h-32 rounded bg-[var(--gray-100)] animate-pulse" aria-hidden />
+        {overviewLoading ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => <div key={i} className="h-24 animate-pulse rounded-[var(--r-md)] bg-[var(--gray-100)]" />)}
           </div>
-          <div className="space-y-2">
-            <div className="text-label">Attendance (future)</div>
-            <div className="h-32 rounded bg-[var(--gray-100)] animate-pulse" aria-hidden />
-          </div>
-        </div>
-        <p className="mt-3 text-xs text-[var(--text-muted)]">Charts and detailed statistics will be migrated in a later phase. Backend remains authoritative.</p>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>9-Kebele Overview (admin)</CardTitle>
-          <Badge variant="blue">City-wide</Badge>
-        </CardHeader>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {Array.from({ length: 9 }).map((_, i) => {
-            const kebeleId = i + 1;
-            const k = kebeles.find((k) => k.id === kebeleId);
-            const kebeleName = k?.name || `Kebele ${String(i + 1).padStart(2, "0")}`;
-            const kebeleCode = k?.code || `K${String(i + 1).padStart(2, "0")}`;
-            const zoneCount = k?.zones_count !== undefined ? String(k.zones_count) : "Unavailable";
-
-            return (
-              <div key={i} className="rounded-lg border border-[var(--border)] p-3">
-                <div className="text-sm font-semibold">{kebeleName} — {kebeleCode}</div>
-                <div className="mt-1 text-xs text-[var(--text-muted)]">{zoneCount} Safer Zones</div>
-                <div className="mt-1 text-xs">Workers: Unavailable</div>
-                <div className="mt-1 text-xs">Payments: {/* paymentAch */}</div>
+        ) : overviewError ? (
+          <Alert variant="danger">{overviewError}</Alert>
+        ) : overview ? (
+          <div className="space-y-5">
+            <section aria-label="Revenue overview">
+              <h3 className="text-sm font-semibold">Revenue</h3>
+              <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <StatCard label="Collected" value={fmtETB(overview.revenue.totalCollected)} sub="Paid" accent="green" />
+                <StatCard label="Pending" value={fmtETB(overview.revenue.totalPending)} sub="Awaiting" accent="orange" />
+                <StatCard label="Overdue" value={fmtETB(overview.revenue.totalOverdue)} sub="Overdue" accent="red" />
+                <StatCard
+                  label="Target"
+                  value={overview.revenue.target !== null ? fmtETB(overview.revenue.target) : "—"}
+                  sub={overview.revenue.achievementPct !== null ? `Achievement ${overview.revenue.achievementPct.toFixed(1)}%` : "No target data"}
+                  accent="blue"
+                />
               </div>
-            );
-          })}
-        </div>
-        <p className="mt-3 text-xs text-[var(--text-muted)]">Worker counts from kebele context. Inspection % unavailable — no authoritative expected-inspection baseline exists.</p>
+
+              <div className="mt-4">
+                <div className="text-label">Monthly collection trend</div>
+                <div className="mt-2" aria-hidden>
+                  {overview.revenue.monthly.length > 0 ? (
+                    <div className="flex h-32 items-end gap-1">
+                      {(() => {
+                        const max = Math.max(1, ...overview.revenue.monthly.map((t) => Number(t.collected || 0)));
+                        return overview.revenue.monthly.map((t) => {
+                          const h = (Number(t.collected || 0) / max) * 100;
+                          return (
+                            <div key={t.month} className="flex flex-1 flex-col items-center">
+                              <div className="w-full rounded-t bg-[var(--primary)]" style={{ height: `${h}%` }} title={`${monthName(t.month)}: ${fmtETB(t.collected)}`} />
+                              <span className="mt-1 text-[10px] text-[var(--text-muted)]">{monthName(t.month)}</span>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[var(--text-muted)]">No monthly data available.</p>
+                  )}
+                </div>
+                <details className="mt-3 text-xs">
+                  <summary className="cursor-pointer text-[var(--text-muted)]">Text alternative</summary>
+                  <p className="mt-1 text-[var(--text-muted)]" role="region" aria-live="polite">
+                    {overview.revenue.monthly.map((t) => `${monthName(t.month)}: ${fmtETB(t.collected)}`).join(" · ") || "No data"}
+                  </p>
+                </details>
+              </div>
+            </section>
+
+            <section aria-label="Attendance overview">
+              <h3 className="text-sm font-semibold">Attendance</h3>
+              <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <StatCard label="Present" value={overview.attendance.presentCount} sub="Worker-days" accent="green" />
+                <StatCard label="Absent" value={overview.attendance.absentCount} sub="Worker-days" accent="red" />
+                <StatCard
+                  label="Attendance rate"
+                  value={overview.attendance.attendanceRate !== null ? `${overview.attendance.attendanceRate}%` : "No data"}
+                  sub={overview.attendance.attendanceRate !== null ? `${overview.attendance.totalRecords} records` : "No attendance records this period"}
+                  accent="blue"
+                />
+              </div>
+            </section>
+
+            <section aria-label="Inspection overview">
+              <h3 className="text-sm font-semibold">Inspections</h3>
+              <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <StatCard label="Inspections" value={overview.inspections.total} sub="This period" accent="blue" />
+                <StatCard label="Active" value={overview.inspections.active} sub="Clean" accent="green" />
+                <StatCard label="Warning" value={overview.inspections.warning} sub="Needs attention" accent="orange" />
+                <StatCard label="Danger" value={overview.inspections.danger} sub="Critical" accent="red" />
+              </div>
+              <p className="mt-2 text-xs text-[var(--text-muted)]">
+                Inspection counts are real. An expected-vs-actual inspection % is not computed — no authoritative baseline exists.
+              </p>
+            </section>
+          </div>
+        ) : null}
       </Card>
+
+      {!overviewLoading && !overviewError && overview && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{comparisonTitle}</CardTitle>
+            <Badge variant="blue">{comparisonBadge}</Badge>
+          </CardHeader>
+          <p className="mb-3 text-xs text-[var(--text-muted)]">
+            Real per-kebele data from <code>/api/dashboard/overview</code>. Achievement % shown only where a monthly target exists; attendance % only where records exist — never fabricated.
+          </p>
+          <DataTable
+            columns={comparisonColumns as Column<Record<string, unknown>>[]}
+            data={overview.kebeles as unknown as Record<string, unknown>[]}
+            loading={false}
+            ariaLabel={comparisonTitle}
+            emptyTitle="No kebele data"
+            emptyDescription="Backend returned no kebele rows for your scope."
+            getRowKey={(r: Record<string, unknown>, i: number) => String(r.id ?? i)}
+          />
+        </Card>
+      )}
     </div>
   );
 }

@@ -49,6 +49,48 @@ export type FetchOptions = {
   timeoutMs?: number; // default 15000
 };
 
+// Dashboard Operational Overview — response of GET /api/dashboard/overview
+// (single role-scoped aggregation; numeric money values are strings from the DB).
+export type DashboardOverview = {
+  revenue: {
+    totalCollected: string;
+    totalPending: string;
+    totalOverdue: string;
+    target: string | null;
+    achievementPct: number | null;
+    monthly: { month: number; collected: string }[];
+  };
+  attendance: {
+    totalRecords: number;
+    presentCount: number;
+    absentCount: number;
+    attendanceRate: number | null;
+  };
+  inspections: {
+    total: number;
+    active: number;
+    warning: number;
+    danger: number;
+  };
+  kebeles: {
+    id: number;
+    code: string;
+    name: string;
+    zones: number;
+    workerCount: number;
+    businessCount: number;
+    target: string | null;
+    collected: string;
+    achievementPct: number | null;
+    attendanceRate: number | null;
+    inspectionTotal: number;
+    activeInspections: number;
+    warningInspections: number;
+    dangerInspections: number;
+  }[];
+  scope: { role: string };
+};
+
 async function req<T>(method: string, path: string, body?: unknown, opts: FetchOptions = {}): Promise<T> {
   const timeoutMs = opts.timeoutMs ?? 15000;
   const controller = new AbortController();
@@ -209,6 +251,9 @@ export const api = {
       undefined,
       opts
     ),
+  // Dashboard — single role-scoped backend aggregation (GET /api/dashboard/overview)
+  getDashboardOverview: (params: Record<string, string> = {}, opts?: FetchOptions) =>
+    req<DashboardOverview>("GET", `/dashboard/overview?${new URLSearchParams(params).toString()}`, undefined, opts),
   // Reports — monthly payments CSV/PDF export helper (used by legacy payments CSV button)
   getPaymentReport: (params: Record<string, string> = {}, opts?: FetchOptions) =>
     req<unknown[]>("GET", `/reports/payments/monthly?${new URLSearchParams(params).toString()}`, undefined, opts),

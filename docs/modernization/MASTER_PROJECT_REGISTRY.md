@@ -25,7 +25,7 @@ Last Audited:           2026-09-06
 Current Project Status: STEADY — no mid-flight feature work; production infrastructure externally BLOCKED
 Current Phase:          Post-modernization incremental improvements (registry keeps the roadmap)
 Current Release:        1.0.0 (pre-production; local Docker Compose verified)
-Current Repository HEAD: 98e9139 (main, 84 commits, clean tree)
+Current Repository HEAD: 98e9139 (main, 84 commits, clean tree) — this commit updates it; pin the hash in the next audit pass (§34 tag "this commit")
 Registry Owner:         opencode agent (maintains roadmap; user authorizes scope)
 ```
 
@@ -155,12 +155,12 @@ Only architecturally important locations are listed.
 Statuses: COMPLETE / PARTIAL / IN PROGRESS / BACKLOG / DEFERRED / BLOCKED / UNKNOWN.
 
 ### 6.1 Dashboard
-- Route: `/dashboard`. Status: PARTIAL.
-- Backend: `/workers?status=active`, `/businesses?status=active`, `/safer-zones`, `/payments/summary/dashboard`.
-- Real Data: yes (Safer Zones, Active Workers, Businesses KPIs; 9-Kebele Overview zones + payment achievement).
-- Authorization: yes (role/kebele scoped). Mobile: yes. Accessibility: yes. Tests: yes.
-- Placeholders: Kebeles KPI hardcoded `9`; "Operational overview" chart card.
-- Known limitations: no charts yet; per-kebele worker counts "Unavailable"; inspection % "Unavailable" (no baseline).
+- Route: `/dashboard`. Status: COMPLETE.
+- Backend: `/workers?status=active`, `/businesses?status=active`, `/safer-zones`, `/payments/summary/dashboard`, `/dashboard/overview`.
+- Real Data: yes (Kebeles/Safer Zones/Active Workers/Businesses KPIs; revenue/attendance/inspections overview; real 9-kebele operational comparison).
+- Authorization: yes (role/kebele/zone scoped; `/api/dashboard/overview` scopes server-side — admin/viewer city-wide, collector own kebele, leader own zone). Mobile: yes. Accessibility: yes. Tests: yes.
+- Placeholders: none (operational overview + comparison are real data).
+- Known limitations: expected-vs-actual inspection % still "Unavailable" (no authoritative baseline); attendance rate is null (rendered "No data") when no records exist — never fabricated as 0%.
 
 ### 6.2 Workers
 - Route: `/operations/workers`. Status: COMPLETE.
@@ -268,6 +268,7 @@ Statuses: COMPLETE / PARTIAL / IN PROGRESS / BACKLOG / DEFERRED / BLOCKED / UNKN
 | REQ-SEC-001 | Server-authoritative kebele/zone isolation | Security | P0 | COMPLETE | auth.js, SQL filters, authorization tests | |
 | REQ-SEC-002 | Sessions, secrets, CORS, rate limits | Security | P0 | COMPLETE | Phase 0 commits, env config | |
 | REQ-DASH-001 | Dashboard KPIs with real backend data | Dashboard | P1 | COMPLETE | dashboard commits §19/§20 | Kebeles KPI now backend-sourced (§12) |
+| REQ-DASH-002 | Dashboard operational overview (revenue/attendance/inspections + 9-kebele comparison), role-scoped | Dashboard | P1 | COMPLETE | `dashboard.js`, dashboard tests | honest null/zero states |
 | REQ-MOB-001 | Android field operations | Android | P1 | COMPLETE | android/ (Phases 10–12) | Play Store deferred |
 | REQ-PROD-001 | Production deployment | Production | P1 | BLOCKED | infra docs | External municipal IT |
 
@@ -314,6 +315,7 @@ Statuses: COMPLETE / PARTIAL / IN PROGRESS / BACKLOG / DEFERRED / BLOCKED / UNKN
 | `/api/safer-zones` | GET | Safer Zones | auth | role/kebele | — | — | COMPLETE |
 | `/api/payments` | GET | Payments | auth | role/leader | yes | yes | COMPLETE |
 | `/api/payments/summary/dashboard` | GET | Payments | auth | role/leader | yes | — | COMPLETE |
+| `/api/dashboard/overview` | GET | Dashboard | auth | role (leader=own zone, collector=own kebele, admin/viewer=city) | yes | — | COMPLETE |
 | `/api/payments/callback/telebirr` | POST | Payments | webhook | — | yes | — | COMPLETE |
 | `/api/payments/callback/cbebirr` | POST | Payments | webhook | — | yes | — | COMPLETE |
 | `/api/inspections` | GET | Inspections | auth | role/kebele | yes | yes | COMPLETE |
@@ -403,6 +405,7 @@ Only meaningful endpoints listed.
 - **Safer Zone** — Definition: one of 108 zones; 12 per kebele; scope unit for leaders. Status: COMPLETE.
 - **Zone Report** — Definition: monthly report per safer zone; unique per `(safer_zone_id, year, month)`; workflow draft→submitted→reviewed→approved. Status: COMPLETE.
 - **Safer Zone Count (KPI)** — Definition: count of safer zones in scope, excluding `is_active=false`. Source: `GET /api/safer-zones`. Status: COMPLETE.
+- **Operational Overview** — Definition: single role-scoped aggregate for the dashboard (revenue collected/pending/overdue/target + achievementPct, monthly collected trend, attendance summary + rate, inspection status counts, per-kebele comparison rows: zones/workerCount/businessCount/target/collected/achievementPct/attendanceRate/inspection buckets). Source: `GET /api/dashboard/overview` (`backend/routes/dashboard.js`). Formula: zone-scoped SQL; `achievementPct` computed only when target>0; attendance rate null when zero records (rendered "No data"). Scope: admin/viewer=city, collector=own kebele (`kebeles.collector_id`; unassigned → empty result, not city data), leader=own zone. Status: COMPLETE.
 
 ---
 
@@ -415,10 +418,13 @@ Only meaningful endpoints listed.
 | Active Workers | count of `is_active` workers | `GET /workers?status=active` | role/kebele | count of returned workers | COMPLETE |
 | Businesses | count of `is_active` businesses | `GET /businesses?status=active` | role/kebele | count (see contract) | COMPLETE |
 | Payment achievement | collected vs target by kebele | `/payments/summary/dashboard` | role/leader | SUM(paid amount); target SUM | COMPLETE |
-| Workers per kebele | per-kebele counts | none authoritative | kebele | "Unavailable" (no baseline) | LIMITATION |
+| Workers per kebele | per-kebele count of active workers (`workerCount`) | `/api/dashboard/overview` → `kebeles[].workerCount` | kebele | COUNT over zone-scoped workers grouped by kebele; workers with NULL zone are uncountable per-kebele (KPI still counts them city-wide) | COMPLETE |
+| Attendance rate (overview) | present / total worker-days in period | `/api/dashboard/overview` → `attendance.attendanceRate` + `kebeles[].attendanceRate` | role | null (rendered "No data") when zero records; never fabricated as 0%; `::numeric` division per kebele | COMPLETE |
 | Inspection % | expected-vs-actual inspections | none authoritative | — | "Unavailable" | LIMITATION |
 
 Dedicated contract: `docs/modernization/BUSINESSES_COUNT_CONTRACT.md`.
+
+Operational overview aggregations (`revenue`, `monthly`, `attendance`, `inspections`, `kebeles[]`) are defined in `backend/routes/dashboard.js` and verified by `backend/test/dashboard.test.js` (admin shape, collector/leader scoping, achievement-null honesty, unassigned-collector empty result).
 
 ---
 
@@ -512,10 +518,10 @@ Known defects tracked separately: none active beyond the flaky `workers.test.tsx
 
 | Category | Command | Result | Date | Commit |
 | -------- | ------- | ------ | ---- | ------ |
-| Frontend tests | `npx vitest run` (from `frontend-next/`) | 155/155 (16 files); workers pagination intermittent under parallel load (passes solo) | 2026-09-06 | (P1-1 commit) |
-| Backend tests | `npm test` (from `backend/`, NODE_ENV=test) | 161 passing, 2 pending, 0 failing (10 suites) | 2026-09-05 | fe316b5 |
-| Lint (frontend) | `next lint` | pass (2026-09-06) | 2026-09-06 | (P1-1 commit) |
-| Typecheck (frontend) | `tsc --noEmit` | pass (2026-09-06); previously 9 errors from dashboard page | 2026-09-06 | (P1-1 commit) |
+| Frontend tests | `npx vitest run` (from `frontend-next/`) | 163/163 (16 files); workers pagination intermittent under parallel load (passes solo) | 2026-09-06 | (this commit) |
+| Backend tests | `npm test` (from `backend/`, NODE_ENV=test) | 167 passing, 2 pending, 0 failing | 2026-09-06 | (this commit) |
+| Lint (frontend) | `next lint` | pass | 2026-09-06 | (this commit) |
+| Typecheck (frontend) | `tsc --noEmit` | pass | 2026-09-06 | (this commit) |
 | Build (frontend) | `next build` | BLOCKED (environment): `next-swc` native binding SIGBUS (exit 135) in this sandbox; reproducible on a minimal throwaway app — not caused by project code; run on a normal host | 2026-09-06 | — |
 | Security | `security.test.js`, `authorization.test.js` | passing | 2026-09-05 | fe316b5 |
 | Database | `validate-migration.js`, `db-health-check.sh` | 9 kebeles / 108 zones verified | 2026-09-05 | fe316b5 |
@@ -553,6 +559,7 @@ Historical results preserved with date and commit.
 | 2026-09-05 | Master Project Registry (v1, v2.0, v2.1, v3.0) | done | `5e72309` `9943367` `08854f2` | this file |
 | 2026-09-05 | Agent Work Instructions created | done | `08854f2` | AGENT_WORK_INSTRUCTIONS.md |
 | 2026-09-06 | Dashboard: Kebeles KPI from authoritative `GET /api/kebeles` + repair of pre-existing compile-blocking regressions (missing KebeleSelector/KebeleSummary import from `ae5187a`, Businesses-KPI effect dropped by `fe316b5`, Workers/Zones response typing, `kebelesCode` typo) | done | (this commit) | §12, §20, §22 |
+| 2026-09-06 | Dashboard: Operational Overview COMPLETE — role-aware `GET /api/dashboard/overview` aggregation (revenue totals+target+achievement, monthly trend, attendance, inspections, per-kebele comparison), real far-overview cards replacing the placeholder chart card, real 9-kebele comparison via DataTable (no more "Unavailable" worker counts), monthly trend with a11y details text alternative, honest null/zero/empty/loading/error states, api.ts `DashboardOverview` type | done | (this commit) | §6.1, §7, §9, §11, §12, §18, §20, §21 |
 
 ---
 
@@ -568,6 +575,7 @@ Historical results preserved with date and commit.
 | 6 | Businesses KPI | static/hardcoded | `GET /businesses?status=active` scoped | `2a82988` | pass |
 | 7 | Safer Zones KPI | hardcoded 108 | `GET /api/safer-zones` scoped | `fe316b5` | pass |
 | 8 | Kebeles KPI | hardcoded `9` | `useKebele().kebeles` → `GET /api/kebeles` (authoritative, all roles); loading/zero/error states | (this commit) | 8 new dashboard tests, 155/155 pass |
+| 9 | Operational overview + 9-kebele comparison | placeholder "Operational overview" chart card; per-kebele worker counts "Unavailable"; no comparisons | single role-scoped `GET /api/dashboard/overview`; real revenue/attendance/inspections cards; monthly trend with a11y text alternative; real comparative DataTable; honest null/zero/empty/loading/error states | (this commit) | 8 new backend tests + 8 new dashboard tests, all pass |
 
 ---
 
@@ -575,7 +583,6 @@ Historical results preserved with date and commit.
 
 | Location | Item | Classification | Priority | Status |
 | -------- | ---- | -------------- | -------- | ------ |
-| `/dashboard` Operational overview | chart skeletons | PLACEHOLDER | P2-1 | BACKLOG |
 | `nav.tsx` complaints | disabled "Soon" | COMING SOON | P1-2 | UNKNOWN |
 | `nav.tsx` system | disabled "Soon" | COMING SOON | P1-3 | UNKNOWN |
 | `settings/page.tsx` | 5-line placeholder | PLACEHOLDER | P2-5 | BACKLOG |
@@ -584,7 +591,7 @@ Historical results preserved with date and commit.
 | `businesses/page.tsx` | placeholder | PLACEHOLDER | P2-4 | BACKLOG |
 | `reports/performance/page.tsx` | real page, nav removed | OBSOLETE | P2-6 | BACKLOG |
 | GIS map nav | disabled "Soon" | COMING SOON | P3-1 | BLOCKED |
-| 9-Kebele worker counts | "Unavailable" | REAL UNAVAILABLE STATE | — | LIMITATION |
+| Analytics per-kebele worker breakdown | "Unavailable" | REAL UNAVAILABLE STATE | — | LIMITATION (dashboard comparison now provides `workerCount` per kebele via overview) |
 | Inspection % | "Unavailable" | REAL UNAVAILABLE STATE | — | LIMITATION |
 
 ---
@@ -684,7 +691,7 @@ No secrets are stored in this document.
 
 - Production host/infrastructure unavailable (external).
 - Official GIS dataset unavailable (boundary columns empty).
-- Worker-per-kebele KPI and Inspection % unavailable — no authoritative baseline; UI shows "Unavailable".
+- Worker-per-kebele KPI and Inspection % unavailable — no authoritative baseline; UI shows "Unavailable". Per-kebele worker counts are now available on the dashboard comparison (`workerCount`); analytics still has no per-kebele worker breakdown, and expected-vs-actual inspection % remains undefined.
 - `workers.test.tsx` pagination intermittently times out under parallel vitest.
 - Android build requires JAVA_HOME (not set in sandbox); verified in earlier phases.
 - Live payment webhooks need production credentials.
@@ -751,7 +758,7 @@ No secrets are stored in this document.
 
 ### P2 — Important Improvements
 
-- **P2-1** Real dashboard charts from backend dimensions (placeholder chart card). Module: Dashboard. Status: BACKLOG.
+- **P2-1** Real dashboard charts from backend dimensions (placeholder chart card). Module: Dashboard. Status: COMPLETE (2026-09-06, operational overview).
 - **P2-2** Operations index page. Status: BACKLOG.
 - **P2-3** Locations index page. Status: BACKLOG.
 - **P2-4** Businesses index page. Status: BACKLOG.
@@ -761,7 +768,7 @@ No secrets are stored in this document.
 ### P3 — Polish
 
 - **P3-1** Enable web GIS map when official data present. Status: BLOCKED.
-- **P3-2** Kebele comparisons/operational stats (no fabrication). Status: BACKLOG.
+- **P3-2** Kebele comparisons/operational stats (no fabrication). Status: COMPLETE (2026-09-06, dashboard overview).
 - **P3-3** Remaining loading/empty/error state gaps. Status: BACKLOG.
 
 ### FUTURE — Deferred
@@ -824,7 +831,7 @@ No second "next" item.
 | Phase reports | `docs/modernization/phase-*.md`, `docs/modernization/PHASE_18/19.md` |
 | Handover/go-live | `docs/operations/FINAL_PRODUCTION_GO_LIVE.md`, `MUNICIPAL_IT_PRODUCTION_HANDOFF.md`, `PHASE_23_INFRASTRUCTURE_VERIFICATION.md` |
 | Deployment & operations | `docs/operations/PRODUCTION_PROVISIONING_CHECKLIST.md`, `PRODUCTION_RUNBOOK.md`, `disaster-recovery.md`, `release-process.md` |
-| Key commits | `git log --oneline` (HEAD `fe316b5`) |
+| Key commits | `git log --oneline` (HEAD — see §34) |
 | This registry | `docs/modernization/MASTER_PROJECT_REGISTRY.md` |
 | Agent procedures | `docs/modernization/AGENT_WORK_INSTRUCTIONS.md` |
 
@@ -839,6 +846,7 @@ No second "next" item.
 | 2026-09-05 | v2.1 removed procedural/agent instructions → separate `AGENT_WORK_INSTRUCTIONS.md`; 31 factual sections | separation of facts from agent procedures | `08854f2` |
 | 2026-09-05 | v3.0 restructured to exact 36-section schema (§0–§35); added Repository Structure, Accessibility, Data Integrity, Deployment & Operations sections | exact-structure directive | `98e9139` |
 | 2026-09-06 | Separation audit — validated Registry vs Agent Work Instructions for contradictions, duplication, missing facts/rules, separation clarity; refreshed Document Control HEAD | brief validation step | (this commit) |
+| 2026-09-06 | Dashboard Operational Overview COMPLETE: `/api/dashboard/overview` role-aware aggregation, real overview cards + 9-kebele comparison, honest null/zero/empty/loading/error states; §§6.1/7/9/11/12/18/19/20/21/28/30/33 updated; §31 next item unchanged (P1-2) | feature completion (P2-1/P3-2) | (this commit) |
 
 ---
 
